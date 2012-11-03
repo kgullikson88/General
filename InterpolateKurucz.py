@@ -2,21 +2,24 @@ import numpy
 from scipy.interpolate import UnivariateSpline
 import os
 from collections import defaultdict
-import DataStructures
 import pyfits
 import pylab
+import DataStructures
+import Units
 
 homedir = os.environ["HOME"] + "/"
 model_directory = homedir + "Dropbox/School/Research/AstarStuff/TargetLists/AgeDetermination/Kurucz_Models"
 
 class Models:
-  def __init__(self, modeldir=model_directory):
+  def __init__(self, modeldir=model_directory, debug=False):
     self.model_dict = defaultdict(str)   #Dictionary of all models in modeldir, with temperature as key
     self.read_dict = defaultdict(list)   #Dictionary of all models already read in.
                                          #The list is the wavelength, followed by a dictionary
                                          #of flux values for each value of log(g)
     self.logg_grid = numpy.arange(0.0, 5.5, 0.5)  #grid of log(g) values for the default Kurucz grid.
                                                   #Warning! May not be true if a different grid is used!
+    self.modeldir = modeldir
+    self.debug = debug
     allfiles = os.listdir(modeldir)
     for fname in allfiles:
       if fname.startswith("ckp00") and fname.endswith(".fits"):
@@ -28,38 +31,40 @@ class Models:
     #Make sure it is not already read in
     if T in self.read_dict.keys():
       if logg in self.read_dict[T][1].keys():
-        print "Model with T = %g and log(g) = %g already read. Skipping..." %(T, logg)
+        if self.debug:
+          print "Model with T = %g and log(g) = %g already read. Skipping..." %(T, logg)
         return 0
       else:
-        hdulist = pyfits.open(self.model_dict[T])
+        hdulist = pyfits.open(self.modeldir + "/" + self.model_dict[T])
         data = hdulist[1].data
         hdulist.close()
-        logg_str = "g%i" %(logg*10.)
+        logg_str = "g%.2i" %(logg*10.)
         try:
           flux = data[logg_str]
           self.read_dict[T][1][logg] = flux
         except KeyError:
-          print "Error! log(g) = %g does not exist in file %s!"
+          print "Error! log(g) = %g does not exist in file %s!" %(logg, self.modeldir + "/" + self.model_dict[T])
           return -1
     else:
       #This means this temperature has not yet been read in
-      fname = self.model_dict[T]
-      if fname == "":
+      fname = self.modeldir + "/" + self.model_dict[T]
+      if self.model_dict[T] == "":
         #This temperature does not exist in the model
         print "Error! No model found with T = %g" %T
+        return -1
       else:
         hdulist = pyfits.open(fname)
         data = hdulist[1].data
         hdulist.close()
         wave = data['wavelength']
         d = defaultdict(numpy.ndarray)
-        logg_str = "g%i" %(logg*10.)
+        logg_str = "g%.2i" %(logg*10.)
         try:
           flux = data[logg_str]
           d[logg] = flux
           self.read_dict[T] = [wave, d]
         except KeyError:
-          print "Error! log(g) = %g does not exist in file %s!"
+          print "Error! log(g) = %g does not exist in file %s!" %(logg, fname)
           return -1
 
     #If we get here, everything was successful.
@@ -105,23 +110,26 @@ class Models:
     for g in self.logg_grid:
       if numpy.abs(logg-g) < numpy.abs(gsecond-g) and g != gclosest:
         gsecond=g
-
+        
 
     #For each temperature, we will interpolate to the requested log(g) first
     #Do the closest temperature first
     spec1 = self.GetSpectrum(Tclosest, gclosest)
     spec2 = self.GetSpectrum(Tclosest, gsecond)
-    if type(spec1) != int and type(spec2) != int:
+    if logg == gclosest:
+      spectrum_T1 = spec1.copy()
+    elif type(spec1) != int and type(spec2) != int:
       #This means everything went fine with GetSpectrum
       spectrum_T1 = spec1.copy()
       spectrum_T1.y = (spec2.y - spec1.y)/(gsecond - gclosest)*(logg - gclosest) + spec1.y
     else:
       return -1
-
       
     #And the second closest temperature
     spec1 = self.GetSpectrum(Tsecond, gclosest)
     spec2 = self.GetSpectrum(Tsecond, gsecond)
+    if logg == gclosest:
+      spectrum_T2 = spec1.copy()
     if type(spec1) != int and type(spec2) != int:
       #This means everything went fine with GetSpectrum
       spectrum_T2 = spec1.copy()
@@ -130,6 +138,8 @@ class Models:
       return -1
 
     spectrum = spectrum_T1.copy()
+    if T == Tclosest:
+      return spectrum
     if numpy.all(spectrum_T1.x == spectrum_T2.x):
       spectrum.y = (spectrum_T1.y - spectrum_T2.y)/(Tclosest - Tsecond) * (T - Tclosest) + spectrum_T1.y
     else:
