@@ -56,7 +56,8 @@ class Models:
       fname = self.modeldir + "/" + self.model_dict[T][metal]
       if self.model_dict[T][metal] == "":
         #This temperature does not exist in the model
-        print "Error! No model found with T = %g" %T
+        print T, metal
+        print "Error! No model found with T = %g and [Z/H] = " %(T, metal)
         return -1
       else:
         hdulist = pyfits.open(fname)
@@ -119,6 +120,8 @@ class Models:
       i += 1
     if gclosest > logg and i > 1:
       gsecond = self.logg_grid[i-2]
+    elif gclosest == self.logg_grid[-1]:
+      gsecond = self.logg_grid[-2]
 
     #And again for metallicity
     metalclosest = 9e9
@@ -151,6 +154,8 @@ class Models:
       #This means everything went fine with GetSpectrum
       spectrum_T1_Z1 = spec1.copy()
       spectrum_T1_Z1.y = (spec2.y - spec1.y)/(gsecond - gclosest)*(logg - gclosest) + spec1.y
+      if gsecond == gclosest:
+        print "log(g) values the same1: %g, %g" %(gsecond, logg)
     else:
       return -1
 
@@ -163,6 +168,8 @@ class Models:
       #This means everything went fine with GetSpectrum
       spectrum_T1_Z2 = spec1.copy()
       spectrum_T1_Z2.y = (spec2.y - spec1.y)/(gsecond - gclosest)*(logg - gclosest) + spec1.y
+      if gsecond == gclosest:
+        print "log(g) values the same2: %g" %gsecond
     else:
       return -1
       
@@ -171,10 +178,12 @@ class Models:
     spec2 = self.GetSpectrum(Tsecond, gsecond, metalclosest)
     if logg == gclosest:
       spectrum_T2_Z1 = spec1.copy()
-    if type(spec1) != int and type(spec2) != int:
+    elif type(spec1) != int and type(spec2) != int:
       #This means everything went fine with GetSpectrum
       spectrum_T2_Z1 = spec1.copy()
       spectrum_T2_Z1.y = (spec2.y - spec1.y)/(gsecond - gclosest)*(logg - gclosest) + spec1.y
+      if gsecond == gclosest:
+        print "log(g) values the same3: %g" %gsecond
     else:
       return -1
 
@@ -183,10 +192,12 @@ class Models:
     spec2 = self.GetSpectrum(Tsecond, gsecond, metalsecond)
     if logg == gclosest:
       spectrum_T2_Z2 = spec1.copy()
-    if type(spec1) != int and type(spec2) != int:
+    elif type(spec1) != int and type(spec2) != int:
       #This means everything went fine with GetSpectrum
       spectrum_T2_Z2 = spec1.copy()
       spectrum_T2_Z2.y = (spec2.y - spec1.y)/(gsecond - gclosest)*(logg - gclosest) + spec1.y
+      if gsecond == gclosest:
+        print "log(g) values the same4: %g" %gsecond
     else:
       return -1
 
@@ -194,13 +205,19 @@ class Models:
     spectrum_T1 = spectrum_T1_Z1.copy()
     if metalclosest != metal and numpy.all(spectrum_T1_Z1.x == spectrum_T1_Z2.x):
       spectrum_T1.y = (spectrum_T1_Z1.y - spectrum_T1_Z2.y)/(metalclosest - metalsecond) * (metal - metalclosest) + spectrum_T1_Z1.y
-    else:
+      if metalsecond == metalclosest:
+        print "[Fe/H] values the same1: %g" %metalsecond
+    elif numpy.any(spectrum_T1_Z1.x != spectrum_T1_Z2.x):
+      print "Wavelength grid not the same!"
       return -1
 
     spectrum_T2 = spectrum_T2_Z1.copy()
     if metalclosest != metal and numpy.all(spectrum_T2_Z1.x == spectrum_T2_Z2.x):
       spectrum_T2.y = (spectrum_T2_Z1.y - spectrum_T2_Z2.y)/(metalclosest - metalsecond) * (metal - metalclosest) + spectrum_T2_Z1.y
-    else:
+      if metalsecond == metalclosest:
+        print "[Fe/H] values the same2: %g" %metalsecond
+    elif numpy.any(spectrum_T2_Z1.x != spectrum_T2_Z2.x):
+      print "Wavelength grid not the same!"
       return -1
       
 
@@ -209,8 +226,45 @@ class Models:
       return spectrum
     if numpy.all(spectrum_T1.x == spectrum_T2.x):
       spectrum.y = (spectrum_T1.y - spectrum_T2.y)/(Tclosest - Tsecond) * (T - Tclosest) + spectrum_T1.y
+      if Tsecond == Tclosest:
+        print "T values the same1: %g" %Tlsecond
     else:
       return -1
 
-
+    #spec1 = self.GetSpectrum(Tclosest, gclosest, metalclosest)
+    #spec2 = self.GetSpectrum(Tsecond, gsecond, metalsecond)
+    #pylab.plot(spectrum.x, spectrum.y, label="Interpolated")
+    #pylab.plot(spec1.x, spec1.y, label="Closest match")
+    #pylab.plot(spec2.x, spec2.y, label="Second closest")
+    #pylab.legend(loc='best')
+    #pylab.show()
     return spectrum
+
+
+
+  #Function to linearly interpolate to a given Temperature and log(g)
+  def GetClosestSpectrum(self, T, logg, metal=0.0):
+    #First, find the closest temperature in self.model_dict
+    Tclosest = 9e9
+    Temperatures = sorted(self.model_dict.keys())
+    for temp in Temperatures:
+      if numpy.abs(T-temp) < numpy.abs(Tclosest-temp):
+        Tclosest = temp
+
+    #Do the same thing for log(g)
+    gclosest = 9e9
+    for g in self.logg_grid:
+      if numpy.abs(logg-g) < numpy.abs(gclosest-g):
+        gclosest=g
+
+    #And again for metallicity
+    metalclosest = 9e9
+    metals = sorted(self.model_dict[Tclosest].keys())
+    for z in metals:
+      if numpy.abs(metal - z) < numpy.abs(metalclosest - z):
+        metalclosest = z
+
+    if self.debug:
+      print "T = %g\tlog(g) = %g\t[Z/H] = %g" %(Tcloses, gclosest, metalclosest)
+
+    return self.GetSpectrum(Tclosest, gclosest, metalclosest)
