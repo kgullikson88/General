@@ -104,6 +104,10 @@ class Models:
       i += 1
     if Tclosest > T and i > 1:
       Tsecond = Temperatures[i-2]
+    elif Tclosest == Temperatures[-1]:
+      Tsecond = Temperatures[-2]
+    elif Tclosest == Temperatures[0]:
+      Tsecond = Temperatures[1]
       #for temp in Temperatures:
       #if numpy.abs(T-temp) < numpy.abs(Tsecond-temp) and temp != Tclosest:
       #  Tsecond = temp
@@ -122,6 +126,8 @@ class Models:
       gsecond = self.logg_grid[i-2]
     elif gclosest == self.logg_grid[-1]:
       gsecond = self.logg_grid[-2]
+    elif gclosest == self.logg_grid[0]:
+      gsecond = self.logg_grid[1]
 
     #And again for metallicity
     metalclosest = 9e9
@@ -139,6 +145,10 @@ class Models:
       i += 1
     if metalclosest > metal and i > 1:
       metalsecond = metals[i-2]
+    elif metalclosest == metals[-1]:
+      metalsecond = metals[-2]
+    elif metalclosest == metals[0]:
+      metalsecond = metals[1]
 
     if self.debug:
       print "T = %g\tlog(g) = %g\t[Z/H] = %g" %(T, logg, metal)
@@ -227,7 +237,7 @@ class Models:
     if numpy.all(spectrum_T1.x == spectrum_T2.x):
       spectrum.y = (spectrum_T1.y - spectrum_T2.y)/(Tclosest - Tsecond) * (T - Tclosest) + spectrum_T1.y
       if Tsecond == Tclosest:
-        print "T values the same1: %g" %Tlsecond
+        print "T values the same1: %g" %Tsecond
     else:
       return -1
 

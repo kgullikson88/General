@@ -12,6 +12,14 @@ def Planck(x,T):
   pi = numpy.pi
   return 2*pi*h*c**2/x**5*1.0/(numpy.exp(h*c/(x*k*T)) - 1.0)
 
+def Planck_nu(nu, T):
+  h = Units.h
+  c = Units.c
+  k = Units.k_b
+  pi = numpy.pi
+  x = h*nu/(k*T)
+  return 2*pi*h*nu**3/c**2 * 1.0/(numpy.exp(x) - 1.0)
+
 
 if __name__ == "__main__":
   T1 = float(sys.argv[1])
