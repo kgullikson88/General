@@ -84,7 +84,7 @@ class Integrate:
       self.Interpolators[color] = lambda Temp, grav, feonh, fluxes=Fluxes[color]: griddata((Temperatures, Gravities, Metallicities), fluxes, (Temp, grav, feonh), method='linear')
 
     #Make kurucz a class variable in case the user wants to use it
-    self.kurucz = kurucz
+    self.kurucz_models = kurucz
     
           
           
