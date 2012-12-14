@@ -145,8 +145,8 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
   data.y = numpy.ones(data.x.size)
   data.err = numpy.ones(data.x.size)
   data.cont = numpy.ones(data.cont.size)
+  #Sigma-clipping?
   for chip in chips:
-    #Sigma-clipping?
     if sigmaclip:
       done = False
       wave = chip.wave.copy()
@@ -249,7 +249,10 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
     #pylab.plot(10**data.x, data.y/data.cont - 1.0, 'r-')
     #pylab.plot(10**model.x, model.y/model.cont-1.1, 'g-')
     #pylab.show()
-    ycorr = numpy.correlate((data.y/data.cont-1.0), model.y/model.cont-1.0, mode=corr_mode)
+    #ycorr = numpy.correlate((data.y/data.cont-1.0), model.y/model.cont-1.0, mode=corr_mode)
+    data.output("Corr_inputdata.dat")
+    model.output("Corr_inputmodel.dat")
+    ycorr = scipy.signal.fftconvolve((data.y/data.cont-1.0), (model.y/model.cont-1.0)[::-1], mode=corr_mode)
     xcorr = numpy.arange(ycorr.size)
     #print "data: %i\tmodel: %i\tcorr: %i" %(data.x.size, model.x.size, ycorr.size)
     if corr_mode == 'valid':

@@ -27,6 +27,8 @@ class GridSearchOut:
     output.err = self.opterr.copy()
     output.cont = self.cont.copy()
     return output
+  def output(self, outfilename):
+    numpy.savetxt(outfilename, numpy.transpose((self.wave, self.rect, self.opt, self.recterr, self.opterr, self.cont)) )
 
 
 
@@ -75,6 +77,8 @@ class xypoint:
     output.opterr = self.err.copy()
     output.cont = self.cont.copy()
     return output
+  def output(self, outfilename):
+    numpy.savetxt(outfilename, numpy.transpose((self.x, self.y, self.cont, self.err)) )
 
 
 def ReadGridSearchFile(filename, headerflag=False):
