@@ -204,3 +204,79 @@ def OutputGridSearchFile(chips, outfilename, modeflag="w"):
                     "%.15g\n" %chip.cont[j])
     outfile.write("\n\n\n\n")
   outfile.close()
+  
+"""  
+Function to combine a list of xypoints into a single
+  xypoint. Useful for combining several orders/chips
+  or for coadding spectra
+  
+  ***Optional keywords***
+  snr: the spectra will be weighted by the signal-to-noise ratio
+       before adding
+  xspacing: the x-spacing in the final array
+  numpoints: the number of points in the final array. If neither
+             numpoints nor xspacing is given, the x-spacing in the
+             final array will be determined by averaging the spacing
+             in each of the xypoints.
+  interp_order: the interpolation order. Default is cubic
+"""
+def CombineXYpoints(xypts, snr=None, xspacing=None, numpoints=None, interp_order=3):
+  from scipy.interpolate import InterpolatedUnivariateSpline
+  import pylab
+  if snr == None or type(snr) != list:
+    snr = [1.0]*len(xypts)
+    
+  #Find the maximum range of the x data:
+  first = 1e30
+  last = -1
+  xspacing2 = 0.0
+  for xypt in xypts:
+    if xypt.x[0] < first:
+      first = xypt.x[0]
+    if xypt.x[-1] > last:
+      last = xypt.x[-1]
+    xspacing2 += (xypt.x[-1] - xypt.x[0]) / float(xypt.size() - 1)
+  
+  if xspacing == None and numpoints == None:
+    xspacing = xspacing2 / float(len(xypts))
+  if numpoints == None:
+    if xspacing == None:
+      xspacing = xspacing2 / float(len(xypts))
+    numpoints = (last - first)/xspacing
+  x = numpy.linspace(first, last, numpoints)
+  
+  full_array = xypoint(x=x, y=numpy.zeros(x.size))
+  numvals = numpy.zeros(x.size)  #The number of arrays each x point is in
+  normalization = 0.0
+  for xypt in xypts:
+    interpolator = InterpolatedUnivariateSpline(xypt.x, xypt.y/numpy.median(xypt.y), k=interp_order)
+    left = numpy.searchsorted(full_array.x, xypt.x[0])
+    right = numpy.searchsorted(full_array.x, xypt.x[-1], side='right')
+    if right < xypt.size():
+      right += 1
+    numvals[left:right] += 1.0
+    full_array.y[left:right] += interpolator(full_array.x[left:right])
+    
+  full_array.y /= numvals
+  
+  import pylab
+  pylab.plot(full_array.x, full_array.y)
+  pylab.show()
+  
+  return full_array
+  
+  
+  
+
+
+
+
+
+
+
+
+
+
+
+
+

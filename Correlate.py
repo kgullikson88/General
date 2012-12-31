@@ -121,8 +121,13 @@ def Corr(filename):
 #The sigmaclip keyword decides whether to perform sigma-clipping on each chip before cross-correlating
 #The nsigma keyword tells the program how many sigma to clip. This is ignored if sigmaclip = False
 #The clip_order keyword tells what order polynomial to fit the flux to during sigma clipping. Ignored if sigmaclip = False
+#The models keyword is a list of models to cross-correlate against (either filenames of two-column ascii files, or
+#    each entry should be a list with the first element the x points, and the second element the y points
+#The segments keyword controls which orders of the data to use, and which parts of them. Can be used to ignore telluric
+#    contamination. Can be a string (default) which will use all of the orders, a list of integers which will
+#    use all of the orders given in the list, or a dictionary of lists which gives the segments of each order to use.
 #save_output determines whether the cross-correlation is saved to a file, or just returned
-def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, corr_mode='valid', process_model=True, vsini=15*Units.cm/Units.km, resolution=100000, save_output=True, outdir=outfiledir, outfilename=None):
+def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, corr_mode='valid', process_model=True, vsini=15*Units.cm/Units.km, resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None):
   #1: Read in the datafile (if necessary)
   if type(filename) == str:
     chips = DataStructures.ReadGridSearchFile(filename)
@@ -140,13 +145,32 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
     makefname = True
     
   #2: Interpolate data to a single constant wavelength grid in logspace
+  maxsize = 0
+  for order in orders:
+    if order.size() > maxsize:
+      maxsize = order.size()
   data = DataStructures.xypoint(len(chips)*chips[min(1, len(chips)-1)].wave.size)
   data.x = numpy.linspace(numpy.log10(chips[0].wave[0]), numpy.log10(chips[-1].wave[-1]), data.x.size)
   data.y = numpy.ones(data.x.size)
   data.err = numpy.ones(data.x.size)
   data.cont = numpy.ones(data.cont.size)
-  #Sigma-clipping?
-  for chip in chips:
+  firstindex = 1e9
+  for i, chip in enumerate(chips):
+    chip_sections = [[-1, 1e9],]
+    #Use this order? Use all of it?
+    if type(segments) != str:
+      if type(segments) == list:
+        for element in segments:
+          if element == i+1:
+            #Use all of this order
+            break
+      elif type(segments) == defaultdict or type(segments) == dict:
+        try:
+          chip_sections = segments[i+1]
+        except KeyError:
+          chip_sections = [[-1, -1],]
+  
+    #Sigma-clipping?
     if sigmaclip:
       done = False
       wave = chip.wave.copy()
@@ -170,9 +194,24 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
     OPT = UnivariateSpline(numpy.log10(chip.wave), chip.opt, s=0)
     OPTERR = UnivariateSpline(numpy.log10(chip.wave), chip.opterr, s=0)
     CONT = UnivariateSpline(numpy.log10(chip.wave), chip.cont, s=0)
-    data.y[left:right] = OPT(x)
-    data.err[left:right] = OPTERR(x)
-    data.cont[left:right] = CONT(x)
+    for section in chip_sections:
+      left = numpy.searchsorted(chip.wave, section[0])
+      right = numpy.searchsorted(chip.wave, section[1])
+      if right == left:
+        continue
+      if right > 0:
+        right -= 1
+      
+      left = numpy.searchsorted(data.x, numpy.log10(chip.wave[left]))
+      right = numpy.searchsorted(data.x, numpy.log10(chip.wave[right]))
+      if right > firstindex:
+        #Take the average of the two overlapping orders
+        data.y[firstindex:right] = (data.y[firstindex:right]/data.cont[firstindex:right] + OPT(data.x[firstindex:right])/CONT(data.x[firstindex:right]))/2.0
+        right = firstindex
+      data.y[left:right] = OPT(data.x[left:right])
+      data.err[left:right] = OPTERR(data.x[left:right])
+      data.cont[left:right] = CONT(data.x[left:right])
+      firstindex = left
 
 
   #3: Begin loop over model spectra
