@@ -56,7 +56,8 @@ class xypoint:
     else:
       self.cont = cont.copy()
     if err == None:
-      self.err = numpy.sqrt(self.y)
+      self.err = numpy.ones(self.y.size)*1e9
+      self.err[self.y > 0] = numpy.sqrt(self.y[self.y > 0])
     else:
       self.err = err.copy()
       self.err[self.err <=0] = 1e9    #Making sure we don't divide by zero
@@ -204,6 +205,9 @@ def OutputGridSearchFile(chips, outfilename, modeflag="w"):
                     "%.15g\n" %chip.cont[j])
     outfile.write("\n\n\n\n")
   outfile.close()
+
+
+  
   
 """  
 Function to combine a list of xypoints into a single
@@ -222,7 +226,6 @@ Function to combine a list of xypoints into a single
 """
 def CombineXYpoints(xypts, snr=None, xspacing=None, numpoints=None, interp_order=3):
   from scipy.interpolate import InterpolatedUnivariateSpline
-  import pylab
   if snr == None or type(snr) != list:
     snr = [1.0]*len(xypts)
     
@@ -249,7 +252,7 @@ def CombineXYpoints(xypts, snr=None, xspacing=None, numpoints=None, interp_order
   numvals = numpy.zeros(x.size)  #The number of arrays each x point is in
   normalization = 0.0
   for xypt in xypts:
-    interpolator = InterpolatedUnivariateSpline(xypt.x, xypt.y/numpy.median(xypt.y), k=interp_order)
+    interpolator = InterpolatedUnivariateSpline(xypt.x, xypt.y/xypt.cont, k=interp_order)
     left = numpy.searchsorted(full_array.x, xypt.x[0])
     right = numpy.searchsorted(full_array.x, xypt.x[-1], side='right')
     if right < xypt.size():
@@ -257,12 +260,7 @@ def CombineXYpoints(xypts, snr=None, xspacing=None, numpoints=None, interp_order
     numvals[left:right] += 1.0
     full_array.y[left:right] += interpolator(full_array.x[left:right])
     
-  full_array.y /= numvals
-  
-  import pylab
-  pylab.plot(full_array.x, full_array.y)
-  pylab.show()
-  
+  full_array.y /= numvals  
   return full_array
   
   

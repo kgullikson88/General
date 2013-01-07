@@ -6,7 +6,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 points over one standard deviation below the mean, which are assumed
 to be absorption lines.
 """
-def Continuum(x, y, fitorder=3):
+def Continuum(x, y, fitorder=3, lowreject=1, highreject=3):
   done = False
   x2 = numpy.copy(x)
   y2 = numpy.copy(y)
@@ -16,12 +16,39 @@ def Continuum(x, y, fitorder=3):
     residuals = y2 - fit(x2 - x2.mean())
     mean = numpy.mean(residuals)
     std = numpy.std(residuals)
-    badpoints = numpy.where((residuals - mean) < -std)[0]
+    badpoints = numpy.where(numpy.logical_or((residuals - mean) < -lowreject*std, residuals - mean > highreject*std))[0]
     if badpoints.size > 0 and x2.size - badpoints.size > 5*fitorder:
       done = False
       x2 = numpy.delete(x2, badpoints)
       y2 = numpy.delete(y2, badpoints)
   return fit(x - x2.mean())
+
+
+"""
+  This function finds the parts of the spectrum that are close to the continuum,
+and so contain neither absorption nor emission lines
+
+DOES NOT WORK VERY WELL YET!
+"""
+def GetContinuumRegions(x, y, cont=None, lowreject=3, highreject=3):
+  if cont == None:
+    cont = Continuum(x,y)
+
+  normalized = y/cont
+  x2 = x.copy()
+  done = False
+  goodpoints = range(x.size)
+  while not done:
+    done = True
+    normalized2 = normalized[goodpoints]
+    std = numpy.std(normalized2)
+    badpoints = numpy.where(numpy.logical_or(normalized2 - 1.0 < -lowreject*std, normalized2 - 1.0 > highreject*std))[0]
+    goodpoints = numpy.where(numpy.logical_and(normalized - 1.0 > -lowreject*std, normalized - 1.0 < highreject*std))[0]
+    if badpoints.size > 0 and goodpoints.size - badpoints.size > 10:
+      done = False
+
+  return goodpoints
+  
 
 
 """
