@@ -82,6 +82,8 @@ class TelluricFitter:
       try:
         idx = self.parnames.index(par)
         self.bounds[idx] = bounddict[par]
+        if par == "resolution":
+          self.resolution_bounds = bounddict[par]
       except ValueError:
         print "Error! Bad parameter name given. Currently available are: "
         self.DisplayVariables()
@@ -133,8 +135,7 @@ class TelluricFitter:
       print "Must give resolution bounds!"
       inp = raw_input("Enter the lowest and highest possible resolution, separated by a space: ")
       self.resolution_bounds = [float(inp.split()[0]), float(inp.split()[1])]
-    else:
-      self.resolution_bounds = self.bounds[idx]
+    
 
     #Read in line list:
     linelist = numpy.loadtxt(self.LineListFile)
@@ -388,7 +389,7 @@ class TelluricFitter:
   """
     Improve the wavelength solution by a constant shift
   """
-  def CCImprove(self, data, model):
+  def CCImprove(self, data, model, be_safe=True):
     ycorr = scipy.correlate(data.y-1.0, model.y-1.0, mode="full")
     xcorr = numpy.arange(ycorr.size)
     maxindex = ycorr.argmax()
@@ -397,8 +398,9 @@ class TelluricFitter:
     offsets = -lags*distancePerLag
     print "maximum offset: ", offsets[maxindex], " nm"
 
-    if numpy.abs(offsets[maxindex]) < 0.2:
+    if numpy.abs(offsets[maxindex]) < 0.2 or not be_safe:
       #Apply offset
+      print "Applying offset"
       data.x = data.x + offsets[maxindex]
     return data
 
