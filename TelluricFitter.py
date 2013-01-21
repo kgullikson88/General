@@ -1,3 +1,34 @@
+"""
+This module provides the 'TelluricFitter' class, used
+to fit the telluric lines in data.
+
+Usage:
+  - Initialize fitter: fitter = TelluricFitter()
+  - Define variables to fit: must provide a dictionary where
+      the key is the name of the variable, and the value is
+      the initial guess value for that variable.
+      Example: fitter.FitVariable({"ch4": 1.6, "h2o": 45.0})
+  - Edit values of constant parameters: similar to FitVariable,
+      but the variables given here will not be fit. Useful for 
+      settings things like the telescope pointing angle, temperature,
+      and pressure, which will be very well-known.
+      Example: fitter.AdjustValue({"angle": 50.6})
+  - Set bounds on fitted variables (fitter.SetBounds): Give a dictionary
+      where the key is the name of the variable, and the value is
+      a list of size 2 of the form [lower_bound, upper_bound]
+  - Import data (fitter.ImportData): Copy data as a class variable.
+      Must be given as a DataStructures.xypoint instance
+  - Perform the fit: (fitter.Fit): no arguments given... for now
+      Returns a DataStructures.xypoint instance of the model. The 
+      x-values in the returned array should be the same as the data.
+   - Optional: retrieve a new version of the data, which is 
+      wavelength-calibrated using the telluric lines with 
+      data2 = fitter.data  
+
+
+"""
+
+
 import pylab
 import pyfits
 import numpy
@@ -13,6 +44,7 @@ import MakeModel
 import DataStructures
 import FindContinuum
 from FittingUtilities import *
+import FitBstar
 
 
 class TelluricFitter:
@@ -115,10 +147,12 @@ class TelluricFitter:
       3: Set resolution bounds (any other bounds are optional)
       "SVD" is for singlular value decomposition, while "gauss" is for convolving with a gaussian
       (and fitting the width of the guassian to give the best fit)
+    continuum_fit_mode controls how the continuum is fit in the data. Choices are 'polynomial' and 'smooth'
   """
-  def Fit(self, resolution_fit_mode="SVD"):
+  def Fit(self, resolution_fit_mode="SVD", continuum_fit_mode="polynomial"):
     print "Fitting now!"
     self.resolution_fit_mode=resolution_fit_mode
+    self.continuum_fit_mode = continuum_fit_mode
 
     #Make fitpars array
     fitpars = [self.const_pars[i] for i in range(len(self.parnames)) if self.fitting[i] ]
@@ -238,8 +272,11 @@ class TelluricFitter:
     data = self.CCImprove(data, model)
 
     resid = data.y/model.y
-    data.cont = FindContinuum.Continuum(data.x, resid, fitorder=3, lowreject=3, highreject=3)
-
+    if self.continuum_fit_mode == "polynomial":
+      data.cont = FindContinuum.Continuum(data.x, resid, fitorder=3, lowreject=3, highreject=3)
+    else:
+      data.cont = FindBstar.GetApproximateSpectrum(data).cont
+      
     modelfcn, mean = self.FitWavelength(data, model.copy(), linelist)
     data.x = modelfcn(data.x - mean)
 
