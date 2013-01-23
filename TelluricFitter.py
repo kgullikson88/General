@@ -150,10 +150,10 @@ class TelluricFitter:
       (and fitting the width of the guassian to give the best fit)
     continuum_fit_mode controls how the continuum is fit in the data. Choices are 'polynomial' and 'smooth'
   """
-  def Fit(self, resolution_fit_mode="SVD", continuum_fit_mode="polynomial"):
+  def Fit(self, resolution_fit_mode="SVD", fit_primary=False):
     print "Fitting now!"
     self.resolution_fit_mode=resolution_fit_mode
-    self.continuum_fit_mode = continuum_fit_mode
+    self.fit_primary = fit_primary
 
     #Make fitpars array
     fitpars = [self.const_pars[i] for i in range(len(self.parnames)) if self.fitting[i] ]
@@ -272,19 +272,28 @@ class TelluricFitter:
     #pylab.plot(model.x, model.y)
     #pylab.show()
     data = self.CCImprove(data, model)
-    #pylab.plot(data.x, data.y/data.cont)
-    #pylab.plot(model.x, model.y)
-    #pylab.show()
+    model = MakeModel.ReduceResolution(model_original.copy(), resolution, Continuum)
+    model = MakeModel.RebinData(model.copy(), data.x.copy())
 
+    model.y[model.y < 0.05] = (data.y/data.cont)[model.y < 0.05]
     resid = data.y/model.y
-    if self.continuum_fit_mode == "polynomial":
-      data.cont = FindContinuum.Continuum(data.x, resid, fitorder=3, lowreject=3, highreject=3)
-    else:
+    if self.fit_primary:
       data2 = data.copy()
       data2.y /= model.y
-      data.cont = FitBstar.GetApproximateSpectrum(data2).cont
-      
-    modelfcn, mean = self.FitWavelength(data, model.copy(), linelist)
+      primary_star = FitBstar.GetApproximateSpectrum(data2)
+      primary_star.y /= primary_star.y.mean()
+      PRIMARY_STAR = UnivariateSpline(primary_star.x, primary_star.y, s=0)
+
+      model2 = model.copy()
+      model2.y *= primary_star.y
+      resid /= primary_star.y
+    
+    data.cont = FindContinuum.Continuum(data.x, resid, fitorder=3, lowreject=3, highreject=3)
+    
+    if self.fit_primary:
+      modelfcn, mean = self.FitWavelength(data, model2.copy(), linelist)
+    else:
+      modelfcn, mean = self.FitWavelength(data, model.copy(), linelist)
     data.x = modelfcn(data.x - mean)
 
     #Fit resolution
@@ -292,9 +301,25 @@ class TelluricFitter:
     while not done:
       done = True
       if "SVD" in self.resolution_fit_mode:
-        model = self.Broaden(data.copy(), model_original.copy())
+        if self.fit_primary:
+          model2 = model_original.copy()
+          prim = PRIMARY_STAR(model2.x)
+          prim[prim < 0.0] = 0.0
+          prim[prim > 10.0] = 10.0
+          model2.y *= prim
+          model = self.Broaden(data.copy(), model2)
+        else:
+          model = self.Broaden(data.copy(), model_original.copy())
       elif "gauss" in self.resolution_fit_mode:
-        model, resolution = self.FitResolution(data.copy(), model_original.copy(), resolution)
+        if self.fit_primary:
+          model2 = model_original.copy()
+          prim = PRIMARY_STAR(model2.x)
+          prim[prim < 0.0] = 0.0
+          prim[prim > 10.0] = 10.0
+          model2.y *= prim
+          model, resolution = self.FitResolution(data.copy(), model_original.copy(), resolution)
+        else:
+          model, resolution = self.FitResolution(data.copy(), model_original.copy(), resolution)
       else:
         done = False
         print "Resolution fit mode set to an invalid value: %s" %self.resolution_fit_mode
