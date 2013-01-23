@@ -59,9 +59,10 @@ class TelluricFitter:
     self.bounds = [[] for par in self.parnames]
     self.fitting = [False]*len(self.parnames)
     self.data = None
+    self.resolution_bounds = [10000.0, 100000.0]
 
     homedir = os.environ['HOME']
-    self.LineListFile = homedir + "/School/Research/Useful_Datafiles/LineList2.dat"
+    self.LineListFile = homedir + "/School/Research/Useful_Datafiles/Linelist2.dat"
 
 
   """
@@ -73,7 +74,7 @@ class TelluricFitter:
     for i in range(len(self.parnames)):
       if (fitonly and self.fitting[i]) or not fitonly:
         if len(self.bounds[i]) == 2:
-          print "%.15s\t%.5g\t\t%s\t\t%g - %g" %(self.parnames[i].ljust(15), self.const_pars[i], self.fitting[i], self.bounds[i][0], self.bounds[i][1])
+          print "%.15s\t%.5E\t%s\t\t%g - %g" %(self.parnames[i].ljust(15), self.const_pars[i], self.fitting[i], self.bounds[i][0], self.bounds[i][1])
         else:
           print "%.15s\t%.5g\t\t%s" %(self.parnames[i].ljust(15), self.const_pars[i], self.fitting[i])
 
@@ -165,7 +166,7 @@ class TelluricFitter:
       return
 
     idx = self.parnames.index("resolution")
-    if len(self.bounds[idx]) < 2:
+    if len(self.bounds[idx]) < 2 and self.resolution_fit_mode != "SVD":
       print "Must give resolution bounds!"
       inp = raw_input("Enter the lowest and highest possible resolution, separated by a space: ")
       self.resolution_bounds = [float(inp.split()[0]), float(inp.split()[1])]
@@ -193,7 +194,6 @@ class TelluricFitter:
 
   def FitErrorFunction(self, fitpars, linelist):
     model = self.GenerateModel(fitpars, linelist)
-    
     outfile = open("chisq_summary.dat", 'a')
     weights = 1.0/self.data.err
     weights = weights/weights.sum()
@@ -218,6 +218,7 @@ class TelluricFitter:
 
 
   def GenerateModel(self, pars, linelist, nofit=False):
+    data = self.data
     #Update self.const_pars to include the new values in fitpars
     fit_idx = 0
     for i in range(len(self.parnames)):
@@ -258,24 +259,30 @@ class TelluricFitter:
     model_original = model.copy()
   
     #Reduce to initial guess resolution
-    data = self.data
     Continuum = UnivariateSpline(data.x.copy(), data.cont.copy(), s=0)
     if (resolution - 10 < self.resolution_bounds[0] or resolution+10 > self.resolution_bounds[1]):
       resolution = numpy.mean(self.resolution_bounds)
-  
     model = MakeModel.ReduceResolution(model.copy(), resolution, Continuum)
     model = MakeModel.RebinData(model.copy(), data.x.copy())
 
     if nofit:
       return model
 
+    #pylab.plot(data.x, data.y/data.cont)
+    #pylab.plot(model.x, model.y)
+    #pylab.show()
     data = self.CCImprove(data, model)
+    #pylab.plot(data.x, data.y/data.cont)
+    #pylab.plot(model.x, model.y)
+    #pylab.show()
 
     resid = data.y/model.y
     if self.continuum_fit_mode == "polynomial":
       data.cont = FindContinuum.Continuum(data.x, resid, fitorder=3, lowreject=3, highreject=3)
     else:
-      data.cont = FindBstar.GetApproximateSpectrum(data).cont
+      data2 = data.copy()
+      data2.y /= model.y
+      data.cont = FitBstar.GetApproximateSpectrum(data2).cont
       
     modelfcn, mean = self.FitWavelength(data, model.copy(), linelist)
     data.x = modelfcn(data.x - mean)
@@ -426,8 +433,8 @@ class TelluricFitter:
   """
     Improve the wavelength solution by a constant shift
   """
-  def CCImprove(self, data, model, be_safe=True):
-    ycorr = scipy.correlate(data.y-1.0, model.y-1.0, mode="full")
+  def CCImprove(self, data, model, be_safe=True, tol=0.5):
+    ycorr = scipy.correlate(data.y/data.cont-1.0, model.y-1.0, mode="full")
     xcorr = numpy.arange(ycorr.size)
     maxindex = ycorr.argmax()
     lags = xcorr - (data.y.size-1)
@@ -435,7 +442,7 @@ class TelluricFitter:
     offsets = -lags*distancePerLag
     print "maximum offset: ", offsets[maxindex], " nm"
 
-    if numpy.abs(offsets[maxindex]) < 0.2 or not be_safe:
+    if numpy.abs(offsets[maxindex]) < tol or not be_safe:
       #Apply offset
       print "Applying offset"
       data.x = data.x + offsets[maxindex]
@@ -465,8 +472,9 @@ class TelluricFitter:
 
     #Do a brute force grid search first, then refine with Levenberg-Marquardt
     searchgrid = (self.resolution_bounds[0], self.resolution_bounds[1], 5000)
+    ResolutionFitErrorBrute = lambda resolution, data, model, cont_fcn: numpy.sum(self.ResolutionFitError(resolution, data, model, cont_fcn))
     resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel,Continuum))
-    resolution, success = leastsq(ResolutionFitError, resolution, args=(data, newmodel, Continuum), epsfcn=10)
+    resolution, success = leastsq(self.ResolutionFitError, resolution, args=(data, newmodel, Continuum), epsfcn=10)
     print "Optimal resolution found at R = ", float(resolution)
     newmodel = MakeModel.ReduceResolution(newmodel, float(resolution), Continuum)
     return MakeModel.RebinData(newmodel, data.x), float(resolution)
@@ -489,8 +497,8 @@ class TelluricFitter:
     return returnvec
 
   
-  def ResolutionFitErrorBrute(resolution, data, model, cont_fcn):
-    return numpy.sum(ResolutionFitError(resolution, data, model, cont_fcn))
+#  def ResolutionFitErrorBrute(resolution, data, model, cont_fcn):
+#    return numpy.sum(ResolutionFitError(resolution, data, model, cont_fcn))
 
 
   #Fits the broadening profile using singular value decomposition

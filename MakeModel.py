@@ -195,6 +195,7 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
       tol = 10  #Go 10 nm on either side of the chip
       left = numpy.searchsorted(wavelength, wavegrid[0]-tol)
       right = numpy.searchsorted(wavelength, wavegrid[-1]+tol)
+      right = min(right, wavelength.size-1)
 
       Model = scipy.interpolate.UnivariateSpline(wavelength, transmission, s=0)
       model = DataStructures.xypoint(right-left+1)
@@ -243,6 +244,7 @@ def RebinData(data,xgrid):
 
 #This function reduces the resolution by convolving with a gaussian kernel
 def ReduceResolution(data,resolution, cont_fcn=None, extend=True):
+  print data.x
   centralwavelength = (data.x[0] + data.x[-1])/2.0
   xspacing = data.x[1] - data.x[0]   #NOTE: this assumes constant x spacing!
   FWHM = centralwavelength/resolution;
@@ -302,10 +304,10 @@ if __name__ == "__main__":
   o3 = 0.04
   ch4 = 10.0
   co = 0.00
-  o2 = 0.0
+  o2 = 2.4e5
 
-  lowwave = 400.0
-  highwave = 700.0
+  lowwave = 300.0
+  highwave = 800.0
   lowfreq = 1e7/highwave
   highfreq = 1e7/lowwave
   Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, co2=co2, o3=o3, ch4=ch4, co=co, o2=o2, save=True)

@@ -41,14 +41,16 @@ Bstarfiles = {#2.25: homedir + "/School/Research/McDonaldData/BstarModels/BG1900
               24.75: homedir + "/School/Research/McDonaldData/BstarModels/BG15000g475v2.vis.7",}
 
 
+"""
 bstar_fcns = defaultdict(scipy.interpolate.fitpack2.InterpolatedUnivariateSpline)
 print "Reading in primary star models"
 for key in Bstarfiles:
   filename = Bstarfiles[key]
   print "Reading model ", filename
-  #star = RotBroad.ReadFile(filename)
-  #bstar_fcns[key] = UnivariateSpline(star.x, star.y/star.cont, s=0)
+  star = RotBroad.ReadFile(filename)
+  bstar_fcns[key] = UnivariateSpline(star.x, star.y/star.cont, s=0)
 
+"""
 
 #Define bounding functions:
 # lower bound:            lbound(boundary_value, parameter)
