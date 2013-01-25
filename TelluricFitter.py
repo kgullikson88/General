@@ -378,8 +378,10 @@ class TelluricFitter:
       print data.x
   
     #Begin loop over the lines
+    numlines = 0
     for line in linelist:
       if line-tol > data.x[0] and line+tol < data.x[-1]:
+        numlines += 1
         #Find line in the model
         left = numpy.searchsorted(model.x, line - tol)
         right = numpy.searchsorted(model.x, line + tol)
@@ -437,6 +439,10 @@ class TelluricFitter:
       pylab.show()
     #Iteratively fit to a cubic with sigma-clipping
     order = 3
+    if numlines < order:
+      fit = lambda x: x
+      mean = 0.0
+      return fit, mean
     done = False
     while not done:
       done = True
