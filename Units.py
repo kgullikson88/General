@@ -79,6 +79,7 @@ Pa = Pascal
 HectoPascal = 0.01*Pascal
 hPa = HectoPascal
 inch_Hg = 1./3377.*Pa
+torr = 1.333*hPa
 
 
 #Some constants in cgs
