@@ -148,12 +148,18 @@ class TelluricFitter:
       3: Set resolution bounds (any other bounds are optional)
       "SVD" is for singlular value decomposition, while "gauss" is for convolving with a gaussian
       (and fitting the width of the guassian to give the best fit)
+
     continuum_fit_mode controls how the continuum is fit in the data. Choices are 'polynomial' and 'smooth'
+
+    fit_primary determines whether an iterative smoothing is applied to the data to approximate the primary star (only works for primary stars with broad lines)
+
+    adjust_wave can be set to either 'data' or 'model'. To wavelength calibrate the data to the telluric lines, set to 'data'. If you think the wavelength calibration is good on the data (such as Th-Ar lines in the optical), then set to 'model'
   """
-  def Fit(self, resolution_fit_mode="SVD", fit_primary=False):
+  def Fit(self, resolution_fit_mode="SVD", fit_primary=False, adjust_wave="data"):
     print "Fitting now!"
     self.resolution_fit_mode=resolution_fit_mode
     self.fit_primary = fit_primary
+    self.adjust_wave = adjust_wave
 
     #Make fitpars array
     fitpars = [self.const_pars[i] for i in range(len(self.parnames)) if self.fitting[i] ]
@@ -271,9 +277,18 @@ class TelluricFitter:
     #pylab.plot(data.x, data.y/data.cont)
     #pylab.plot(model.x, model.y)
     #pylab.show()
-    data = self.CCImprove(data, model)
+    shift = self.CCImprove(data, model)
+    if self.adjust_wave == "data":
+      data.x += shift
+    elif self.adjust_wave == "model":
+      model_original.x -= shift
+    else:
+      sys.exit("Error! adjust_wave parameter set to invalid value: %s" %self.adjust_wave)
     model = MakeModel.ReduceResolution(model_original.copy(), resolution, Continuum)
     model = MakeModel.RebinData(model.copy(), data.x.copy())
+    pylab.plot(data.x, data.y/data.cont)
+    pylab.plot(model.x, model.y/model.cont)
+    pylab.show()
 
     model.y[model.y < 0.05] = (data.y/data.cont)[model.y < 0.05]
     resid = data.y/model.y
@@ -294,7 +309,13 @@ class TelluricFitter:
       modelfcn, mean = self.FitWavelength(data, model2.copy(), linelist)
     else:
       modelfcn, mean = self.FitWavelength(data, model.copy(), linelist)
-    data.x = modelfcn(data.x - mean)
+    if self.adjust_wave == "data":
+      data.x = modelfcn(data.x - mean)
+    elif self.adjust_wave == "model":
+      model.x = modelfcn(model.x - mean)
+      model_original.x = modelfcn(model_original.x - mean)
+    else:
+      sys.exit("Error! adjust_wave set to an invalid value: %s" %self.adjust_wave)
 
     #Fit resolution
     done = False
@@ -323,7 +344,7 @@ class TelluricFitter:
       else:
         done = False
         print "Resolution fit mode set to an invalid value: %s" %self.resolution_fit_mode
-        self.resolution_fit_mode = raw_input("Enter a mode (SVD or guass): ")
+        self.resolution_fit_mode = raw_input("Enter a valid mode (SVD or guass): ")
     
     self.data = data
     return model
@@ -432,7 +453,12 @@ class TelluricFitter:
           pylab.plot(argdata.x, argdata.y)
         if (success < 5):
           old.append(mean)
-          new.append(mean + float(shift))
+          if self.adjust_wave == "data":
+            new.append(mean + float(shift))
+          elif self.adjust_wave == "model":
+            new.append(mean - float(shift))
+          else:
+            sys.exit("Error! adjust_wave set to an invalid value: %s" %self.adjust_wave)
     if debug:
       pylab.show()
       pylab.plot(old, new, 'ro')
@@ -476,8 +502,9 @@ class TelluricFitter:
     if numpy.abs(offsets[maxindex]) < tol or not be_safe:
       #Apply offset
       print "Applying offset"
-      data.x = data.x + offsets[maxindex]
-    return data
+      return offsets[maxindex]
+    else:
+      return 0.0
 
 
   #Function to fit the resolution
