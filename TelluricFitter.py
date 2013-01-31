@@ -286,9 +286,6 @@ class TelluricFitter:
       sys.exit("Error! adjust_wave parameter set to invalid value: %s" %self.adjust_wave)
     model = MakeModel.ReduceResolution(model_original.copy(), resolution, Continuum)
     model = MakeModel.RebinData(model.copy(), data.x.copy())
-    pylab.plot(data.x, data.y/data.cont)
-    pylab.plot(model.x, model.y/model.cont)
-    pylab.show()
 
     model.y[model.y < 0.05] = (data.y/data.cont)[model.y < 0.05]
     resid = data.y/model.y
