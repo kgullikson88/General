@@ -9,10 +9,13 @@ import DataStructures
 import MakeTape5
 import Units
 from collections import defaultdict
+import lockfile
 
 homedir = os.environ['HOME']
-TelluricModelingDir = "%s/School/Research/aerlbl_v12.2/rundir2/" %homedir
-ModelDir = "%sOutputModels/" %TelluricModelingDir
+#TelluricModelingDir = "%s/School/Research/aerlbl_v12.2/rundir2/" %homedir
+TelluricModelingDirRoot = "%s/School/Research/aerlbl_v12.2/" %homedir
+#ModelDir = "%sOutputModels/" %TelluricModelingDir
+NumRunDirs = 4
 
 
 #Dectionary giving the number to molecule name for LBLRTM
@@ -63,6 +66,24 @@ The pressure, temperature, etc... can be adjusted all the way
 on the bottom of this file.
 """
 def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=45.0, humidity=50.0, co2=268.5, o3=3.9e-2, n2o=0.32, co=0.14, ch4=1.8, o2=2.1e5, no=1.1e-19, so2=1e-4, no2=1e-4, nh3=1e-4, hno3=5.6e-4, wavegrid=None, resolution=None, nmolecules=12, save=False):
+
+    #Determine output filename
+    found = False
+    for i in range(1,NumRunDirs+1):
+      test = "%srundir%i/" %(TelluricModelingDirRoot, i)
+      lock = lockfile.FileLock(test)
+      print test, lock.is_locked()
+      if not lock.is_locked():
+        TelluricModelingDir = test
+        ModelDir = "%sOutputModels/" %TelluricModelingDir
+        lock.acquire()
+        found = True
+        break
+    if not found:
+      print "Un-locked directory not found!"
+      sys.exit()
+    print "Telluric Modeling Directory: %s" %TelluricModelingDir
+    print "Model Directory: %s" %ModelDir
 
     #Output filename
     model_name = ModelDir + "transmission"+"-%.2f" %pressure + "-%.2f" %temperature + "-%.1f" %humidity + "-%.1f" %angle + "-%.2f" %(co2) + "-%.2f" %(o3*100) + "-%.2f" %ch4 + "-%.2f" %(co*10)
@@ -175,7 +196,7 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
 
     #Convert from frequency to wavelength units
     #freq2wave.Fix("FullSpectrum.freq")
-    wavelength, transmission = FixTelluric(TelluricModelingDir + "FullSpectrum.freq")
+    wavelength, transmission = FixTelluric(TelluricModelingDir + "FullSpectrum.freq", TelluricModelingDir)
 
     #Correct for index of refraction of air:
     """
@@ -198,6 +219,9 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
       print model_name    
       numpy.savetxt(model_name, numpy.transpose((wavelength, transmission)), fmt="%.8g")
 
+    #Unlock directory
+    lock.release()
+      
     if wavegrid != None:
       #Interpolate model to a constant wavelength grid
       #For now, just interpolate to the right spacing
@@ -222,12 +246,13 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     return wavelength, transmission
 
 
-def FixTelluric(filename):
+def FixTelluric(filename, TelluricModelingDir):
   wavenumber, transmission = numpy.loadtxt(filename,unpack=True)
   wavelength = 1e4/wavenumber
   outfile = open(TelluricModelingDir + "FullSpectrum.wave", "w")
   for i in range(wavelength.size):
     outfile.write(str(wavelength[i]) + "\t" + str(transmission[i]) + "\n")
+  outfile.close()
   return wavelength*1000.0, transmission
 
 
@@ -319,7 +344,7 @@ if __name__ == "__main__":
   co = 0.00
   o2 = 2.4e5
 
-  lowwave = 300.0
+  lowwave = 700.0
   highwave = 800.0
   lowfreq = 1e7/highwave
   highfreq = 1e7/lowwave
