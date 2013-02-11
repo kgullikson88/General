@@ -191,10 +191,14 @@ class TelluricFitter:
     outfile.close()
 
     #Perform the fit
+    self.first_iteration = True
     fitout = leastsq(self.FitErrorFunction, fitpars, args=(linelist, ), full_output=True, epsfcn = 0.0005, maxfev=1000)
     fitpars = fitout[0]
         
-    return self.GenerateModel(fitpars, linelist)
+    if self.fit_primary:
+      return self.GenerateModel(fitpars, linelist, separate_primary=True)
+    else:
+      return self.GenerateModel(fitpars, linelist)
     
 
 
@@ -223,7 +227,7 @@ class TelluricFitter:
 
 
 
-  def GenerateModel(self, pars, linelist, nofit=False):
+  def GenerateModel(self, pars, linelist, nofit=False, separate_primary=False):
     data = self.data
     #Update self.const_pars to include the new values in fitpars
     fit_idx = 0
@@ -265,14 +269,26 @@ class TelluricFitter:
     model_original = model.copy()
   
     #Reduce to initial guess resolution
-    Continuum = UnivariateSpline(data.x.copy(), data.cont.copy(), s=0)
-    if (resolution - 10 < self.resolution_bounds[0] or resolution+10 > self.resolution_bounds[1]):
-      resolution = numpy.mean(self.resolution_bounds)
-    model = MakeModel.ReduceResolution(model.copy(), resolution, Continuum)
-    model = MakeModel.RebinData(model.copy(), data.x.copy())
+    if "SVD" in self.resolution_fit_mode and not self.first_iteration:
+      broadening_fcn = self.broadstuff[0]
+      xarr = self.broadstuff[1]
+      Model = UnivariateSpline(model_original.x, model_original.y, s=0)
+      model_new = Model(xarr)
+      model = DataStructures.xypoint(x=xarr)
+      Broadened = UnivariateSpline(xarr, numpy.convolve(model_new, broadening_fcn, mode="same"),s=0)
+      model.y = Broadened(model.x)
+      model = MakeModel.RebinData(model, data.x)
+      
+    elif "gauss" in self.resolution_fit_mode or self.first_iteration:
+      Continuum = UnivariateSpline(data.x.copy(), data.cont.copy(), s=0)
+      if (resolution - 10 < self.resolution_bounds[0] or resolution+10 > self.resolution_bounds[1]):
+        resolution = numpy.mean(self.resolution_bounds)
+      model = MakeModel.ReduceResolution(model.copy(), resolution, Continuum)
+      model = MakeModel.RebinData(model.copy(), data.x.copy())
 
     if nofit:
       return model
+     
 
     #pylab.plot(data.x, data.y/data.cont)
     #pylab.plot(model.x, model.y)
@@ -284,15 +300,25 @@ class TelluricFitter:
       model_original.x -= shift
     else:
       sys.exit("Error! adjust_wave parameter set to invalid value: %s" %self.adjust_wave)
-    model = MakeModel.ReduceResolution(model_original.copy(), resolution, Continuum)
-    model = MakeModel.RebinData(model.copy(), data.x.copy())
+      
+    if "SVD" in self.resolution_fit_mode and not self.first_iteration:
+      Model = UnivariateSpline(model_original.x, model_original.y, s=0)
+      model_new = Model(xarr)
+      model = DataStructures.xypoint(x=xarr)
+      Broadened = UnivariateSpline(xarr, numpy.convolve(model_new, broadening_fcn, mode="same"),s=0)
+      model.y = Broadened(model.x)
+      model = MakeModel.RebinData(model, data.x)
+      
+    elif "gauss" in self.resolution_fit_mode or self.first_iteration:
+      model = MakeModel.ReduceResolution(model.copy(), resolution, Continuum)
+      model = MakeModel.RebinData(model.copy(), data.x.copy())
 
     model.y[model.y < 0.05] = (data.y/data.cont)[model.y < 0.05]
     resid = data.y/model.y
     if self.fit_primary:
       data2 = data.copy()
       data2.y /= model.y
-      primary_star = FitBstar.GetApproximateSpectrum(data2)
+      primary_star = FitBstar.GetApproximateSpectrum(data2, bcwidth=100)
       primary_star.y /= primary_star.y.mean()
       PRIMARY_STAR = UnivariateSpline(primary_star.x, primary_star.y, s=0)
 
@@ -300,7 +326,8 @@ class TelluricFitter:
       model2.y *= primary_star.y
       resid /= primary_star.y
     
-    data.cont = FindContinuum.Continuum(data.x, resid, fitorder=3, lowreject=3, highreject=3)
+    #data.cont = FindContinuum.Continuum(data.x, resid, fitorder=3, lowreject=3, highreject=3)
+    data.cont = FindContinuum.Continuum(data.x, resid, fitorder=11, lowreject=2, highreject=2)
     
     if self.fit_primary:
       modelfcn, mean = self.FitWavelength(data, model2.copy(), linelist)
@@ -325,9 +352,9 @@ class TelluricFitter:
           prim[prim < 0.0] = 0.0
           prim[prim > 10.0] = 10.0
           model2.y *= prim
-          model = self.Broaden(data.copy(), model2)
+          model, self.broadstuff = self.Broaden(data.copy(), model2, full_output=True)
         else:
-          model = self.Broaden(data.copy(), model_original.copy())
+          model, self.broadstuff = self.Broaden(data.copy(), model_original.copy(), full_output=True)
       elif "gauss" in self.resolution_fit_mode:
         if self.fit_primary:
           model2 = model_original.copy()
@@ -338,13 +365,23 @@ class TelluricFitter:
           model, resolution = self.FitResolution(data.copy(), model_original.copy(), resolution)
         else:
           model, resolution = self.FitResolution(data.copy(), model_original.copy(), resolution)
+        #Save resolution
+        idx = self.parnames.index("resolution")
+        self.const_pars[idx] = resolution
       else:
         done = False
         print "Resolution fit mode set to an invalid value: %s" %self.resolution_fit_mode
         self.resolution_fit_mode = raw_input("Enter a valid mode (SVD or guass): ")
     
     self.data = data
-    return model
+    self.first_iteration = False
+    if separate_primary:
+      primary = model.copy()
+      primary.y = PRIMARY_STAR(primary.x)
+      model.y /= primary.y
+      return primary, model
+    else:
+      return model
 
 
   
@@ -560,7 +597,7 @@ class TelluricFitter:
   #oversampling is the oversampling factor to use before doing the SVD
   #m is the size of the broadening function, in oversampled units
   #dimension is the number of eigenvalues to keep in the broadening function. (Keeping too many starts fitting noise)
-  def Broaden(self, data, model, oversampling = 5, m = 101, dimension = 15):
+  def Broaden(self, data, model, oversampling = 5, m = 101, dimension = 15, full_output=False):
     n = data.x.size*oversampling
   
     #resample data
@@ -578,8 +615,27 @@ class TelluricFitter:
     design = mat(design)
     
     #Do Singular Value Decomposition
-    U,W,V_t = svd(design, full_matrices=False)
-  
+    try:
+      U,W,V_t = svd(design, full_matrices=False)
+      outfilename = "SVD_Error2.log"
+      outfile = open(outfilename, "a")
+      numpy.savetxt(outfile, numpy.transpose((data.x, data.y, data.cont)))
+      outfile.write("\n\n\n\n\n")
+      numpy.savetxt(outfile, numpy.transpose((model.x, model.y, model.cont)))
+      outfile.write("\n\n\n\n\n")
+      outfile.close()
+    except numpy.linalg.linalg.LinAlgError:
+      outfilename = "SVD_Error.log"
+      outfile = open(outfilename, "a")
+      numpy.savetxt(outfile, numpy.transpose((data.x, data.y, data.cont)))
+      outfile.write("\n\n\n\n\n")
+      numpy.savetxt(outfile, numpy.transpose((model.x, model.y, model.cont)))
+      outfile.write("\n\n\n\n\n")
+      outfile.close()
+      sys.exit("SVD did not converge! Outputting data to %s" %outfilename)
+      
+      
+    
     #Invert matrices:
     #   U, V are orthonormal, so inversion is just their transposes
     #   W is a diagonal matrix, so its inverse is 1/W
@@ -606,6 +662,8 @@ class TelluricFitter:
     Broadened = UnivariateSpline(xnew, numpy.convolve(model_new,Broadening, mode="same"),s=0)
     model.y = Broadened(model.x)
 
-    return MakeModel.RebinData(model, data.x)
-    
+    if full_output:
+      return MakeModel.RebinData(model, data.x), [Broadening, xnew]
+    else:
+      return MakeModel.RebinData(model, data.x)
 

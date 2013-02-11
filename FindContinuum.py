@@ -6,11 +6,13 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 points over one standard deviation below the mean, which are assumed
 to be absorption lines.
 """
-def Continuum(x, y, fitorder=3, lowreject=1, highreject=3):
+def Continuum(x, y, fitorder=3, lowreject=1, highreject=3, numiter=10000):
   done = False
   x2 = numpy.copy(x)
   y2 = numpy.copy(y)
-  while not done:
+  iteration = 0
+  while not done and iteration < numiter:
+    numiter += 1
     done = True
     fit = numpy.poly1d(numpy.polyfit(x2 - x2.mean(), y2, fitorder))
     residuals = y2 - fit(x2 - x2.mean())

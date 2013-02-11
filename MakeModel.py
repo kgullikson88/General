@@ -72,7 +72,6 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     for i in range(1,NumRunDirs+1):
       test = "%srundir%i/" %(TelluricModelingDirRoot, i)
       lock = lockfile.FileLock(test)
-      print test, lock.is_locked()
       if not lock.is_locked():
         TelluricModelingDir = test
         ModelDir = "%sOutputModels/" %TelluricModelingDir
@@ -282,7 +281,6 @@ def RebinData(data,xgrid):
 
 #This function reduces the resolution by convolving with a gaussian kernel
 def ReduceResolution(data,resolution, cont_fcn=None, extend=True):
-  print data.x
   centralwavelength = (data.x[0] + data.x[-1])/2.0
   xspacing = data.x[1] - data.x[0]   #NOTE: this assumes constant x spacing!
   FWHM = centralwavelength/resolution;
