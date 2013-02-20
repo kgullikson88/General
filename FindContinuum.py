@@ -1,12 +1,13 @@
 import numpy
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
+from scipy.interpolate import UnivariateSpline as smoother
 
 """
   This function fits the continuum spectrum by iteratively removing
 points over one standard deviation below the mean, which are assumed
 to be absorption lines.
 """
-def Continuum(x, y, fitorder=3, lowreject=1, highreject=3, numiter=10000):
+def Continuum(x, y, fitorder=3, lowreject=1, highreject=3, numiter=10000, function="poly"):
   done = False
   x2 = numpy.copy(x)
   y2 = numpy.copy(y)
@@ -14,7 +15,10 @@ def Continuum(x, y, fitorder=3, lowreject=1, highreject=3, numiter=10000):
   while not done and iteration < numiter:
     numiter += 1
     done = True
-    fit = numpy.poly1d(numpy.polyfit(x2 - x2.mean(), y2, fitorder))
+    if function == "poly":
+      fit = numpy.poly1d(numpy.polyfit(x2 - x2.mean(), y2, fitorder))
+    elif function == "spline":
+      fit = smoother(x2, y2, s=fitorder)
     residuals = y2 - fit(x2 - x2.mean())
     mean = numpy.mean(residuals)
     std = numpy.std(residuals)
