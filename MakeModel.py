@@ -206,7 +206,7 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     nminus1 = 1e-8 * (8342.13 + 2406030./(130. - 1.0/wavenumber**2) + 15997./(38.9 - 1.0/wavenumber**2)) * pressure/720.775 * (1 + pressure*(0.817 - 0.133*(temperature))*1e-6)/(1+0.0036610*(temperature))
     n = nminus1 + 1
     """
-    n = 1.0003
+    n = 1.00026
     wavelength /= n
     
     if "FullSpectrum.freq" in os.listdir(TelluricModelingDir):
@@ -219,7 +219,10 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
       numpy.savetxt(model_name, numpy.transpose((wavelength, transmission)), fmt="%.8g")
 
     #Unlock directory
-    lock.release()
+    try:
+      lock.release()
+    except lockfile.NotLocked:
+      print "Woah, the model directory was somehow unlocked prematurely!"
       
     if wavegrid != None:
       #Interpolate model to a constant wavelength grid

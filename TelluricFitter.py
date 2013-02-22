@@ -290,9 +290,6 @@ class TelluricFitter:
       return model
      
 
-    #pylab.plot(data.x, data.y/data.cont)
-    #pylab.plot(model.x, model.y)
-    #pylab.show()
     shift = self.CCImprove(data, model)
     if self.adjust_wave == "data":
       data.x += shift
@@ -327,17 +324,27 @@ class TelluricFitter:
       resid /= primary_star.y
     
     #data.cont = FindContinuum.Continuum(data.x, resid, fitorder=3, lowreject=3, highreject=3)
-    data.cont = FindContinuum.Continuum(data.x, resid, fitorder=11, lowreject=2, highreject=2)
+    data.cont = FindContinuum.Continuum(data.x, resid, fitorder=9, lowreject=2, highreject=2)
     
     if self.fit_primary:
       modelfcn, mean = self.FitWavelength(data, model2.copy(), linelist)
     else:
       modelfcn, mean = self.FitWavelength(data, model.copy(), linelist)
     if self.adjust_wave == "data":
-      data.x = modelfcn(data.x - mean)
+      test = modelfcn(data.x - mean)
+      xdiff = [test[j] - test[j-1] for j in range(1, len(test)-1)]
+      if min(xdiff) > 0 and numpy.mean(test - data.x) < 0.5:
+        data.x = test.copy()
+      else:
+        print "Warning! Wavelength calibration did not succeed!"
     elif self.adjust_wave == "model":
-      model.x = modelfcn(model.x - mean)
-      model_original.x = modelfcn(model_original.x - mean)
+      test = modelfcn(model.x - mean)
+      xdiff = [test[j] - test[j-1] for j in range(1, len(test)-1)]
+      if min(xdiff) > 0 and numpy.mean(test - model.x) < 0.5:
+        model.x = test.copy()
+        model_original.x = modelfcn(model_original.x - mean)
+      else:
+        print "Warning! Wavelength calibration did not succeed!"
     else:
       sys.exit("Error! adjust_wave set to an invalid value: %s" %self.adjust_wave)
 
