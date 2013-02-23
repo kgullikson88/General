@@ -81,7 +81,7 @@ def ErrorFunction(pars, dat, stars):
      (Initial guesses for these can be given as optional arguments)
      Both should be given in km/s!!
   EDIT: now it fits a quadratic correction to the model wavelengths
-"""
+
 def Fit(data, models=bstar_fcns, RV=0.0, vsini=100.0):
   pars = [RV*Units.cm/Units.km, vsini*Units.cm/Units.km]
   #ErrorFunction = lambda pars, dat, stars: FindBestGravity(dat, stars, pars[0], pars[1])[2]
@@ -97,7 +97,7 @@ def Fit(data, models=bstar_fcns, RV=0.0, vsini=100.0):
   print "Best log(g) = ", best_logg
   print "X^2 = ", chisq[0]
   return bestfit
-
+"""
 
 """
   Function to make a model B star given a UnivariateSpline of it,

@@ -54,7 +54,7 @@ class TelluricFitter:
                      "h2o", "co2", "o3", "n2o", "co", "ch4", "o2", "no",
                      "so2", "no2", "nh3", "hno3"]
     self.const_pars = [795.0, 273.0, 45.0, 50000.0, 2200.0, 2400.0,
-                       50.0, 268.5, 3.9e-2, 0.32, 0.14, 1.8, 2.1e5, 1.1e-19,
+                       50.0, 368.5, 3.9e-2, 0.32, 0.14, 1.8, 2.1e5, 1.1e-19,
                        1e-4, 1e-4, 1e-4, 5.6e-4]
     self.bounds = [[] for par in self.parnames]
     self.fitting = [False]*len(self.parnames)
@@ -307,7 +307,7 @@ class TelluricFitter:
       model = MakeModel.RebinData(model, data.x)
       
     elif "gauss" in self.resolution_fit_mode or self.first_iteration:
-      model = MakeModel.ReduceResolution(model.copy(), resolution, Continuum)
+      model = MakeModel.ReduceResolution(model_original.copy(), resolution, Continuum)
       model = MakeModel.RebinData(model.copy(), data.x.copy())
 
     model.y[model.y < 0.05] = (data.y/data.cont)[model.y < 0.05]

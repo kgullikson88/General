@@ -65,7 +65,7 @@ This is the main code to generate a telluric absorption spectrum.
 The pressure, temperature, etc... can be adjusted all the way 
 on the bottom of this file.
 """
-def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=45.0, humidity=50.0, co2=268.5, o3=3.9e-2, n2o=0.32, co=0.14, ch4=1.8, o2=2.1e5, no=1.1e-19, so2=1e-4, no2=1e-4, nh3=1e-4, hno3=5.6e-4, wavegrid=None, resolution=None, nmolecules=12, save=False):
+def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=45.0, humidity=50.0, co2=368.5, o3=3.9e-2, n2o=0.32, co=0.14, ch4=1.8, o2=2.1e5, no=1.1e-19, so2=1e-4, no2=1e-4, nh3=1e-4, hno3=5.6e-4, wavegrid=None, resolution=None, nmolecules=12, save=False):
 
     #Determine output filename
     found = False
@@ -333,20 +333,21 @@ def ReduceResolutionAndRebinData(data,resolution,xgrid):
 
 
 if __name__ == "__main__":
-  pressure = 792.3
-  temperature = 290.93
-  humidity = 45.0
-  angle = 7.37
+  pressure = 796.22906
+  temperature = 270.40
+  humidity = 27.1255
+  angle = 40.8
   co2 = 368.5
-  o3 = 0.04
+  o3 = 0.039
   ch4 = 10.0
   co = 0.15
-  o2 = 2.4e5
+  o2 = 4.266e6
 
-  lowwave = 300.0
-  highwave = 1000.0
+  lowwave = 640
+  highwave = 660
   lowfreq = 1e7/highwave
   highfreq = 1e7/lowwave
-  Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, co2=co2, o3=o3, ch4=ch4, co=co, o2=o2, save=True)
+  Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, o2=o2, save=True)
+  #Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, co2=co2, o3=o3, ch4=ch4, co=co, o2=o2, save=True)
           
 
