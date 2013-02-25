@@ -342,9 +342,10 @@ if __name__ == "__main__":
   ch4 = 10.0
   co = 0.15
   o2 = 4.266e6
+  o2 = 2.2e5
 
-  lowwave = 640
-  highwave = 660
+  lowwave = 300
+  highwave = 800
   lowfreq = 1e7/highwave
   highfreq = 1e7/lowwave
   Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, o2=o2, save=True)

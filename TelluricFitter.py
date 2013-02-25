@@ -63,6 +63,10 @@ class TelluricFitter:
 
     homedir = os.environ['HOME']
     self.LineListFile = homedir + "/School/Research/Useful_Datafiles/Linelist2.dat"
+    self.resolution_fit_mode="SVD"
+    self.fit_primary = False
+    self.adjust_wave = "data"
+    self.first_iteration=True
 
 
   """
@@ -333,15 +337,17 @@ class TelluricFitter:
     if self.adjust_wave == "data":
       test = modelfcn(data.x - mean)
       xdiff = [test[j] - test[j-1] for j in range(1, len(test)-1)]
-      if min(xdiff) > 0 and numpy.mean(test - data.x) < 0.5:
+      if min(xdiff) > 0 and numpy.max(test - data.x) < 0.5:
+        print "Adjusting wavelengths by at most %s" %numpy.max(test - model.x)
         data.x = test.copy()
       else:
         print "Warning! Wavelength calibration did not succeed!"
     elif self.adjust_wave == "model":
       test = modelfcn(model.x - mean)
       xdiff = [test[j] - test[j-1] for j in range(1, len(test)-1)]
-      if min(xdiff) > 0 and numpy.mean(test - model.x) < 0.5:
+      if min(xdiff) > 0 and numpy.max(test - model.x) < 0.5:
         model.x = test.copy()
+        print "Adjusting wavelengths by at most %s" %numpy.max(test - model.x)
         model_original.x = modelfcn(model_original.x - mean)
       else:
         print "Warning! Wavelength calibration did not succeed!"
@@ -511,7 +517,7 @@ class TelluricFitter:
       mean = 0.0
       return fit, mean
     done = False
-    while not done:
+    while not done and len(old) > order:
       done = True
       mean = numpy.mean(old)
       fit = numpy.poly1d(numpy.polyfit(old - mean, new, order))
@@ -573,13 +579,17 @@ class TelluricFitter:
     searchgrid = (self.resolution_bounds[0], self.resolution_bounds[1], 5000)
     ResolutionFitErrorBrute = lambda resolution, data, model, cont_fcn: numpy.sum(self.ResolutionFitError(resolution, data, model, cont_fcn))
     resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel,Continuum))
-    resolution, success = leastsq(self.ResolutionFitError, resolution, args=(data, newmodel, Continuum), epsfcn=10)
+    resolution, success = leastsq(self.ResolutionFitError, resolution, args=(data, newmodel, Continuum), epsfcn=10) #, ftol=10, xtol=1)
     print "Optimal resolution found at R = ", float(resolution)
     newmodel = MakeModel.ReduceResolution(newmodel, float(resolution), Continuum)
     return MakeModel.RebinData(newmodel, data.x), float(resolution)
   
   
   def ResolutionFitError(self, resolution, data, model, cont_fcn):
+    penalty=0.0
+    if resolution < 10000.0:
+      resolution = 10000.0
+      penalty = 1e9
     newmodel = MakeModel.ReduceResolution(model, resolution, cont_fcn)
     newmodel = MakeModel.RebinData(newmodel, data.x)
     weights = 1.0/data.err
@@ -593,18 +603,20 @@ class TelluricFitter:
         outfile.write("%.10g\t" %data.x[i] + "%.10g\t" %data.y[i] + "%.10g\t" %data.cont[i] + "%.10g\t" %newmodel.x[i] + "%.10g\n" %newmodel.y[i])
       outfile.write("\n\n\n\n")
       outfile.close()
-    return returnvec
+    return returnvec + penalty
 
   
 #  def ResolutionFitErrorBrute(resolution, data, model, cont_fcn):
 #    return numpy.sum(ResolutionFitError(resolution, data, model, cont_fcn))
 
 
+
+
   #Fits the broadening profile using singular value decomposition
   #oversampling is the oversampling factor to use before doing the SVD
   #m is the size of the broadening function, in oversampled units
   #dimension is the number of eigenvalues to keep in the broadening function. (Keeping too many starts fitting noise)
-  def Broaden(self, data, model, oversampling = 5, m = 101, dimension = 15, full_output=False):
+  def Broaden(self, data, model, oversampling = 5, m = 101, dimension = 20, full_output=False):
     n = data.x.size*oversampling
   
     #resample data
@@ -624,13 +636,6 @@ class TelluricFitter:
     #Do Singular Value Decomposition
     try:
       U,W,V_t = svd(design, full_matrices=False)
-      outfilename = "SVD_Error2.log"
-      outfile = open(outfilename, "a")
-      numpy.savetxt(outfile, numpy.transpose((data.x, data.y, data.cont)))
-      outfile.write("\n\n\n\n\n")
-      numpy.savetxt(outfile, numpy.transpose((model.x, model.y, model.cont)))
-      outfile.write("\n\n\n\n\n")
-      outfile.close()
     except numpy.linalg.linalg.LinAlgError:
       outfilename = "SVD_Error.log"
       outfile = open(outfilename, "a")
@@ -641,8 +646,6 @@ class TelluricFitter:
       outfile.close()
       sys.exit("SVD did not converge! Outputting data to %s" %outfilename)
       
-      
-    
     #Invert matrices:
     #   U, V are orthonormal, so inversion is just their transposes
     #   W is a diagonal matrix, so its inverse is 1/W
@@ -660,14 +663,74 @@ class TelluricFitter:
     temp = numpy.dot(W2,temp)
     Broadening = numpy.dot(V,temp)
     
-    #Convolve model with this function
+    #Make Broadening function a 1d array
     spacing = xnew[2] - xnew[1]
     xnew = numpy.arange(model.x[0], model.x[-1], spacing)
     model_new = Model(xnew)
     Broadening = numpy.array(Broadening)[...,0]
+    
+    #Ensure that the broadening function is appropriate:
+    maxindex = Broadening.argmax()
+    if maxindex > m/2.0 + m/10.0 or maxindex < m/2.0 - m/10.0:
+      #The maximum should be in the middle because we already did wavelength calibration!
+      outfilename = "SVD_Error2.log"
+      numpy.savetxt(outfilename, numpy.transpose((Broadening, )) )
+      print "Warning! SVD Broadening function peaked at the wrong location! See SVD_Error2.log for the broadening function"
+      
+      idx = self.parnames.index("resolution")
+      resolution = self.const_pars[idx]
+      model = MakeModel.ReduceResolution(model, resolution)
+      
+      #Make broadening function from the gaussian
+      centralwavelength = (data.x[0] + data.x[-1])/2.0
+      FWHM = centralwavelength/resolution;
+      sigma = FWHM/(2.0*numpy.sqrt(2.0*numpy.log(2.0)))
+      left = 0
+      right = numpy.searchsorted(xnew, 10*sigma)
+      x = numpy.arange(0,10*sigma, xnew[1] - xnew[0])
+      gaussian = numpy.exp(-(x-5*sigma)**2/(2*sigma**2))
+      return MakeModel.RebinData(model, data.x), [gaussian/gaussian.sum(), xnew]
+      
+    elif numpy.mean(Broadening[maxindex-int(m/10.0):maxindex+int(m/10.0)]) < 3* numpy.mean(Broadening[int(m/5.0):]):
+      outfilename = "SVD_Error2.log"
+      numpy.savetxt(outfilename, numpy.transpose((Broadening, )) )
+      print "Warning! SVD Broadening function is not strongly peaked! See SVD_Error2.log for the broadening function"
+      
+      idx = self.parnames.index("resolution")
+      resolution = self.const_pars[idx]
+      model = MakeModel.ReduceResolution(model, resolution)
+      
+      #Make broadening function from the gaussian
+      centralwavelength = (data.x[0] + data.x[-1])/2.0
+      FWHM = centralwavelength/resolution;
+      sigma = FWHM/(2.0*numpy.sqrt(2.0*numpy.log(2.0)))
+      left = 0
+      right = numpy.searchsorted(xnew, 10*sigma)
+      x = numpy.arange(0,10*sigma, xnew[1] - xnew[0])
+      gaussian = numpy.exp(-(x-5*sigma)**2/(2*sigma**2))
+      return MakeModel.RebinData(model, data.x), [gaussian/gaussian.sum(), xnew]
+    
+    #If we get here, the broadening function looks okay.
+    #Convolve the model with the broadening function
     model = DataStructures.xypoint(x=xnew)
     Broadened = UnivariateSpline(xnew, numpy.convolve(model_new,Broadening, mode="same"),s=0)
     model.y = Broadened(model.x)
+    
+    #Fit the broadening function to a gaussian
+    params = [0.0, -Broadening[maxindex], maxindex, 10.0]
+    params,success = leastsq(self.GaussianErrorFunction, params, args=(numpy.arange(Broadening.size), Broadening))
+    sigma = params[3] * (xnew[1] - xnew[0]) 
+    FWHM = sigma * 2.0*numpy.sqrt(2.0*numpy.log(2.0))
+    resolution = numpy.median(data.x) / FWHM
+    idx = self.parnames.index("resolution")
+    self.const_pars[idx] = resolution
+    
+    print "Approximate resolution = %g" %resolution
+    
+    x2 = numpy.arange(Broadening.size)
+    #pylab.plot(x2, Broadening)
+    #pylab.plot(x2, self.GaussianFitFunction(x2, params))
+    #pylab.show()
 
     if full_output:
       return MakeModel.RebinData(model, data.x), [Broadening, xnew]
