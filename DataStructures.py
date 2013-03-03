@@ -248,8 +248,8 @@ def CombineXYpoints(xypts, snr=None, xspacing=None, numpoints=None, interp_order
     numpoints = (last - first)/xspacing
   x = numpy.linspace(first, last, numpoints)
   
-  full_array = xypoint(x=x, y=numpy.zeros(x.size))
-  numvals = numpy.zeros(x.size)  #The number of arrays each x point is in
+  full_array = xypoint(x=x, y=numpy.ones(x.size))
+  numvals = numpy.ones(x.size)  #The number of arrays each x point is in
   normalization = 0.0
   for xypt in xypts:
     interpolator = InterpolatedUnivariateSpline(xypt.x, xypt.y/xypt.cont, k=interp_order)
@@ -260,7 +260,7 @@ def CombineXYpoints(xypts, snr=None, xspacing=None, numpoints=None, interp_order
     numvals[left:right] += 1.0
     full_array.y[left:right] += interpolator(full_array.x[left:right])
     
-  full_array.y /= numvals  
+  full_array.y[numvals > 0] /= numvals[numvals > 0]  
   return full_array
   
   
