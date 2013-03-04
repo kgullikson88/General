@@ -67,6 +67,8 @@ class TelluricFitter:
     self.fit_primary = False
     self.adjust_wave = "data"
     self.first_iteration=True
+    self.continuum_fit_order = 7
+    self.wavelength_fit_order = 3
 
 
   """
@@ -159,11 +161,13 @@ class TelluricFitter:
 
     adjust_wave can be set to either 'data' or 'model'. To wavelength calibrate the data to the telluric lines, set to 'data'. If you think the wavelength calibration is good on the data (such as Th-Ar lines in the optical), then set to 'model'
   """
-  def Fit(self, resolution_fit_mode="SVD", fit_primary=False, adjust_wave="data"):
+  def Fit(self, resolution_fit_mode="SVD", fit_primary=False, adjust_wave="data", continuum_fit_order=7, wavelength_fit_order=3):
     print "Fitting now!"
     self.resolution_fit_mode=resolution_fit_mode
     self.fit_primary = fit_primary
     self.adjust_wave = adjust_wave
+    self.continuum_fit_order = continuum_fit_order
+    self.wavelength_fit_order = wavelength_fit_order
 
     #Make fitpars array
     fitpars = [self.const_pars[i] for i in range(len(self.parnames)) if self.fitting[i] ]
@@ -268,7 +272,12 @@ class TelluricFitter:
       print "\nWarning! Angle was set to be negative. Resetting to a positive value before generating model!\n\n"
 
     #Generate the model:
-    model = MakeModel.Main(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, wavegrid=self.data.x, resolution=resolution)
+    model = MakeModel.Main(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, wavegrid=data.x, resolution=resolution)
+    
+    #pylab.plot(data.x, data.y/data.cont)
+    #pylab.plot(model.x, model.y)
+    #pylab.title("Initial model")
+    #pylab.show()
 
     model_original = model.copy()
   
@@ -314,6 +323,11 @@ class TelluricFitter:
       model = MakeModel.ReduceResolution(model_original.copy(), resolution, Continuum)
       model = MakeModel.RebinData(model.copy(), data.x.copy())
 
+    #pylab.plot(data.x, data.y/data.cont, label="data")
+    #pylab.plot(model.x, model.y, label="model")
+    #pylab.title("Before Wavelength fit")
+    #pylab.show()
+
     model.y[model.y < 0.05] = (data.y/data.cont)[model.y < 0.05]
     resid = data.y/model.y
     if self.fit_primary:
@@ -328,16 +342,16 @@ class TelluricFitter:
       resid /= primary_star.y
     
     #data.cont = FindContinuum.Continuum(data.x, resid, fitorder=3, lowreject=3, highreject=3)
-    data.cont = FindContinuum.Continuum(data.x, resid, fitorder=9, lowreject=2, highreject=2)
+    data.cont = FindContinuum.Continuum(data.x, resid, fitorder=self.continuum_fit_order, lowreject=2, highreject=2)
     
     if self.fit_primary:
-      modelfcn, mean = self.FitWavelength(data, model2.copy(), linelist)
+      modelfcn, mean = self.FitWavelength(data, model2.copy(), linelist, fitorder=self.wavelength_fit_order)
     else:
-      modelfcn, mean = self.FitWavelength(data, model.copy(), linelist)
+      modelfcn, mean = self.FitWavelength(data, model.copy(), linelist, fitorder=self.wavelength_fit_order)
     if self.adjust_wave == "data":
       test = modelfcn(data.x - mean)
       xdiff = [test[j] - test[j-1] for j in range(1, len(test)-1)]
-      if min(xdiff) > 0 and numpy.max(test - data.x) < 0.5:
+      if min(xdiff) > 0 and numpy.max(test - data.x) < 0.2:
         print "Adjusting wavelengths by at most %s" %numpy.max(test - model.x)
         data.x = test.copy()
       else:
@@ -353,6 +367,11 @@ class TelluricFitter:
         print "Warning! Wavelength calibration did not succeed!"
     else:
       sys.exit("Error! adjust_wave set to an invalid value: %s" %self.adjust_wave)
+      
+    #pylab.plot(data.x, data.y/data.cont, label="data")
+    #pylab.plot(model.x, model.y, label="model")
+    #pylab.title("Before resolution fit")
+    #pylab.show()
 
     #Fit resolution
     done = False
@@ -385,6 +404,12 @@ class TelluricFitter:
         done = False
         print "Resolution fit mode set to an invalid value: %s" %self.resolution_fit_mode
         self.resolution_fit_mode = raw_input("Enter a valid mode (SVD or guass): ")
+    
+    
+    #pylab.plot(data.x, data.y/data.cont, label="data")
+    #pylab.plot(model.x, model.y, label="model")
+    #pylab.title("Final version")
+    #pylab.show()
     
     self.data = data
     self.first_iteration = False
@@ -425,7 +450,7 @@ class TelluricFitter:
     return self.GaussianFitFunction(x,params) - y
   
 
-  def FitWavelength(self, data_original, telluric, linelist, tol=0.05, oversampling=4, debug=False):
+  def FitWavelength(self, data_original, telluric, linelist, tol=0.05, oversampling=4, debug=False, fitorder=3):
     old = []
     new = []
 
@@ -511,16 +536,16 @@ class TelluricFitter:
       pylab.plot(old, new, 'ro')
       pylab.show()
     #Iteratively fit to a cubic with sigma-clipping
-    order = 3
-    if numlines < order:
+    
+    if numlines < fitorder:
       fit = lambda x: x
       mean = 0.0
       return fit, mean
     done = False
-    while not done and len(old) > order:
+    while not done and len(old) > fitorder:
       done = True
       mean = numpy.mean(old)
-      fit = numpy.poly1d(numpy.polyfit(old - mean, new, order))
+      fit = numpy.poly1d(numpy.polyfit(old - mean, new, fitorder))
       residuals = fit(old - mean) - new
       std = numpy.std(residuals)
       badindices = numpy.where(numpy.logical_or(residuals > 2*std, residuals < -2*std))[0]
@@ -537,7 +562,7 @@ class TelluricFitter:
   """
     Improve the wavelength solution by a constant shift
   """
-  def CCImprove(self, data, model, be_safe=True, tol=0.5):
+  def CCImprove(self, data, model, be_safe=True, tol=0.2):
     ycorr = scipy.correlate(data.y/data.cont-1.0, model.y-1.0, mode="full")
     xcorr = numpy.arange(ycorr.size)
     maxindex = ycorr.argmax()
@@ -545,6 +570,11 @@ class TelluricFitter:
     distancePerLag = (data.x[-1] - data.x[0])/float(data.x.size)
     offsets = -lags*distancePerLag
     print "maximum offset: ", offsets[maxindex], " nm"
+    #pylab.plot(offsets, ycorr)
+    #pylab.figure(2)
+    #pylab.plot(data.y/data.cont)
+    #pylab.plot(model.y)
+    #pylab.show()
 
     if numpy.abs(offsets[maxindex]) < tol or not be_safe:
       #Apply offset

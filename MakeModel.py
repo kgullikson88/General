@@ -174,23 +174,22 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     parameters[17] = lowfreq
     if (highfreq - lowfreq > 2000.0):
       while lowfreq + 2000.0 <= highfreq:
-	parameters[18] = lowfreq + 2000.0
+	parameters[18] = lowfreq + 2000.00000
 	
 	MakeTape5.WriteTape5(parameters, output=TelluricModelingDir + "TAPE5", atmosphere=Atmosphere)
 
 	#Run lblrtm
         cmd = "cd " + TelluricModelingDir + ";sh runlblrtm_v2.sh"
 	command = subprocess.check_call(cmd, shell=True)
-        lowfreq = lowfreq + 2000.0
+        lowfreq = lowfreq + 2000.00001
 	parameters[17] = lowfreq
 
-    else:
-      parameters[18] = highfreq
-      MakeTape5.WriteTape5(parameters, output=TelluricModelingDir + "TAPE5", atmosphere=Atmosphere)
+    parameters[18] = highfreq
+    MakeTape5.WriteTape5(parameters, output=TelluricModelingDir + "TAPE5", atmosphere=Atmosphere)
 
-      #RUn lblrtm
-      cmd = "cd " + TelluricModelingDir + ";sh runlblrtm_v2.sh"
-      command = subprocess.check_call(cmd, shell=True)
+    #Run lblrtm
+    cmd = "cd " + TelluricModelingDir + ";sh runlblrtm_v2.sh"
+    command = subprocess.check_call(cmd, shell=True)
 
 
     #Convert from frequency to wavelength units
@@ -251,10 +250,15 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
 def FixTelluric(filename, TelluricModelingDir):
   wavenumber, transmission = numpy.loadtxt(filename,unpack=True)
   wavelength = 1e4/wavenumber
-  outfile = open(TelluricModelingDir + "FullSpectrum.wave", "w")
-  for i in range(wavelength.size):
-    outfile.write(str(wavelength[i]) + "\t" + str(transmission[i]) + "\n")
-  outfile.close()
+  
+  #Check for any overlaps/duplicates.
+  #Note: the wavelength array goes backwards, so the indices
+  #      are opposite of what you might expect!
+  change = numpy.array( [wavelength[i] - wavelength[i+1] for i in range(wavelength.size-1)] )
+  badindices = numpy.where(change < 1e-8)[0]
+  wavelength = numpy.delete(wavelength, badindices)
+  transmission = numpy.delete(transmission, badindices)
+  numpy.savetxt(TelluricModelingDir + "FullSpectrum.wave", numpy.transpose((wavelength, transmission)), fmt="%.8g")
   return wavelength*1000.0, transmission
 
 
