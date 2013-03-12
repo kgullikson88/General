@@ -137,6 +137,9 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
   elif type(filename) == list and isinstance(filename[0], DataStructures.xypoint):
     chips = [chip.ToGridSearchOut() for chip in filename]
     filename = "Output"
+  elif isinstance(filename, DataStructures.xypoint):
+    chips = [filename.ToGridSearchOut()]
+    filename = "Output"
   else:
     sys.exit("Input data of unknown type: %s" %type(filename))
 
@@ -146,15 +149,16 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
     
   #2: Interpolate data to a single constant wavelength grid in logspace
   maxsize = 0
-  for order in orders:
-    if order.size() > maxsize:
-      maxsize = order.size()
+  for chip in chips:
+    if chip.size() > maxsize:
+      maxsize = chip.size()
   data = DataStructures.xypoint(len(chips)*chips[min(1, len(chips)-1)].wave.size)
   data.x = numpy.linspace(numpy.log10(chips[0].wave[0]), numpy.log10(chips[-1].wave[-1]), data.x.size)
   data.y = numpy.ones(data.x.size)
   data.err = numpy.ones(data.x.size)
   data.cont = numpy.ones(data.cont.size)
   firstindex = 1e9
+  lastindex = -1
   for i, chip in enumerate(chips):
     chip_sections = [[-1, 1e9],]
     #Use this order? Use all of it?
@@ -187,6 +191,12 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
           done = False
       chip.opt = flux.copy()
 
+    #pylab.figure(1)
+    #pylab.plot(chip.wave, chip.opt, 'k-')
+    #pylab.plot(chip.wave, chip.cont, 'r-')
+    #print data.x
+    #print 10**data.x
+
     #Interpolate to constant wavelength grid (in log-space)
     left = numpy.searchsorted(data.x, numpy.log10(chip.wave[0]))
     right = numpy.searchsorted(data.x, numpy.log10(chip.wave[-1]))
@@ -204,15 +214,33 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
       
       left = numpy.searchsorted(data.x, numpy.log10(chip.wave[left]))
       right = numpy.searchsorted(data.x, numpy.log10(chip.wave[right]))
+      """
       if right > firstindex:
         #Take the average of the two overlapping orders
         data.y[firstindex:right] = (data.y[firstindex:right]/data.cont[firstindex:right] + OPT(data.x[firstindex:right])/CONT(data.x[firstindex:right]))/2.0
         right = firstindex
-      data.y[left:right] = OPT(data.x[left:right])
+      """
+      if left < lastindex:
+        #Take the average of the two overlapping orders
+        data.y[lastindex:left] = (data.y[lastindex:left]/data.cont[lastindex:left] + OPT(data.x[lastindex:left])/CONT(data.x[lastindex:left]))/2.0
+        left = lastindex
+      data.y[left:right] = OPT(data.x[left:right])/CONT(data.x[left:right])
       data.err[left:right] = OPTERR(data.x[left:right])
-      data.cont[left:right] = CONT(data.x[left:right])
+      #data.cont[left:right] = CONT(data.x[left:right])
+      #pylab.figure(2)
+      #pylab.plot(data.x[left:right], data.y[left:right], 'k-')
+      #pylab.plot(data.x[left:right], data.cont[left:right], 'r-')
       firstindex = left
+    #pylab.figure(1)
+    #pylab.plot(data.x, data.y)
+    #pylab.plot(data.x, data.cont)
+    #pylab.show()
 
+  
+  #pylab.plot(data.x, data.y)
+  #pylab.plot(data.x, data.cont)
+  #pylab.show()
+  #sys.exit()
 
   #3: Begin loop over model spectra
   returnlist = []
@@ -255,7 +283,7 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
       model.cont = CONT(model.x)
 
       #c: Find continuum by fitting model to a quadratic.
-      model.cont = FindContinuum.Continuum(model.x, model.y)
+      model.cont = FindContinuum.Continuum(model.x, model.y, fitorder=5)
 
       #d: Rotationally broaden
       if vsini > 1.0*Units.cm/Units.km:
@@ -289,8 +317,10 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
     #pylab.plot(10**model.x, model.y/model.cont-1.1, 'g-')
     #pylab.show()
     #ycorr = numpy.correlate((data.y/data.cont-1.0), model.y/model.cont-1.0, mode=corr_mode)
-    #data.output("Corr_inputdata.dat")
-    #model.output("Corr_inputmodel.dat")
+    data.output("Corr_inputdata.dat")
+    model.output("Corr_inputmodel.dat")
+
+    
     ycorr = scipy.signal.fftconvolve((data.y/data.cont-1.0), (model.y/model.cont-1.0)[::-1], mode=corr_mode)
     xcorr = numpy.arange(ycorr.size)
     #print "data: %i\tmodel: %i\tcorr: %i" %(data.x.size, model.x.size, ycorr.size)
