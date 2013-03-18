@@ -11,6 +11,7 @@ import Units
 import MakeModel_v2 as MakeModel
 import FindContinuum
 import RotBroad
+import time
 
 class Resid:
   def __init__(self, size):
@@ -127,7 +128,7 @@ def Corr(filename):
 #    contamination. Can be a string (default) which will use all of the orders, a list of integers which will
 #    use all of the orders given in the list, or a dictionary of lists which gives the segments of each order to use.
 #save_output determines whether the cross-correlation is saved to a file, or just returned
-def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, corr_mode='valid', process_model=True, vsini=15*Units.cm/Units.km, resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None):
+def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, corr_mode='valid', process_model=True, vsini=15*Units.cm/Units.km, resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, pause=0):
   #1: Read in the datafile (if necessary)
   if type(filename) == str:
     chips = DataStructures.ReadGridSearchFile(filename)
@@ -365,6 +366,7 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
       returnlist.append(outfilename)
     else:
       returnlist.append((vel, corr))
+    time.sleep(pause)
   return returnlist
 
     
