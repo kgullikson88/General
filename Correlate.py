@@ -348,10 +348,10 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
     right = numpy.searchsorted(corr.x, maxvel)
     vel = corr.x[left:right]
     corr = corr.y[left:right]
-    fit = numpy.poly1d(numpy.polyfit(vel, corr, 2))
+    #fit = numpy.poly1d(numpy.polyfit(vel, corr, 2))
         
     #j: Adjust correlation by fit
-    corr = corr - fit(vel)
+    #corr = corr - fit(vel)
     if normalize:
       mean = numpy.mean(corr)
       std = numpy.std(corr)
