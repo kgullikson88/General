@@ -8,7 +8,7 @@ from scipy.interpolate import UnivariateSpline
 import scipy.signal
 import DataStructures
 import Units
-import MakeModel_v2 as MakeModel
+import MakeModel
 import FindContinuum
 import RotBroad
 import time
@@ -33,7 +33,7 @@ currentdir = os.getcwd() + "/"
 homedir = os.environ["HOME"]
 correlationdir = homedir + "/School/Research/Models/PlanetFinder/src/CRIRES/"
 outfiledir = currentdir + "Cross_correlations/"
-modeldir = homedir + "/School/Research/Models/Sorted/Stellar/"
+modeldir = homedir + "/School/Research/Models/Sorted/Stellar/Vband/"
 gridspacing = "2e-4"
 minvel = -1000  #Minimum velocity to output, in km/s
 maxvel = 1000  

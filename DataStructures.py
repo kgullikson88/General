@@ -82,6 +82,49 @@ class xypoint:
     numpy.savetxt(outfilename, numpy.transpose((self.x, self.y, self.cont, self.err)) )
 
 
+def ReadXypointFile(filename, headerflag=False):
+  infile = open(filename)
+  lines = infile.readlines()
+  infile.close()
+  x = []
+  flux = []
+  error = []
+  cont = []
+  chips = []
+  all_headers = []
+  header = []
+  for line in lines:
+    if not (line.startswith("#") or line == "\n"):
+      try:
+        x.append(line.split()[0])
+        flux.append(line.split()[1])
+        cont.append(line.split()[2])
+        error.append(line.split()[3])
+      except IndexError:
+        print "Format incorrect for file: ", filename, "\nExitting"
+        sys.exit(0)
+    elif line == "\n" and len(wave) > 0:
+      chip = xypoint(len(wave))
+      all_headers.append(header)
+      header = []
+      chip.x = numpy.array(x).astype(float)
+      chip.y = numpy.array(flux).astype(float)
+      chip.cont = numpy.array(cont).astype(float)
+      chip.err = numpy.array(error).astype(float)
+      x = []
+      flux = []
+      cont = []
+      error = []
+      chips.append(chip)
+    elif line != "\n":
+      header.append(line)
+  if headerflag:
+    return chips, all_headers
+  else:
+    return chips
+
+
+
 def ReadGridSearchFile(filename, headerflag=False):
   infile = open(filename)
   lines = infile.readlines()
