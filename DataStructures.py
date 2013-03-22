@@ -103,8 +103,8 @@ def ReadXypointFile(filename, headerflag=False):
       except IndexError:
         print "Format incorrect for file: ", filename, "\nExitting"
         sys.exit(0)
-    elif line == "\n" and len(wave) > 0:
-      chip = xypoint(len(wave))
+    elif line == "\n" and len(x) > 0:
+      chip = xypoint(len(x))
       all_headers.append(header)
       header = []
       chip.x = numpy.array(x).astype(float)
