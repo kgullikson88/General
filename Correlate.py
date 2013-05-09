@@ -86,7 +86,7 @@ model_list = [modeldir + "lte30-4.00-0.0.AGS.Cond.PHOENIX-ACES-2009.HighRes.7.so
 star_list = []
 temp_list = []
 gravity_list = []
-metal_list = []
+metallicity_list = []
 for fname in model_list:
   temp = int(fname.split("lte")[-1][:2])*100
   gravity = float(fname.split("lte")[-1][3:7])
@@ -94,7 +94,7 @@ for fname in model_list:
   star_list.append(str(temp))
   temp_list.append(temp)
   gravity_list.append(gravity)
-  metal_list.append(metallicity)
+  metallicity_list.append(metallicity)
 
 
 def Corr(filename):
@@ -262,7 +262,7 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
     star = stars[i]
     temp = temps[i]
     gravity = gravities[i]
-    metallicity = metallicity[i]
+    metallicity = metallicities[i]
     modelfile = models[i]
 
     #a: Read in file
