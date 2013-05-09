@@ -42,8 +42,8 @@ ensure_dir(outfiledir)
 
 #star_list = ["M2", "M1", "M0", "K9", "K8", "K7", "K6", "K5", "K4", "K3", "K2", "K1","K0", "G9", "G8", "G7", "G6", "G5", "G4", "G3", "G2", "G1", "G0", "F9", "F8", "F7", "F6", "F5", "F4", "F3", "F2", "F1"]
 #temp_list = [3000, 3200, 3400, 3600, 3800, 4000, 4200, 4400, 4600, 4800, 5000, 5100, 5200, 5225, 5310, 5385, 5460, 5545, 5625, 5700, 5770, 5860, 5940, 6117, 6250, 6395, 6512, 6650, 6775, 6925, 7050, 7185]
-temp_list = [3000, 3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 4200 ,4300, 4400, 4500, 4600, 4700, 4800, 4900, 5000, 5100, 5200, 5300, 5400, 5500, 5600, 5700, 5800, 5900, 6100, 6300, 6400, 6500, 6700, 6800, 6900, 7000, 7200]
-star_list = [str(T) for T in temp_list]
+#temp_list = [3000, 3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 4200 ,4300, 4400, 4500, 4600, 4700, 4800, 4900, 5000, 5100, 5200, 5300, 5400, 5500, 5600, 5700, 5800, 5900, 6100, 6300, 6400, 6500, 6700, 6800, 6900, 7000, 7200]
+#star_list = [str(T) for T in temp_list]
 model_list = [modeldir + "lte30-4.00-0.0.AGS.Cond.PHOENIX-ACES-2009.HighRes.7.sorted",
               modeldir + "lte31-4.00-0.0.AGS.Cond.PHOENIX-ACES-2009.HighRes.7.sorted",
               modeldir + "lte32-4.00-0.0.AGS.Cond.PHOENIX-ACES-2009.HighRes.7.sorted",
@@ -82,6 +82,19 @@ model_list = [modeldir + "lte30-4.00-0.0.AGS.Cond.PHOENIX-ACES-2009.HighRes.7.so
               modeldir + "lte69-4.50-0.0.AGS.Cond.PHOENIX-ACES-2009.HighRes.7.sorted",
               modeldir + "lte70-4.50-0.0.AGS.Cond.PHOENIX-ACES-2009.HighRes.7.sorted",
               modeldir + "lte72-4.50-0.0.AGS.Cond.PHOENIX-ACES-2009.HighRes.7.sorted"]
+
+star_list = []
+temp_list = []
+gravity_list = []
+metal_list = []
+for fname in model_list:
+  temp = int(fname.split("lte")[-1][:2])*100
+  gravity = float(fname.split("lte")[-1][3:7])
+  metallicity = float(fname.split("lte")[-1][7:11])
+  star_list.append(str(temp))
+  temp_list.append(temp)
+  gravity_list.append(gravity)
+  metal_list.append(metallicity)
 
 
 def Corr(filename):
@@ -128,7 +141,7 @@ def Corr(filename):
 #    contamination. Can be a string (default) which will use all of the orders, a list of integers which will
 #    use all of the orders given in the list, or a dictionary of lists which gives the segments of each order to use.
 #save_output determines whether the cross-correlation is saved to a file, or just returned
-def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, corr_mode='valid', process_model=True, vsini=15*Units.cm/Units.km, resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, pause=0):
+def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, gravities=gravity_list, metallicities=metallicity_list, corr_mode='valid', process_model=True, vsini=15*Units.cm/Units.km, resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, pause=0):
   #1: Read in the datafile (if necessary)
   if type(filename) == str:
     chips = DataStructures.ReadGridSearchFile(filename)
@@ -248,6 +261,8 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
   for i in range(len(models)):
     star = stars[i]
     temp = temps[i]
+    gravity = gravities[i]
+    metallicity = metallicity[i]
     modelfile = models[i]
 
     #a: Read in file
@@ -359,7 +374,7 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
 
     #k: Finally, output
     if makefname:
-      outfilename = outdir + filename.split("/")[-1] + ".%.0fkps_%sK" %(vsini*Units.km/Units.cm, star)
+      outfilename = outdir + filename.split("/")[-1] + ".%.0fkps_%sK%+.1f%+.1f" %(vsini*Units.km/Units.cm, star, gravity, metallicity)
     if save_output:
       print "Outputting to ", outfilename, "\n"
       numpy.savetxt(outfilename, numpy.transpose((vel, corr)), fmt="%.10g")
