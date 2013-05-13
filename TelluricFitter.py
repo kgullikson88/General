@@ -272,7 +272,12 @@ class TelluricFitter:
       print "\nWarning! Angle was set to be negative. Resetting to a positive value before generating model!\n\n"
 
     #Generate the model:
-    model = MakeModel.Main(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, wavegrid=data.x, resolution=resolution)
+    if data == None:
+      model = MakeModel.Main(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, wavegrid=None, resolution=None)
+      model = MakeModel.ReduceResolution(model.copy(), resolution)
+      return model
+    else:
+      model = MakeModel.Main(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, wavegrid=data.x, resolution=resolution)
     
     #pylab.plot(data.x, data.y/data.cont)
     #pylab.plot(model.x, model.y)
@@ -537,7 +542,7 @@ class TelluricFitter:
       pylab.show()
     #Iteratively fit to a cubic with sigma-clipping
     
-    if numlines < fitorder:
+    if len(old) <= fitorder:
       fit = lambda x: x
       mean = 0.0
       return fit, mean

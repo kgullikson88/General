@@ -244,7 +244,7 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
 
       return model
 
-    return wavelength, transmission
+    return DataStructures.xypoint(x=wavelength[::-1], y=transmission[::-1])
 
 
 def FixTelluric(filename, TelluricModelingDir):
