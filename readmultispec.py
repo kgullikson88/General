@@ -98,7 +98,10 @@ def nonlinearwave(nwave, specstr, verbose=False):
             else:
                 print 'Dispersion is order-%d Legendre polynomial (NEEDS TEST)' % order
         if len(fields) != 15+order:
-            raise ValueError('Bad order-%d polynomial format (%d fields)' % (order, len(fields)))
+            #raise ValueError('Bad order-%d polynomial format (%d fields)' % (order, len(fields)))
+            print 'Bad order-%d polynomial format (%d fields)' % (order, len(fields))
+            print "Changing order from %i to %i" %(order, len(fields)-15)
+            order = len(fields)-15
         coeff = np.asarray(fields[15:],dtype=float)
         # normalized x coordinates
         pmiddle = (pmax+pmin)/2
@@ -223,6 +226,8 @@ def readmultispec(fitsfile, reform=True, quiet=False):
     wavelen = np.zeros((nspec,nwave),dtype=float)
     wavefields = [None]*nspec
     for i in range(nspec):
+        #if i in skipped_orders:
+        #    continue
         verbose=(not quiet) and (i == 0)
         if wparms[i,2] == 0 or wparms[i,2] == 1:
             # simple linear or log spacing
