@@ -339,17 +339,17 @@ def ReduceResolutionAndRebinData(data,resolution,xgrid):
 if __name__ == "__main__":
   pressure = 796.22906
   temperature = 270.40
-  humidity = 27.1255
+  humidity = 60.0
   angle = 40.8
   co2 = 368.5
   o3 = 0.039
-  ch4 = 10.0
+  ch4 = 4.0
   co = 0.15
   o2 = 4.266e6
   o2 = 2.2e5
 
   lowwave = 300
-  highwave = 800
+  highwave = 1000
   lowfreq = 1e7/highwave
   highfreq = 1e7/lowwave
   Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, o2=o2, save=True)

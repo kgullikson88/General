@@ -141,7 +141,7 @@ def Corr(filename):
 #    contamination. Can be a string (default) which will use all of the orders, a list of integers which will
 #    use all of the orders given in the list, or a dictionary of lists which gives the segments of each order to use.
 #save_output determines whether the cross-correlation is saved to a file, or just returned
-def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, gravities=gravity_list, metallicities=metallicity_list, corr_mode='valid', process_model=True, vsini=15*Units.cm/Units.km, resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, pause=0):
+def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, gravities=gravity_list, metallicities=metallicity_list, corr_mode='valid', process_model=True, vsini=15*Units.cm/Units.km, resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, pause=0, debug=False):
   #1: Read in the datafile (if necessary)
   if type(filename) == str:
     chips = DataStructures.ReadGridSearchFile(filename)
@@ -228,12 +228,6 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
       
       left = numpy.searchsorted(data.x, numpy.log10(chip.wave[left]))
       right = numpy.searchsorted(data.x, numpy.log10(chip.wave[right]))
-      """
-      if right > firstindex:
-        #Take the average of the two overlapping orders
-        data.y[firstindex:right] = (data.y[firstindex:right]/data.cont[firstindex:right] + OPT(data.x[firstindex:right])/CONT(data.x[firstindex:right]))/2.0
-        right = firstindex
-      """
       if left < lastindex:
         #Take the average of the two overlapping orders
         data.y[lastindex:left] = (data.y[lastindex:left]/data.cont[lastindex:left] + OPT(data.x[lastindex:left])/CONT(data.x[lastindex:left]))/2.0
@@ -289,24 +283,31 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
       model = DataStructures.xypoint(right - left + 1)
       x2 = x[left:right].copy()
       y2 = y[left:right].copy()
-      cont2 = cont[left:right].copy()
+      cont2 = FindContinuum.Continuum(x2, y2, fitorder=5)
       MODEL = UnivariateSpline(x2,y2, s=0)
       CONT = UnivariateSpline(x2, cont2, s=0)
+      if debug:
+        print x2
+        print y2
+        print cont2
 
       #b: Make wavelength spacing constant
       model.x = numpy.linspace(x2[0], x2[-1], right - left + 1)
       model.y = MODEL(model.x)
       model.cont = CONT(model.x)
 
-      #c: Find continuum by fitting model to a quadratic.
-      model.cont = FindContinuum.Continuum(model.x, model.y, fitorder=5)
-
       #d: Rotationally broaden
       if vsini > 1.0*Units.cm/Units.km:
         model = RotBroad.Broaden(model, vsini, linear=True)
+      if debug:
+        print "After rotational broadening"
+        print model.y
 
       #e: Convolve to detector resolution
       model = MakeModel.ReduceResolution(model.copy(), resolution, extend=False)
+      if debug:
+        print "After resolution decrease"
+        print model.y
       
       #f: Convert to log-space
       MODEL = UnivariateSpline(model.x, model.y, s=0)
@@ -318,7 +319,9 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
       #g: Rebin to the same spacing as the data (but not the same pixels)
       xgrid = numpy.arange(model.x[0], model.x[-1], data.x[1] - data.x[0])
       model = MakeModel.RebinData(model.copy(), xgrid)
-      
+      if debug:
+        print "After rebinning"
+        print model.y
 
     #h: Cross-correlate
     data_rms = numpy.sqrt(numpy.sum((data.y/data.cont-1)**2))
@@ -333,8 +336,9 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
     #pylab.plot(10**model.x, model.y/model.cont-1.1, 'g-')
     #pylab.show()
     #ycorr = numpy.correlate((data.y/data.cont-1.0), model.y/model.cont-1.0, mode=corr_mode)
-    data.output("Corr_inputdata.dat")
-    model.output("Corr_inputmodel.dat")
+    if debug:
+      data.output("Corr_inputdata.dat")
+      model.output("Corr_inputmodel.dat")
 
     
     ycorr = scipy.signal.fftconvolve((data.y/data.cont-1.0), (model.y/model.cont-1.0)[::-1], mode=corr_mode)
