@@ -1,21 +1,21 @@
 import pylab
 import numpy
 import sys
-import Units
+from astropy import constants, units
 from scipy.interpolate import UnivariateSpline
 
 
 def Planck(x,T):
-  h = Units.h
-  c = Units.c
-  k = Units.k_b
+  h = constants.h.cgs.value
+  c = constants.c.cgs.value
+  k = constants.k_B.cgs.value
   pi = numpy.pi
   return 2*pi*h*c**2/x**5*1.0/(numpy.exp(h*c/(x*k*T)) - 1.0)
 
 def Planck_nu(nu, T):
-  h = Units.h
-  c = Units.c
-  k = Units.k_b
+  h = constants.h.cgs.value
+  c = constants.c.cgs.value
+  k = constants.k_B.cgs.value
   pi = numpy.pi
   x = h*nu/(k*T)
   return 2*pi*h*nu**3/c**2 * 1.0/(numpy.exp(x) - 1.0)
@@ -45,8 +45,9 @@ if __name__ == "__main__":
     last = 10000
 
   x = numpy.arange(first,last,1)
-  y1 = Planck(x*Units.cm/Units.nm, T1)
-  y2 = Planck(x*Units.cm/Units.nm, T2)
+  xcm = x * units.nm.to(units.cm)
+  y1 = Planck(xcm, T1)
+  y2 = Planck(xcm, T2)
   
   #Filter?
   if filt:

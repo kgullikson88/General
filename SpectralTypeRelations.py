@@ -2,7 +2,7 @@ from collections import defaultdict
 from scipy.interpolate import UnivariateSpline
 import numpy
 import DataStructures
-import Units
+from astropy import constants
 
 #Provides relations temperature, luminosity, radius, and mass for varius spectral types
 #Data comes from Carroll and Ostlie book, or interpolated from it
@@ -566,7 +566,6 @@ tracksfile = homedir + "Dropbox/School/Research/Summer2011/EvolutionaryTracks.da
 class PreMainSequence:
   def __init__(self, pms_tracks_file=tracksfile):
     import numpy
-    import Units
     infile = open(pms_tracks_file)
     lines = infile.readlines()
     infile.close()
@@ -579,6 +578,10 @@ class PreMainSequence:
     T = []   # temperature
     R = []   # radius (solar radii)
 
+    G = constants.G.cgs.value
+    M_sun = constants.M_sun.cgs.value
+    R_sun = constants.R_sun.cgs.value
+
     for line in lines:
       if not line.startswith("#"):
         if line != "\n":
@@ -587,7 +590,8 @@ class PreMainSequence:
           age = 10**float(columns[1])
           temperature = 10**float(columns[3])
           g = 10**float(columns[4])
-          radius = numpy.sqrt(Units.G*mass*Units.Msun/g)/Units.Rsun
+          radius = numpy.sqrt(G * mass*M_sun / g) / R_sun
+          #radius = numpy.sqrt(Units.G*mass*Units.Msun/g)/Units.Rsun
           M.append(mass)
           t.append(age/1e6)
           T.append(temperature)

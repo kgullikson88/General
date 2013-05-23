@@ -7,7 +7,8 @@ from scipy.signal import fftconvolve
 import os
 import DataStructures
 import MakeTape5
-import Units
+#import Units
+from astropy import constants, units
 from collections import defaultdict
 import lockfile
 
@@ -200,6 +201,7 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     """
     #Using Equation 32 from Owens paper (Saved in Dropbox/School/Research/opticsPaper02
     pressure *= Units.torr/Units.hPa
+    pressure *= units.torr.to(units.hPa)
     temperature -= 273.15
     wavenumber = 1.0 / (wavelength*Units.cm/Units.nm)
     nminus1 = 1e-8 * (8342.13 + 2406030./(130. - 1.0/wavenumber**2) + 15997./(38.9 - 1.0/wavenumber**2)) * pressure/720.775 * (1 + pressure*(0.817 - 0.133*(temperature))*1e-6)/(1+0.0036610*(temperature))

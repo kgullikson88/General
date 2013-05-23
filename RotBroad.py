@@ -1,6 +1,7 @@
 import pylab
 import numpy
-import Units
+#import Units
+from astropy import units, constants
 from scipy.interpolate import UnivariateSpline
 import scipy.signal
 import sys
@@ -47,11 +48,11 @@ def ReadFile(filename):
   #Read in file
   x,y = numpy.loadtxt(filename, unpack=True)
   model = DataStructures.xypoint(x.size)
-  model.x = x.copy()*Units.nm/Units.angstrom
+  model.x = x.copy()*units.angstrom.to(units.nm)
   model.y = y.copy()
   #Read in continuum
   x,y = numpy.loadtxt(filename[:-1]+"17", unpack=True)
-  cont_fcn = UnivariateSpline(x*Units.nm/Units.angstrom, y, s=0)
+  cont_fcn = UnivariateSpline(x*units.angstrom.to(units.nm), y, s=0)
   model.cont = cont_fcn(model.x)
 
   return model
@@ -104,7 +105,7 @@ def Broaden(model, vsini, intervalsize=50.0, alpha=0.5, linear=False, findcont=F
     #Make broadening profile
     beta = alpha/(1-alpha)
     wave0 = interval.x[interval.x.size/2]
-    zeta = wave0*vsini/Units.c
+    zeta = wave0*vsini/constants.c.cgs.value
     xspacing = interval.x[1] - interval.x[0]
     wave = numpy.arange(wave0 - zeta, wave0 + zeta, xspacing)
     x = numpy.linspace(-1.0, 1.0, wave.size)
@@ -153,7 +154,7 @@ if __name__ == "__main__":
   data.x = fulldata.x[left:right]
   data.y = fulldata.y[left:right]
   data.cont = fulldata.cont[left:right]
-  spectrum = Broaden(data, 150*Units.cm/Units.km)
+  spectrum = Broaden(data, 150*units.km.to(units.cm))
   pylab.plot(spectrum.x, spectrum.y/spectrum.cont)
   pylab.show()
   #outfilename = "Broadened_" + SpT + "_v%.0f.dat" %(vsini)

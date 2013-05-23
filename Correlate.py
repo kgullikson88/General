@@ -7,7 +7,8 @@ from collections import defaultdict
 from scipy.interpolate import UnivariateSpline
 import scipy.signal
 import DataStructures
-import Units
+#import Units
+from astropy import units, constants
 import MakeModel
 import FindContinuum
 import RotBroad
@@ -141,7 +142,7 @@ def Corr(filename):
 #    contamination. Can be a string (default) which will use all of the orders, a list of integers which will
 #    use all of the orders given in the list, or a dictionary of lists which gives the segments of each order to use.
 #save_output determines whether the cross-correlation is saved to a file, or just returned
-def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, gravities=gravity_list, metallicities=metallicity_list, corr_mode='valid', process_model=True, vsini=15*Units.cm/Units.km, resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, pause=0, debug=False):
+def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, gravities=gravity_list, metallicities=metallicity_list, corr_mode='valid', process_model=True, vsini=15*units.km.to(units.cm), resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, pause=0, debug=False):
   #1: Read in the datafile (if necessary)
   if type(filename) == str:
     chips = DataStructures.ReadGridSearchFile(filename)
@@ -263,7 +264,7 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
     if isinstance(modelfile, str):
       print "******************************\nReading file ", modelfile
       x,y = numpy.loadtxt(modelfile, usecols=(0,1), unpack=True)
-      x = x*Units.nm/Units.angstrom
+      x *= units.angstrom.to(units.nm)
       y = 10**y
       cont = numpy.ones(y.size)*y.max()
     else:
@@ -297,7 +298,7 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
       model.cont = CONT(model.x)
 
       #d: Rotationally broaden
-      if vsini > 1.0*Units.cm/Units.km:
+      if vsini > 1.0*units.km.to(units.cm):
         model = RotBroad.Broaden(model, vsini, linear=True)
       if debug:
         print "After rotational broadening"
@@ -378,7 +379,7 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
 
     #k: Finally, output
     if makefname:
-      outfilename = outdir + filename.split("/")[-1] + ".%.0fkps_%sK%+.1f%+.1f" %(vsini*Units.km/Units.cm, star, gravity, metallicity)
+      outfilename = outdir + filename.split("/")[-1] + ".%.0fkps_%sK%+.1f%+.1f" %(vsini*units.cm.to(units.km), star, gravity, metallicity)
     if save_output:
       print "Outputting to ", outfilename, "\n"
       numpy.savetxt(outfilename, numpy.transpose((vel, corr)), fmt="%.10g")
@@ -570,7 +571,7 @@ if __name__ == "__main__":
   if len(sys.argv) > 1:
     for fname in sys.argv[1:]:
       for vel in [10.0, 20.0, 30.0, 40.0, 50.0]:
-        PyCorr(fname, vsini=vel*Units.cm/Units.km) #, combine=False, sigmaclip=False)
+        PyCorr(fname, vsini=vel*units.km.to(units.cm)) #, combine=False, sigmaclip=False)
   else:
     #Make output file basename
     directory = os.getcwd()
