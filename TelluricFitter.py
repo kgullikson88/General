@@ -254,6 +254,14 @@ class TelluricFitter:
         fit_idx += 1
       else:
         exec("%s = %g" %(self.parnames[i], self.const_pars[i]))
+      
+      #Make sure everything is within its bounds
+      if len(self.bounds[i]) > 0:
+        lower = self.bounds[i][0]
+        upper = self.bounds[i][1]
+        exec("%s = %g if %s < %g else %s" %(self.parnames[i], lower, self.parnames[i], lower, self.parnames[i]))
+        exec("%s = %g if %s > %g else %s" %(self.parnames[i], upper, self.parnames[i], upper, self.parnames[i]))
+        
     wavenum_start = 1e7/waveend
     wavenum_end = 1e7/wavestart
     
@@ -357,7 +365,7 @@ class TelluricFitter:
       test = modelfcn(data.x - mean)
       xdiff = [test[j] - test[j-1] for j in range(1, len(test)-1)]
       if min(xdiff) > 0 and numpy.max(test - data.x) < 0.2:
-        print "Adjusting wavelengths by at most %s" %numpy.max(test - model.x)
+        print "Adjusting wavelengths by at most %g" %numpy.max(test - model.x)
         data.x = test.copy()
       else:
         print "Warning! Wavelength calibration did not succeed!"
@@ -366,7 +374,7 @@ class TelluricFitter:
       xdiff = [test[j] - test[j-1] for j in range(1, len(test)-1)]
       if min(xdiff) > 0 and numpy.max(test - model.x) < 0.5:
         model.x = test.copy()
-        print "Adjusting wavelengths by at most %s" %numpy.max(test - model.x)
+        print "Adjusting wavelengths by at most %g" %numpy.max(test - model.x)
         model_original.x = modelfcn(model_original.x - mean)
       else:
         print "Warning! Wavelength calibration did not succeed!"
