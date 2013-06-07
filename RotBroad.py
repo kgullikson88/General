@@ -8,6 +8,7 @@ import sys
 import DataStructures
 import SpectralTypeRelations
 import FindContinuum
+import matplotlib.pyplot as plt
 
 
 pi = numpy.pi
@@ -16,6 +17,7 @@ pi = numpy.pi
 def CombineIntervals(intervals, overlap=0):
   
   iteration = 0
+  print "\n\n"
   for interval in intervals:
     lastindex = interval.x.size - overlap
     
@@ -58,7 +60,7 @@ def ReadFile(filename):
   return model
 
 
-def Broaden(model, vsini, intervalsize=50.0, alpha=0.5, linear=False, findcont=False):  
+def Broaden(model, vsini, intervalsize=5000.0, alpha=0.25, linear=False, findcont=False):  
   """
     model:           input filename of the spectrum. The continuum data is assumed to be in filename[:-1]+".17"
                      model can also be a DataStructures.xypoint containing the already-read model (must include continuum!)
@@ -84,8 +86,9 @@ def Broaden(model, vsini, intervalsize=50.0, alpha=0.5, linear=False, findcont=F
   lastindex = 0
   intervals = []
 
+
   while lastindex < model.x.size - 1:
-    lastindex = numpy.searchsorted(model.x, model.x[firstindex] + intervalsize) - 1
+    lastindex = min (numpy.searchsorted(model.x, model.x[firstindex] + intervalsize), model.size()-1)
     interval = DataStructures.xypoint(lastindex - firstindex + 1)
     if linear:
       interval.x = model.x[firstindex:lastindex]
@@ -110,21 +113,30 @@ def Broaden(model, vsini, intervalsize=50.0, alpha=0.5, linear=False, findcont=F
     wave = numpy.arange(wave0 - zeta, wave0 + zeta, xspacing)
     x = numpy.linspace(-1.0, 1.0, wave.size)
     flux = pi/2.0*(1.0 - 1.0/(1. + 2*beta/3.)*(2/pi*numpy.sqrt(1.-x**2) + beta/2*(1.-x**2)))
-    profile = -(flux - flux.max())
+    profile = flux.max() - flux
 
     #Extend interval to reduce edge effects (basically turn convolve into circular convolution)
-    before = interval.y[-profile.size/2+1:]
+    before = interval.y[-profile.size/2:]
     after = interval.y[:profile.size/2]
+    before = interval.y[-int(profile.size):]
+    after = interval.y[:int(profile.size)]
     extended = numpy.append(numpy.append(before, interval.y), after)
 
+    if profile.size % 2 == 0:
+      left, right = int(profile.size*1.5), int(profile.size*1.5)-1
+    else:
+      left, right = int(profile.size*1.5), int(profile.size*1.5)
     
-    interval.y = scipy.signal.fftconvolve(extended, profile/profile.sum(), mode="valid")
+    #interval.y = scipy.signal.fftconvolve(extended, profile/profile.sum(), mode="valid")
+    #interval.y = scipy.signal.fftconvolve(extended, profile/profile.sum(), mode="full")[left:-right]
+    interval.y = numpy.convolve(extended, profile/profile.sum(), mode="full")[left:-right]
     intervals.append(interval)
 
     if profile.size > profilesize:
       profilesize = profile.size
     firstindex = lastindex - 2*profile.size
-
+    
+  
   if len(intervals) > 1:
     return CombineIntervals(intervals, overlap=profilesize)
   else:

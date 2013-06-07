@@ -357,9 +357,10 @@ class SimbadError(Exception) :
 if __name__ == '__main__' :
 
 	if sys.argv.__len__() > 1 :
+	    for arg in sys.argv[1:]:
 		print "SIMBOT Running..."
-		print "Input Object Name : %s" % sys.argv[1]
-		link = buildLink(sys.argv[1])
+		print "Input Object Name : %s" % arg
+		link = buildLink(arg)
 		print "HTTP Address : %s" % link
 		try : s=simbad(link)
 		except ConnectionError :

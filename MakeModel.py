@@ -294,25 +294,30 @@ def ReduceResolution(data,resolution, cont_fcn=None, extend=True):
   xspacing = data.x[1] - data.x[0]   #NOTE: this assumes constant x spacing!
   FWHM = centralwavelength/resolution;
   sigma = FWHM/(2.0*numpy.sqrt(2.0*numpy.log(2.0)))
-  left = 0
-  right = numpy.searchsorted(data.x, 10*sigma)
+  #left = 0
+  #right = numpy.searchsorted(data.x, 10*sigma)
   x = numpy.arange(0,10*sigma, xspacing)
   gaussian = numpy.exp(-(x-5*sigma)**2/(2*sigma**2))
   if extend:
     #Extend array to try to remove edge effects (do so circularly)
     before = data.y[-gaussian.size/2+1:]
     after = data.y[:gaussian.size/2]
+    before = data.y[-int(gaussian.size):]
+    after = data.y[:int(gaussian.size)]
     extended = numpy.append(numpy.append(before, data.y), after)
 
     first = data.x[0] - float(int(gaussian.size/2.0+0.5))*xspacing
     last = data.x[-1] + float(int(gaussian.size/2.0+0.5))*xspacing
-    x2 = numpy.linspace(first, last, extended.size) 
     
-    conv_mode = "valid"
+    conv_mode = "full"
+
+    if gaussian.size % 2 == 0:
+      left, right = int(gaussian.size*1.5), int(gaussian.size*1.5)-1
+    else:
+      left, right = int(gaussian.size*1.5), int(gaussian.size*1.5)
 
   else:
     extended = data.y.copy()
-    x2 = data.x.copy()
     conv_mode = "same"
 
   newdata = data.copy()
@@ -327,7 +332,9 @@ def ReduceResolution(data,resolution, cont_fcn=None, extend=True):
   else:
     #newdata.y = numpy.convolve(extended, gaussian/gaussian.sum(), mode=conv_mode)
     newdata.y = fftconvolve(extended, gaussian/gaussian.sum(), mode=conv_mode)
-    
+
+  if extend:
+    newdata.y = newdata.y[left:-right]
   return newdata
 
 #Just a convenince fcn which combines the above two
