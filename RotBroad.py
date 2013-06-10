@@ -114,6 +114,8 @@ def Broaden(model, vsini, intervalsize=5000.0, alpha=0.25, linear=False, findcon
     x = numpy.linspace(-1.0, 1.0, wave.size)
     flux = pi/2.0*(1.0 - 1.0/(1. + 2*beta/3.)*(2/pi*numpy.sqrt(1.-x**2) + beta/2*(1.-x**2)))
     profile = flux.max() - flux
+    #plt.plot(profile)
+    
 
     #Extend interval to reduce edge effects (basically turn convolve into circular convolution)
     before = interval.y[-profile.size/2:]
@@ -136,7 +138,7 @@ def Broaden(model, vsini, intervalsize=5000.0, alpha=0.25, linear=False, findcon
       profilesize = profile.size
     firstindex = lastindex - 2*profile.size
     
-  
+  #plt.show()
   if len(intervals) > 1:
     return CombineIntervals(intervals, overlap=profilesize)
   else:

@@ -289,7 +289,7 @@ def RebinData(data,xgrid):
   return newdata
 
 #This function reduces the resolution by convolving with a gaussian kernel
-def ReduceResolution(data,resolution, cont_fcn=None, extend=True):
+def ReduceResolution(data, resolution, cont_fcn=None, extend=True):
   centralwavelength = (data.x[0] + data.x[-1])/2.0
   xspacing = data.x[1] - data.x[0]   #NOTE: this assumes constant x spacing!
   FWHM = centralwavelength/resolution;
@@ -305,9 +305,6 @@ def ReduceResolution(data,resolution, cont_fcn=None, extend=True):
     before = data.y[-int(gaussian.size):]
     after = data.y[:int(gaussian.size)]
     extended = numpy.append(numpy.append(before, data.y), after)
-
-    first = data.x[0] - float(int(gaussian.size/2.0+0.5))*xspacing
-    last = data.x[-1] + float(int(gaussian.size/2.0+0.5))*xspacing
     
     conv_mode = "full"
 
