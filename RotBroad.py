@@ -9,7 +9,7 @@ import DataStructures
 import SpectralTypeRelations
 import FindContinuum
 import matplotlib.pyplot as plt
-
+import warnings
 
 pi = numpy.pi
 
@@ -60,13 +60,13 @@ def ReadFile(filename):
   return model
 
 
-def Broaden(model, vsini, intervalsize=5000.0, alpha=0.25, linear=False, findcont=False):  
+def Broaden(model, vsini, intervalsize=50.0, beta=1.0, linear=False, findcont=False):  
   """
     model:           input filename of the spectrum. The continuum data is assumed to be in filename[:-1]+".17"
                      model can also be a DataStructures.xypoint containing the already-read model (must include continuum!)
     vsini:           the velocity (times sin(i) ) of the star
     intervalsize:    The size (in nm) of the interval to use for broadening. Since it depends on wavelength, you don't want to do all at once
-    alpha:           Something to do with limb darkening...
+    alpha:           Linear limb darkening. beta = b/a where I(u) = a + bu
     linear:          flag for if the x-spacing is already linear. If true, we don't need to make UnivariateSplines and linearize
     findcont:        flag to decide if the continuum needs to be found
   """
@@ -106,7 +106,24 @@ def Broaden(model, vsini, intervalsize=5000.0, alpha=0.25, linear=False, findcon
     
     
     #Make broadening profile
-    beta = alpha/(1-alpha)
+    wave0 = interval.x[interval.x.size/2]
+    zeta = wave0*vsini/constants.c.cgs.value
+    xspacing = interval.x[1] - interval.x[0]
+    wave = numpy.arange(wave0 - zeta, wave0 + zeta + xspacing, xspacing)
+    x = (wave-wave0)/zeta
+    x[x<-1] = -1.0
+    x[x>1] = 1.0
+    profile = 1.0/(zeta*(1+2*beta/3.)) * ( 2/numpy.pi*numpy.sqrt( 1-x**2 ) + 0.5*beta*( 1-x**2  ) )
+    if profile.size < 10:
+      warning.warn( "Warning! Profile size too small: %i\nNot broadening!" %(profile.size) )
+      intervals.append(interval)
+      firstindex = lastindex - 2*profile.size
+      continue
+    #plt.plot(wave, profile)
+    #plt.show()
+
+
+    """
     wave0 = interval.x[interval.x.size/2]
     zeta = wave0*vsini/constants.c.cgs.value
     xspacing = interval.x[1] - interval.x[0]
@@ -115,7 +132,7 @@ def Broaden(model, vsini, intervalsize=5000.0, alpha=0.25, linear=False, findcon
     flux = pi/2.0*(1.0 - 1.0/(1. + 2*beta/3.)*(2/pi*numpy.sqrt(1.-x**2) + beta/2*(1.-x**2)))
     profile = flux.max() - flux
     #plt.plot(profile)
-    
+    """
 
     #Extend interval to reduce edge effects (basically turn convolve into circular convolution)
     before = interval.y[-profile.size/2:]

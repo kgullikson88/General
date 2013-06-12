@@ -64,3 +64,14 @@ def Continuum(x, y, fitorder=3, lowreject=1, highreject=3, numiter=10000, functi
       x2 = numpy.delete(x2, badpoints)
       y2 = numpy.delete(y2, badpoints)
   return fit(x - x2.mean())
+
+
+
+"""
+  General error function for leastsq
+"""
+def GeneralLSErrorFunction(data, model, normalize=True):
+  if normalize:
+    return (data.y/data.cont - model.y/model.cont)**2 / data.err**2
+  else:
+    return (data.y - model.y)**2 / data.err**2 

@@ -44,7 +44,7 @@ class xypoint:
       size = err.size
       
     if x == None:
-      self.x = numpy.zeros(size)
+      self.x = numpy.arange(size)
     else:
       self.x = x.copy()
     if y == None:
@@ -80,6 +80,21 @@ class xypoint:
     return output
   def output(self, outfilename):
     numpy.savetxt(outfilename, numpy.transpose((self.x, self.y, self.cont, self.err)) )
+  def __getitem__(self, index):
+    if isinstance(index, slice):
+      if index.step == None:
+        step = 1
+      else:
+        step = index.step
+      x = numpy.array([self.x[i] for i in range(index.start, index.stop, step)])
+      y = numpy.array([self.y[i] for i in range(index.start, index.stop, step)])
+      cont = numpy.array([self.cont[i] for i in range(index.start, index.stop, step)])
+      err = numpy.array([self.err[i] for i in range(index.start, index.stop, step)])
+      return xypoint(x=x, y=y, cont=cont, err=err)
+    else:
+      return [self.x[index], self.y[index], self.cont[index], self.err[index]]
+  def __len__(self):
+    return self.size()
 
 
 def ReadXypointFile(filename, headerflag=False):
