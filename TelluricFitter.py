@@ -661,6 +661,12 @@ class TelluricFitter:
   #dimension is the number of eigenvalues to keep in the broadening function. (Keeping too many starts fitting noise)
   def Broaden(self, data, model, oversampling = 5, m = 101, dimension = 20, full_output=False):
     n = data.x.size*oversampling
+    
+    #n must be even, and m must be odd!
+    if n%2 != 0:
+      n += 1
+    if m%2 == 0:
+      m += 1
   
     #resample data
     Spectrum = UnivariateSpline(data.x, data.y/data.cont, s=0)
