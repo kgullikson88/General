@@ -553,6 +553,149 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
 
 
 
+
+"""
+   Autocorrelate each model against itself, on the xgrids given by the data orders
+"""
+
+def AutoCorrelate(data, stars=star_list, temps=temp_list, models=model_list, gravities=gravity_list, metallicities=metallicity_list, corr_mode='valid', process_model=True, normalize=False, vsini=15*units.km.to(units.cm), resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, outfilebase="", debug=False):
+
+  ensure_dir(outdir)
+
+  makefname = False
+  if outfilename == None and save_output:
+    makefname = True
+    
+  #3: Begin loop over model spectra
+  returnlist = []
+  for i in range(len(models)):
+    star = stars[i]
+    temp = temps[i]
+    gravity = gravities[i]
+    metallicity = metallicities[i]
+
+    if makefname:
+      outfilename = "%s%s.%.0fkps_%sK%+.1f%+.1f" %(outdir, outfilebase, vsini*units.cm.to(units.km), star, gravity, metallicity)
+
+    #a: Read in file (or  rename if already read in: PREFERRABLE!)
+    if isinstance(models[i], str):
+      print "******************************\nReading file ", modelfile
+      x,y = numpy.loadtxt(models[i], usecols=(0,1), unpack=True)
+      x *= units.angstrom.to(units.nm)
+      y = 10**y
+      cont = numpy.ones(y.size)*y.max()
+      model = DataStructures.xypoint(x=x, y=y, cont=cont)
+    elif isinstance(models[i], DataStructures.xypoint):
+      model = models[i].copy()
+
+    if process_model:
+      left = numpy.searchsorted(model.x, data[0].x[0] - 10.0)
+      right = numpy.searchsorted(model.x, data[-1].x[-1] + 10.0)
+      if left > 0:
+        left -= 1
+      x2 = model.x[left:right].copy()
+      y2 = model.y[left:right].copy()
+      cont2 = FindContinuum.Continuum(x2, y2, fitorder=5)
+      MODEL = UnivariateSpline(x2,y2, s=0)
+      CONT = UnivariateSpline(x2, cont2, s=0)
+      
+    
+    #h: Cross-correlate
+    corrlist = []
+    for ordernum, order in enumerate(data):
+      if process_model:
+        left = numpy.searchsorted(model.x, order.x[0] - 10.0)
+        right = numpy.searchsorted(model.x, order.x[-1] + 10.0)
+        if left > 0:
+          left -= 1
+
+        #b: Make wavelength spacing constant
+        model2 = DataStructures.xypoint(right - left + 1)
+        model2.x = numpy.linspace(model.x[left], model.x[right], right - left + 1)
+        model2.y = MODEL(model2.x)
+        model2.cont = CONT(model2.x)
+
+        #d: Rotationally broaden
+        if vsini > 1.0*units.km.to(units.cm):
+          model2 = RotBroad.Broaden(model2, vsini, linear=True)
+        if debug:
+          print "After rotational broadening"
+          print model2.y
+      
+        #e: Convolve to detector resolution
+        model2 = MakeModel.ReduceResolution(model2.copy(), resolution, extend=False)
+        if debug:
+          print "After resolution decrease"
+          print model.y
+
+        #f: Rebin to the same spacing as the data
+        xgrid = numpy.arange(model2.x[0], model2.x[-1], order.x[1] - order.x[0])
+        model2 = MakeModel.RebinData(model2.copy(), xgrid)
+        if debug:
+          print "After rebinning"
+          print model2.y
+
+      #Now, do the actual cross-correlation
+      reduced = model2.y / model2.cont
+      model_rms = numpy.sqrt(numpy.sum((reduced-1)**2))
+      if debug:
+        order.output("Corr_inputdata.dat")
+        model2.output("Corr_inputmodel.dat")
+    
+      #ycorr = scipy.signal.fftconvolve((order.y/order.cont-1.0), (model2.y/model2.cont-1.0)[::-1], mode=corr_mode)
+      ycorr = numpy.correlate(reduced - 1.0, reduced - 1.0, mode=corr_mode)
+      xcorr = numpy.arange(ycorr.size)
+      if corr_mode == 'valid':
+        lags = xcorr - (model2.x.size + order.x.size - 1.0)/2.0
+      elif corr_mode == 'full':
+        lags = xcorr - model2.x.size
+      else:
+        sys.exit("Sorry! corr_mode = %s not supported yet!" %corr_mode)
+      distancePerLag = model2.x[1] - model2.x[0]
+      offsets = -lags*distancePerLag
+      velocity = offsets*3e5 / numpy.median(order.x)   
+      corr = DataStructures.xypoint(velocity.size)
+      corr.x = velocity[::-1]
+      corr.y = ycorr[::-1]/(data_rms*model_rms)
+        
+      #i: Only save part of the correlation
+      left = numpy.searchsorted(corr.x, minvel)
+      right = numpy.searchsorted(corr.x, maxvel)
+      corr.x = corr.x[left:right]
+      corr.y = corr.y[left:right]
+        
+      #j: Adjust correlation by fit, if user wants
+      if normalize:
+        mean = numpy.mean(corr.y)
+        std = numpy.std(corr.y)
+        corr.y = (corr.y - mean)/std
+
+      #k: Save correlation
+      corrlist.append(corr.copy())
+      if debug:
+        numpy.savetxt("%s.order%i" %(outfilename, ordernum+1), numpy.transpose((corr.x, corr.y)))
+        #corr.output("%s.order%i" %(outfilename, ordernum+1))
+
+    #Add up the individual CCFs
+    master_corr = corrlist[0]
+    for corr in corrlist[1:]:
+      correlation = UnivariateSpline(corr.x, corr.y, s=0)
+      master_corr.y += correlation(master_corr.x)
+
+    #Finally, output
+    if makefname:
+      outfilename = "%s%s.%.0fkps_%sK%+.1f%+.1f" %(outdir, outfilebase, vsini*units.cm.to(units.km), star, gravity, metallicity)
+    if save_output:
+      print "Outputting to ", outfilename, "\n"
+      numpy.savetxt(outfilename, numpy.transpose((master_corr.x, master_corr.y)), fmt="%.10g")
+      returnlist.append(outfilename)
+    else:
+      returnlist.append(master_corr)
+
+  return returnlist
+
+
+
   
 
 
