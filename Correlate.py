@@ -630,33 +630,41 @@ def AutoCorrelate(data, stars=star_list, temps=temp_list, models=model_list, gra
 
         #f: Rebin to the same spacing as the data
         xgrid = numpy.arange(model2.x[0], model2.x[-1], order.x[1] - order.x[0])
-        model2 = MakeModel.RebinData(model2.copy(), xgrid)
+        modellong = MakeModel.RebinData(model2.copy(), xgrid)
+        modelshort = MakeModel.RebinData(model2.copy(), order.x)
         if debug:
           print "After rebinning"
-          print model2.y
+          print modelshort.y
+          print modellong.y
 
       #Now, do the actual cross-correlation
-      reduced = model2.y / model2.cont
-      model_rms = numpy.sqrt(numpy.sum((reduced-1)**2))
+      reducedshort = modelshort.y / modelshort.cont
+      reducedlong = modellong.y / modellong.cont
+      modelshort_rms = numpy.sqrt(numpy.sum((reducedshort-1)**2))
+      modellong_rms = numpy.sqrt(numpy.sum((reducedlong-1)**2))
+      left = numpy.searchsorted(modellong.x, modelshort.x[0])
+      right = modellong.x.size - numpy.searchsorted(modellong.x, modelshort.x[-1])
+      delta = left - right
       if debug:
-        order.output("Corr_inputdata.dat")
-        model2.output("Corr_inputmodel.dat")
+        modellong.output("Corr_inputmodellong.dat")
+        modelshort.output("Corr_inputmodelshort.dat")
     
-      #ycorr = scipy.signal.fftconvolve((order.y/order.cont-1.0), (model2.y/model2.cont-1.0)[::-1], mode=corr_mode)
-      ycorr = numpy.correlate(reduced - 1.0, reduced - 1.0, mode=corr_mode)
+     
+      ycorr = numpy.correlate(reducedshort - 1.0, reducedlong - 1.0, mode=corr_mode)
       xcorr = numpy.arange(ycorr.size)
       if corr_mode == 'valid':
-        lags = xcorr - (model2.x.size + order.x.size - 1.0)/2.0
+        lags = xcorr - (modellong.x.size + modelshort.x.size + delta - 1.0)/2.0
+        lags = xcorr - right
       elif corr_mode == 'full':
-        lags = xcorr - model2.x.size
+        lags = xcorr - modellong.x.size
       else:
         sys.exit("Sorry! corr_mode = %s not supported yet!" %corr_mode)
-      distancePerLag = model2.x[1] - model2.x[0]
+      distancePerLag = modellong.x[1] - modellong.x[0]
       offsets = -lags*distancePerLag
-      velocity = offsets*3e5 / numpy.median(order.x)   
+      velocity = offsets*3e5 / numpy.median(modelshort.x)   
       corr = DataStructures.xypoint(velocity.size)
       corr.x = velocity[::-1]
-      corr.y = ycorr[::-1]/(data_rms*model_rms)
+      corr.y = ycorr[::-1]/(modelshort_rms*modellong_rms)
         
       #i: Only save part of the correlation
       left = numpy.searchsorted(corr.x, minvel)

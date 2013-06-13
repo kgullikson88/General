@@ -160,6 +160,66 @@ def Broaden(model, vsini, intervalsize=50.0, beta=1.0, linear=False, findcont=Fa
     return CombineIntervals(intervals, overlap=profilesize)
   else:
     return intervals[0]
+
+
+"""
+Same as above, but performs the convolution in velocity space
+Note that this uses epsilon, rather than Beta = epsilon/(1-epsilon) !!
+"""
+def Broaden2(model, vsini, intervalsize=50.0, epsilon=0.5, linear=False, findcont=False):  
+  """
+    model:           input filename of the spectrum. The continuum data is assumed to be in filename[:-1]+".17"
+                     model can also be a DataStructures.xypoint containing the already-read model (must include continuum!)
+    vsini:           the velocity (times sin(i) ) of the star
+    intervalsize:    The size (in nm) of the interval to use for broadening. Since it depends on wavelength, you don't want to do all at once
+    epsilon:          Linear limb darkening. I(u) = 1-epsilon + epsilon*u
+    linear:          flag for if the x-spacing is already linear. If true, we don't need to make UnivariateSplines and linearize
+    findcont:        flag to decide if the continuum needs to be found
+  """
+
+  if type(model) == str:
+    model = ReadFile(model)
+
+  if not findcont:
+    cont_fcn = UnivariateSpline(model.x, model.cont, s=0)
+
+  if not linear:
+    model_fcn = UnivariateSpline(model.x, model.y, s=0)
+    x = numpy.linspace(model.x[0], model.x[-1], model.size())
+    model = DataStructures.xypoint(x=x, y=model_fcn(x))
+    if not findcont:
+      model.cont = cont_fcn(model.x)
+    else:
+      model.cont = FittingUtilities.Continuum(model.x, model.y, lowreject=1.5, highreject=10)
+  elif findcont:
+    model.cont = FittingUtilities.Continuum(model.x, model.y, lowreject=1.5, highreject=10)
+
+
+  #Convert to velocity space
+  wave0 = numpy.median(model.x)
+  model.x = constants.c.cgs.value * (model.x - wave0)/wave0
+
+  #Make broadening profile
+  left = numpy.searchsorted(model.x, -vsini)
+  right = numpy.searchsorted(model.x, vsini)
+  profile = model[left:right]
+  profile.y = 1.0/(vsini*(1-epsilon/3.0)) * (2*(1-epsilon)/numpy.pi * numpy.sqrt(1-(profile.x/vsini)**2) + epsilon/2.0 * (1-(profile.x/vsini)**2) )
+  
+  #Extend interval to reduce edge effects (basically turn convolve into circular convolution)
+  before = model.y[-int(profile.size()):]
+  after = model.y[:int(profile.size())]
+  extended = numpy.append(numpy.append(before, model.y), after)
+
+  if profile.size() % 2 == 0:
+    left, right = int(profile.size*1.5), int(profile.size*1.5)-1
+  else:
+    left, right = int(profile.size*1.5), int(profile.size*1.5)
+
+  #Perform the actual convolution
+  model.y = numpy.convolve(extended, profile/profile.sum(), mode="full")[left:-right]
+  return model
+
+  
   
 
 def Test_fcn(model):
