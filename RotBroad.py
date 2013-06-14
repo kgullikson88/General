@@ -196,14 +196,17 @@ def Broaden2(model, vsini, intervalsize=50.0, epsilon=0.5, linear=False, findcon
 
 
   #Convert to velocity space
-  wave0 = numpy.median(model.x)
+  wave0  = model.x[model.size()/2]
   model.x = constants.c.cgs.value * (model.x - wave0)/wave0
 
   #Make broadening profile
-  left = numpy.searchsorted(model.x, -vsini)
-  right = numpy.searchsorted(model.x, vsini)
+  left = numpy.searchsorted(model.x, -2*vsini)
+  right = numpy.searchsorted(model.x, 2*vsini)
   profile = model[left:right]
-  profile.y = 1.0/(vsini*(1-epsilon/3.0)) * (2*(1-epsilon)/numpy.pi * numpy.sqrt(1-(profile.x/vsini)**2) + epsilon/2.0 * (1-(profile.x/vsini)**2) )
+  profile.y = numpy.zeros(profile.size())
+  dv = profile.x/vsini
+  indices = numpy.where(numpy.abs(dv) < 1.0)[0]
+  profile.y[indices] = 1.0/(vsini*(1-epsilon/3.0)) * (2*(1-epsilon)/numpy.pi * numpy.sqrt(1-dv[indices]**2) + epsilon/2.0 * (1-dv[indices]**2) )
   
   #Extend interval to reduce edge effects (basically turn convolve into circular convolution)
   before = model.y[-int(profile.size()):]
@@ -211,12 +214,14 @@ def Broaden2(model, vsini, intervalsize=50.0, epsilon=0.5, linear=False, findcon
   extended = numpy.append(numpy.append(before, model.y), after)
 
   if profile.size() % 2 == 0:
-    left, right = int(profile.size*1.5), int(profile.size*1.5)-1
+    left, right = int(profile.size()*1.5), int(profile.size()*1.5)-1
   else:
-    left, right = int(profile.size*1.5), int(profile.size*1.5)
+    left, right = int(profile.size()*1.5), int(profile.size()*1.5)
 
-  #Perform the actual convolution
-  model.y = numpy.convolve(extended, profile/profile.sum(), mode="full")[left:-right]
+  model.y = numpy.convolve(extended, profile.y/profile.y.sum(), mode="full")[left:-right]
+
+  #Return back to wavelength space
+  model.x = wave0 * (1 + model.x/constants.c.cgs.value)
   return model
 
   
