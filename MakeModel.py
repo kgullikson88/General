@@ -319,6 +319,7 @@ def ReduceResolution(data, resolution, cont_fcn=None, extend=True):
 
   newdata = data.copy()
   if cont_fcn != None:
+    x2 = numpy.linspace(data.x[0] - gaussian.size/2.0*xspacing, data.x[-1]+gaussian.size/2.0*xspacing, extended.size)
     cont1 = cont_fcn(newdata.x)
     cont2 = cont_fcn(x2)
     cont1[cont1 < 0.01] = 1
