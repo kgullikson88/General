@@ -455,6 +455,7 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
     
     #h: Cross-correlate
     corrlist = []
+    normalization = 0.0
     for ordernum, order in enumerate(data):
       if process_model:
         left = numpy.searchsorted(model.x, order.x[0] - 10.0)
@@ -489,8 +490,12 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
           print model.y
 
       #Now, do the actual cross-correlation
-      data_rms = numpy.sqrt(numpy.sum((order.y/order.cont-1)**2))
-      model_rms = numpy.sqrt(numpy.sum((model2.y/model2.cont-1)**2))
+      reduceddata = order.y/order.cont
+      reducedmodel = model2.y/model2.cont
+      meandata = reduceddata.mean()
+      meanmodel = reducedmodel.mean()
+      data_rms = numpy.sqrt(numpy.sum((reduceddata - meandata)**2))
+      model_rms = numpy.sqrt(numpy.sum((reducedmodel - meanmodel)**2))
       left = numpy.searchsorted(model2.x, order.x[0])
       right = model2.x.size - numpy.searchsorted(model2.x, order.x[-1])
       delta = left - right
@@ -499,7 +504,7 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
         model2.output("Corr_inputmodel.dat")
     
       #ycorr = scipy.signal.fftconvolve((order.y/order.cont-1.0), (model2.y/model2.cont-1.0)[::-1], mode=corr_mode)
-      ycorr = numpy.correlate(order.y/order.cont - 1.0, model2.y/model2.cont - 1.0, mode=corr_mode)
+      ycorr = numpy.correlate(reduceddata - meandata, reducedmodel - meanmodel, mode=corr_mode)
       xcorr = numpy.arange(ycorr.size)
       if corr_mode == 'valid':
         lags = xcorr - (model2.x.size + order.x.size + delta - 1.0)/2.0
@@ -513,6 +518,7 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
       velocity = offsets*3e5 / numpy.median(order.x)   
       corr = DataStructures.xypoint(velocity.size)
       corr.x = velocity[::-1]
+      #corr.y = ycorr[::-1]/model_rms
       corr.y = ycorr[::-1]/(data_rms*model_rms)
         
       #i: Only save part of the correlation
@@ -520,13 +526,15 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
       right = numpy.searchsorted(corr.x, maxvel)
       corr.x = corr.x[left:right]
       corr.y = corr.y[left:right]
-        
+
+      """
       #j: Adjust correlation by fit, if user wants
       if normalize:
         mean = numpy.mean(corr.y)
         std = numpy.std(corr.y)
         corr.y = (corr.y - mean)/std
-
+      """
+      normalization += 1.0
       #k: Save correlation
       corrlist.append(corr.copy())
       if debug:
@@ -538,6 +546,7 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
     for corr in corrlist[1:]:
       correlation = UnivariateSpline(corr.x, corr.y, s=0)
       master_corr.y += correlation(master_corr.x)
+    master_corr.y /= normalization
 
     #Finally, output
     if makefname:
@@ -640,8 +649,10 @@ def AutoCorrelate(data, stars=star_list, temps=temp_list, models=model_list, gra
       #Now, do the actual cross-correlation
       reducedshort = modelshort.y / modelshort.cont
       reducedlong = modellong.y / modellong.cont
-      modelshort_rms = numpy.sqrt(numpy.sum((reducedshort-1)**2))
-      modellong_rms = numpy.sqrt(numpy.sum((reducedlong-1)**2))
+      meanshort = numpy.mean(reducedshort)
+      meanlong = numpy.mean(reducedlong)
+      modelshort_rms = numpy.sqrt(numpy.sum((reducedshort-meanshort)**2))
+      modellong_rms = numpy.sqrt(numpy.sum((reducedlong-meanlong)**2))
       left = numpy.searchsorted(modellong.x, modelshort.x[0])
       right = modellong.x.size - numpy.searchsorted(modellong.x, modelshort.x[-1])
       delta = left - right
@@ -649,8 +660,8 @@ def AutoCorrelate(data, stars=star_list, temps=temp_list, models=model_list, gra
         modellong.output("Corr_inputmodellong.dat")
         modelshort.output("Corr_inputmodelshort.dat")
     
-     
-      ycorr = numpy.correlate(reducedshort - 1.0, reducedlong - 1.0, mode=corr_mode)
+      
+      ycorr = numpy.correlate(reducedshort - meanshort, reducedlong - meanlong, mode=corr_mode)
       xcorr = numpy.arange(ycorr.size)
       if corr_mode == 'valid':
         lags = xcorr - (modellong.x.size + modelshort.x.size + delta - 1.0)/2.0

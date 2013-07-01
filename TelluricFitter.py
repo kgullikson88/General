@@ -18,11 +18,12 @@ Usage:
       a list of size 2 of the form [lower_bound, upper_bound]
   - Import data (fitter.ImportData): Copy data as a class variable.
       Must be given as a DataStructures.xypoint instance
-  - Perform the fit: (fitter.Fit): no arguments given... for now
+  - Perform the fit: (fitter.Fit):
       Returns a DataStructures.xypoint instance of the model. The 
-      x-values in the returned array should be the same as the data.
+      x-values in the returned array are the same as the data.
    - Optional: retrieve a new version of the data, which is 
-      wavelength-calibrated using the telluric lines with 
+      wavelength-calibrated using the telluric lines and with
+      a potentially better continuum fit using
       data2 = fitter.data  
 
 
@@ -56,7 +57,7 @@ class TelluricFitter:
     self.const_pars = [795.0, 273.0, 45.0, 50000.0, 2200.0, 2400.0,
                        50.0, 368.5, 3.9e-2, 0.32, 0.14, 1.8, 2.1e5, 1.1e-19,
                        1e-4, 1e-4, 1e-4, 5.6e-4]
-    self.bounds = [[] for par in self.parnames]
+    self.bounds = [[0.0, 1e30] for par in self.parnames]  #Basically just making sure everything is > 0
     self.fitting = [False]*len(self.parnames)
     self.data = None
     self.resolution_bounds = [10000.0, 100000.0]
@@ -112,9 +113,9 @@ class TelluricFitter:
         self.DisplayVariables()
 
   """
-    Similar to FitVariable, but it sets bounds on the variable. This caqn technically
+    Similar to FitVariable, but it sets bounds on the variable. This can technically
       be done for any variable, but is only useful to set bounds for those variables
-      being fit
+      being fit (and detector resolution)
   """
   def SetBounds(self, bounddict):
     for par in bounddict.keys():
@@ -133,8 +134,11 @@ class TelluricFitter:
       a DataStructures.xypoint structure.
   """
   def ImportData(self, data):
+    if not isinstance(data, DataStructures.xypoint):
+      print "ImportData Warning! Given data is not a DataStructures.xypoint structure!"
+      sys.exit()
     self.data = data.copy()
-
+    return
 
   """
     Edit the location of the telluric line list. These lines are used to improve
@@ -159,7 +163,7 @@ class TelluricFitter:
 
     fit_primary determines whether an iterative smoothing is applied to the data to approximate the primary star (only works for primary stars with broad lines)
 
-    adjust_wave can be set to either 'data' or 'model'. To wavelength calibrate the data to the telluric lines, set to 'data'. If you think the wavelength calibration is good on the data (such as Th-Ar lines in the optical), then set to 'model'
+    adjust_wave can be set to either 'data' or 'model'. To wavelength calibrate the data to the telluric lines, set to 'data'. If you think the wavelength calibration is good on the data (such as Th-Ar lines in the optical), then set to 'model' Note that currently, the vacuum --> air conversion for the telluric model is done in a very approximate sense, so adjusting the data wavelengths will introduce a small (few km/s) offset from what it should be.
   """
   def Fit(self, resolution_fit_mode="SVD", fit_primary=False, adjust_wave="data", continuum_fit_order=7, wavelength_fit_order=3):
     print "Fitting now!"
@@ -169,24 +173,26 @@ class TelluricFitter:
     self.continuum_fit_order = continuum_fit_order
     self.wavelength_fit_order = wavelength_fit_order
 
-    #Make fitpars array
-    fitpars = [self.const_pars[i] for i in range(len(self.parnames)) if self.fitting[i] ]
-    if len(fitpars) < 1:
-      print "Error! Must fit at least one variable!"
-      return
-
+    #Check to make sure the user gave data to fit
     if self.data == None:
       print "Error! Must supply data to fit!"
       return
 
+    #Make sure resolution bounds are given (resolution is always fit)
     idx = self.parnames.index("resolution")
     if len(self.bounds[idx]) < 2 and self.resolution_fit_mode != "SVD":
       print "Must give resolution bounds!"
       inp = raw_input("Enter the lowest and highest possible resolution, separated by a space: ")
       self.resolution_bounds = [float(inp.split()[0]), float(inp.split()[1])]
-    
 
-    #Read in line list:
+
+    #Make fitpars array
+    fitpars = [self.const_pars[i] for i in range(len(self.parnames)) if self.fitting[i] ]
+    if len(fitpars) < 1:
+      print "Error! Must fit at least one variable!"
+      return
+    
+    #Read in line list (used only for wavelength calibration):
     linelist = numpy.loadtxt(self.LineListFile)
 
     #Set up the fitting logfile
@@ -197,6 +203,7 @@ class TelluricFitter:
         outfile.write("%s\t" %self.parnames[i])
     outfile.write("\n")
     outfile.close()
+
 
     #Perform the fit
     self.first_iteration = True
@@ -235,9 +242,16 @@ class TelluricFitter:
 
 
 
+"""
+  This function does the actual work of generating a model with the given parameters,
+    fitting the continuum, making sure the model and data are well aligned in
+    wavelength, and fitting the detector resolution
+
+"""
   def GenerateModel(self, pars, linelist, nofit=False, separate_primary=False):
     data = self.data
     #Update self.const_pars to include the new values in fitpars
+    #  I know, it's confusing that const_pars holds some non-constant parameters...
     fit_idx = 0
     for i in range(len(self.parnames)):
       if self.fitting[i]:
@@ -249,6 +263,7 @@ class TelluricFitter:
     #  names set from self.parnames
     fit_idx = 0
     for i in range(len(self.parnames)):
+      #Assign to local variables by the parameter name
       if self.fitting[i]:
         exec("%s = %g" %(self.parnames[i], pars[fit_idx]))
         fit_idx += 1
@@ -261,23 +276,10 @@ class TelluricFitter:
         upper = self.bounds[i][1]
         exec("%s = %g if %s < %g else %s" %(self.parnames[i], lower, self.parnames[i], lower, self.parnames[i]))
         exec("%s = %g if %s > %g else %s" %(self.parnames[i], upper, self.parnames[i], upper, self.parnames[i]))
+
         
     wavenum_start = 1e7/waveend
     wavenum_end = 1e7/wavestart
-    
-    #Make sure certain variables are positive
-    if co < 0:
-      co = 0
-      print "\nWarning! CO was set to be negative. Resetting to zero before generating model!\n\n"
-    if ch4 < 0:
-      ch4 = 0
-      print "\nWarning! CH4 was set to be negative. Resetting to zero before generating model!\n\n"
-    if h2o < 0:
-      humidity = 0
-      print "\nWarning! Humidity was set to be negative. Resetting to zero before generating model!\n\n"
-    if angle < 0:
-      angle = -angle
-      print "\nWarning! Angle was set to be negative. Resetting to a positive value before generating model!\n\n"
 
     #Generate the model:
     if data == None:
@@ -286,11 +288,6 @@ class TelluricFitter:
       return model
     else:
       model = MakeModel.Main(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, wavegrid=data.x, resolution=resolution)
-    
-    #pylab.plot(data.x, data.y/data.cont)
-    #pylab.plot(model.x, model.y)
-    #pylab.title("Initial model")
-    #pylab.show()
 
     model_original = model.copy()
   
@@ -312,10 +309,13 @@ class TelluricFitter:
       model = MakeModel.ReduceResolution(model.copy(), resolution, Continuum)
       model = MakeModel.RebinData(model.copy(), data.x.copy())
 
+    else:
+      sys.exit("Error! Unrecognized resolution fit mode: %s" %self.resolution_fit_mode)
+
     if nofit:
       return model
      
-
+    #Shift the data (or model) by a constant offset. This gets the wavelength calibration close
     shift = self.CCImprove(data, model)
     if self.adjust_wave == "data":
       data.x += shift
@@ -323,26 +323,26 @@ class TelluricFitter:
       model_original.x -= shift
     else:
       sys.exit("Error! adjust_wave parameter set to invalid value: %s" %self.adjust_wave)
-      
-    if "SVD" in self.resolution_fit_mode and not self.first_iteration:
-      Model = UnivariateSpline(model_original.x, model_original.y, s=0)
-      model_new = Model(xarr)
-      model = DataStructures.xypoint(x=xarr)
-      Broadened = UnivariateSpline(xarr, numpy.convolve(model_new, broadening_fcn, mode="same"),s=0)
-      model.y = Broadened(model.x)
-      model = MakeModel.RebinData(model, data.x)
-      
-    elif "gauss" in self.resolution_fit_mode or self.first_iteration:
-      model = MakeModel.ReduceResolution(model_original.copy(), resolution, Continuum)
-      model = MakeModel.RebinData(model.copy(), data.x.copy())
 
-    #pylab.plot(data.x, data.y/data.cont, label="data")
-    #pylab.plot(model.x, model.y, label="model")
-    #pylab.title("Before Wavelength fit")
-    #pylab.show()
+    #Need to reduce resolution to initial guess again if the model was shifted
+    if self.adjust_wave == "model":
+      if "SVD" in self.resolution_fit_mode and not self.first_iteration:
+        Model = UnivariateSpline(model_original.x, model_original.y, s=0)
+        model_new = Model(xarr)
+        model = DataStructures.xypoint(x=xarr)
+        Broadened = UnivariateSpline(xarr, numpy.convolve(model_new, broadening_fcn, mode="same"),s=0)
+        model.y = Broadened(model.x)
+        model = MakeModel.RebinData(model, data.x)
+      
+      elif "gauss" in self.resolution_fit_mode or self.first_iteration:
+        model = MakeModel.ReduceResolution(model_original.copy(), resolution, Continuum)
+        model = MakeModel.RebinData(model.copy(), data.x.copy())
 
-    model.y[model.y < 0.05] = (data.y/data.cont)[model.y < 0.05]
+    
+    #model.y[model.y < 0.05] = (data.y/data.cont)[model.y < 0.05]
     resid = data.y/model.y
+    nans = numpy.isnan(resid)
+    resid[nans] = 1.0
     if self.fit_primary:
       data2 = data.copy()
       data2.y /= model.y
@@ -354,9 +354,11 @@ class TelluricFitter:
       model2.y *= primary_star.y
       resid /= primary_star.y
     
-    #data.cont = FindContinuum.Continuum(data.x, resid, fitorder=3, lowreject=3, highreject=3)
+    #As the model gets better, the continuum will be less affected by
+    #  telluric lines, and so will get better
     data.cont = FindContinuum.Continuum(data.x, resid, fitorder=self.continuum_fit_order, lowreject=2, highreject=2)
-    
+
+    #Fine-tune the wavelength calibration by fitting the location of several telluric lines
     if self.fit_primary:
       modelfcn, mean = self.FitWavelength(data, model2.copy(), linelist, fitorder=self.wavelength_fit_order)
     else:
@@ -380,13 +382,8 @@ class TelluricFitter:
         print "Warning! Wavelength calibration did not succeed!"
     else:
       sys.exit("Error! adjust_wave set to an invalid value: %s" %self.adjust_wave)
-      
-    #pylab.plot(data.x, data.y/data.cont, label="data")
-    #pylab.plot(model.x, model.y, label="model")
-    #pylab.title("Before resolution fit")
-    #pylab.show()
 
-    #Fit resolution
+    #Fit instrumental resolution
     done = False
     while not done:
       done = True
@@ -418,11 +415,6 @@ class TelluricFitter:
         print "Resolution fit mode set to an invalid value: %s" %self.resolution_fit_mode
         self.resolution_fit_mode = raw_input("Enter a valid mode (SVD or guass): ")
     
-    
-    #pylab.plot(data.x, data.y/data.cont, label="data")
-    #pylab.plot(model.x, model.y, label="model")
-    #pylab.title("Final version")
-    #pylab.show()
     
     self.data = data
     self.first_iteration = False
@@ -462,7 +454,16 @@ class TelluricFitter:
   def GaussianErrorFunction(self, params, x, y):
     return self.GaussianFitFunction(x,params) - y
   
+  """
+    Function to fine-tune the wavelength solution of a generated model
+      It does so looking for telluric lines given in linelist in both the
+      data and the telluric model. For each line, it finds the shift needed
+      to make them line up, and then fits a function to that fit over the
+      full wavelength range of the data.
 
+    Wavelength calibration MUST already be very close for this algorithm
+      to succeed!
+  """
   def FitWavelength(self, data_original, telluric, linelist, tol=0.05, oversampling=4, debug=False, fitorder=3):
     old = []
     new = []
@@ -480,6 +481,7 @@ class TelluricFitter:
     model.y = MODEL_FCN(model.x)
 
     if debug:
+      print "In FitWavelength:"
       print linelist
       print data.x
   
@@ -512,15 +514,15 @@ class TelluricFitter:
         argdata.x = numpy.copy(data.x[left2:right2])
         argdata.y = numpy.copy(data.y[left2:right2]/data.cont[left2:right2])
 
-        #Fit argdata to gaussian:
+        #Fit argdata to gaussian to find the actual line location:
         cont = 1.0
         depth = cont - argdata.y[argdata.y.size/2]
         mu = argdata.x[argdata.x.size/2]
         sig = 0.025
         params = [cont, depth, mu, sig]
         params,success = leastsq(self.GaussianErrorFunction, params, args=(argdata.x, argdata.y))
-      
         mean = params[2]
+        
         #Do a cross-correlation first, to get the wavelength solution close
         ycorr = scipy.correlate(argdata.y-1.0, argmodel.y-1.0, mode="full")
         xcorr = numpy.arange(ycorr.size)
@@ -548,8 +550,8 @@ class TelluricFitter:
       pylab.show()
       pylab.plot(old, new, 'ro')
       pylab.show()
+      
     #Iteratively fit to a cubic with sigma-clipping
-    
     if len(old) <= fitorder:
       fit = lambda x: x
       mean = 0.0
@@ -582,30 +584,31 @@ class TelluricFitter:
     lags = xcorr - (data.y.size-1)
     distancePerLag = (data.x[-1] - data.x[0])/float(data.x.size)
     offsets = -lags*distancePerLag
-    print "maximum offset: ", offsets[maxindex], " nm"
-    #pylab.plot(offsets, ycorr)
-    #pylab.figure(2)
-    #pylab.plot(data.y/data.cont)
-    #pylab.plot(model.y)
-    #pylab.show()
+    if debug:
+      print "maximum offset: ", offsets[maxindex], " nm"
 
     if numpy.abs(offsets[maxindex]) < tol or not be_safe:
       #Apply offset
-      print "Applying offset"
+      if debug:
+        print "Applying offset"
       return offsets[maxindex]
     else:
       return 0.0
 
 
-  #Function to fit the resolution
-  def FitResolution(self, data, model, resolution=75000, debug = False):
+  """
+    Fits the instrumental resolution with a Gaussian
+  """
+  def FitResolution(self, data, model, resolution=75000, debug=False):
     ####resolution is the initial guess####
-    #Interpolate to a constant wavelength grid
-    print "Fitting resolution"
+    
     if debug:
+      print "Fitting resolution"
       pylab.plot(data.x, data.y/data.cont)
       pylab.plot(model.x, model.y)
       pylab.show()
+
+    #Interpolate to constant wavelength spacing
     ModelFcn = UnivariateSpline(model.x, model.y, s=0)
     newmodel = DataStructures.xypoint(model.x.size)
     newmodel.x = numpy.linspace(model.x[0], model.x[-1], model.x.size)
@@ -627,12 +630,9 @@ class TelluricFitter:
     newmodel = MakeModel.ReduceResolution(newmodel, float(resolution), Continuum)
     return MakeModel.RebinData(newmodel, data.x), float(resolution)
   
-  
+
+  #This function gets called by scipy.optimize.leastsq
   def ResolutionFitError(self, resolution, data, model, cont_fcn):
-    penalty=0.0
-    if resolution < 10000.0:
-      resolution = 10000.0
-      penalty = 1e9
     newmodel = MakeModel.ReduceResolution(model, resolution, cont_fcn)
     newmodel = MakeModel.RebinData(newmodel, data.x)
     weights = 1.0/data.err
@@ -646,19 +646,23 @@ class TelluricFitter:
         outfile.write("%.10g\t" %data.x[i] + "%.10g\t" %data.y[i] + "%.10g\t" %data.cont[i] + "%.10g\t" %newmodel.x[i] + "%.10g\n" %newmodel.y[i])
       outfile.write("\n\n\n\n")
       outfile.close()
-    return returnvec + penalty
+    return returnvec
 
   
-#  def ResolutionFitErrorBrute(resolution, data, model, cont_fcn):
-#    return numpy.sum(ResolutionFitError(resolution, data, model, cont_fcn))
 
 
+  """
+    -Fits the broadening profile using singular value decomposition
+    -oversampling is the oversampling factor to use before doing the SVD
+    -m is the size of the broadening function, in oversampled units
+    -dimension is the number of eigenvalues to keep in the broadening function. (Keeping too many starts fitting noise)
 
-
-  #Fits the broadening profile using singular value decomposition
-  #oversampling is the oversampling factor to use before doing the SVD
-  #m is the size of the broadening function, in oversampled units
-  #dimension is the number of eigenvalues to keep in the broadening function. (Keeping too many starts fitting noise)
+    -NOTE: This function works well when there are strong telluric lines and a flat continuum.
+           If there are weak telluric lines, it's hard to not fit noise.
+           If the continuum is not very flat (i.e. from the spectrum of the actual
+             object you are trying to telluric correct), the broadening function
+             can become multiply-peaked and oscillatory. Use with care!
+  """
   def Broaden(self, data, model, oversampling = 5, m = 101, dimension = 20, full_output=False):
     n = data.x.size*oversampling
     

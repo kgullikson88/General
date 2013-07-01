@@ -65,6 +65,15 @@ class simbad(object) :
 		except : raise HtmlTagError("Main Object Type")
 
 
+	def SpectralType(self):
+		"""Returns the string value of the spectral type for the object"""
+		try :
+			start = re.search("Spectral type:", self.page).start()
+			end = start + 200
+			return self.page[start:end].split("\n")[5].split("<")[0].strip()
+	        except : raise HtmlTagError("Spectral Type")
+
+
 
 	def flux(self) :
 		"""Returns a dictionary of Fluxes according to their Colors.
