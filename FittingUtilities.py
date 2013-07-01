@@ -5,6 +5,8 @@ import numpy
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.interpolate import UnivariateSpline as smoother
 import DataStructures
+from astropy import units, constants
+import scipy.signal as sig
 
 #Define bounding functions:
 # lower bound:            lbound(boundary_value, parameter)
