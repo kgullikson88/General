@@ -150,3 +150,46 @@ def savitzky_golay(y, window_size, order, deriv=0, rate=1):
     lastvals = y[-1] + np.abs(y[-half_window-1:-1][::-1] - y[-1])
     y = np.concatenate((firstvals, y, lastvals))
     return np.convolve( m[::-1]/m.sum(), y, mode='valid')
+
+
+
+
+"""
+  Function to apply a low-pass filter to data.
+    Data must be in an xypoint container, and have linear wavelength spacing
+    vel is the width of the features you want to remove, in velocity space (in cm/s)
+    width is how long it takes the filter to cut off, in units of wavenumber
+"""
+def LowPassFilter(data, vel, width=5):
+  #Figure out cutoff frequency from the velocity.
+  featuresize = data.x.mean()*vel/constants.c.cgs.value    #vel MUST be given in units of cm
+  dlam = data.x[1] - data.x[0]   #data.x MUST have constant x-spacing
+  Npix = featuresize / dlam
+  cutoff_hz = 1.0/Npix   #Cutoff frequency of the filter
+  cutoff_hz = 1.0/featuresize
+
+  nsamples = data.size()
+  sample_rate = 1.0/dlam
+  nyq_rate = sample_rate / 2.0    # The Nyquist rate of the signal.
+  width /= nyq_rate
+
+  # The desired attenuation in the stop band, in dB.
+  ripple_db = 60.0
+
+  # Compute the order and Kaiser parameter for the FIR filter.
+  N, beta = sig.kaiserord(ripple_db, width)
+
+  # Use firwin with a Kaiser window to create a lowpass FIR filter.
+  taps = sig.firwin(N, cutoff_hz/nyq_rate, window=('kaiser', beta))
+
+  #Extend data to prevent edge effects
+  y = numpy.r_[data.y[::-1], data.y, data.y[::-1]]
+
+  # Use lfilter to filter data with the FIR filter.
+  smoothed_y = sig.lfilter(taps, 1.0, y)
+
+  # The phase delay of the filtered signal.
+  delay = 0.5 * (N-1) / sample_rate
+  delay_idx = numpy.searchsorted(data.x, data.x[0] + delay) - 1
+  smoothed_y = smoothed_y[data.size()+delay_idx:-data.size()+delay_idx]
+  return smoothed_y
