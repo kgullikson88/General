@@ -66,7 +66,7 @@ This is the main code to generate a telluric absorption spectrum.
 The pressure, temperature, etc... can be adjusted all the way 
 on the bottom of this file.
 """
-def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=45.0, humidity=50.0, co2=368.5, o3=3.9e-2, n2o=0.32, co=0.14, ch4=1.8, o2=2.1e5, no=1.1e-19, so2=1e-4, no2=1e-4, nh3=1e-4, hno3=5.6e-4, wavegrid=None, resolution=None, nmolecules=12, save=False):
+def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=45.0, humidity=50.0, co2=368.5, o3=3.9e-2, n2o=0.32, co=0.14, ch4=1.8, o2=2.1e5, no=1.1e-19, so2=1e-4, no2=1e-4, nh3=1e-4, hno3=5.6e-4, lat=30.6, alt=2.1, wavegrid=None, resolution=None, nmolecules=12, save=False):
 
     #Determine output filename
     found = False
@@ -149,28 +149,43 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
 	for i, level in enumerate(levels):
 	  Atmosphere[layers[int(j*levelsperline+i)]][2].append(float(level))
 
-    #Now, scale the abundances from those at 2 km
+    #Now, scale the abundances from those at 'alt' km
+    #  (Linearly interpolate)
+    keys = sorted(Atmosphere.keys())
+    lower = max(0, numpy.searchsorted(keys, alt)-1)
+    upper = min(lower + 1, len(keys)-1)
+    scale_values = list(Atmosphere[lower])
+    scale_values[2] = list(Atmosphere[lower][2])
+    scale_values[0] = (Atmosphere[upper][0]-Atmosphere[lower][0]) / (keys[upper]-keys[lower]) * (alt-keys[lower]) + Atmosphere[lower][0]
+    scale_values[1] = (Atmosphere[upper][1]-Atmosphere[lower][1]) / (keys[upper]-keys[lower]) * (alt-keys[lower]) + Atmosphere[lower][1]
+    for mol in range(len(scale_values[2])):
+      scale_values[2][mol] = (Atmosphere[upper][2][mol]-Atmosphere[lower][2][mol]) / (keys[upper]-keys[lower]) * (alt-keys[lower]) + Atmosphere[lower][2][mol]
+
+    #Now, do the actual scaling
     scale_values = Atmosphere[2]
     pressure_scalefactor = pressure/scale_values[0]
     temperature_scalefactor = temperature/scale_values[1]
-    h2o_scalefactor = h2o/scale_values[2][0]
-    co2_scalefactor = co2/scale_values[2][1]
-    o3_scalefactor = o3/scale_values[2][2]
-    co_scalefactor = co/scale_values[2][4]
-    ch4_scalefactor = ch4/scale_values[2][5]
-    o2_scalefactor = o2/scale_values[2][6]
     for layer in layers:
       Atmosphere[layer][0] *= pressure_scalefactor
       Atmosphere[layer][1] *= temperature_scalefactor
-      Atmosphere[layer][2][0] *= h2o_scalefactor
-      Atmosphere[layer][2][1] *= co2_scalefactor
-      Atmosphere[layer][2][2] *= o3_scalefactor
-      Atmosphere[layer][2][4] *= co_scalefactor
-      Atmosphere[layer][2][5] *= ch4_scalefactor
-      Atmosphere[layer][2][6] *= o2_scalefactor
+      Atmosphere[layer][2][0] *= h2o/scale_values[2][0]
+      Atmosphere[layer][2][1] *= co2/scale_values[2][1]
+      Atmosphere[layer][2][2] *= o3/scale_values[2][2]
+      Atmosphere[layer][2][3] *= n2o/scale_values[2][3]
+      Atmosphere[layer][2][4] *= co/scale_values[2][4]
+      Atmosphere[layer][2][5] *= ch4/scale_values[2][5]
+      Atmosphere[layer][2][6] *= o2/scale_values[2][6]
+      Atmosphere[layer][2][2] *= no/scale_values[2][6]
+      Atmosphere[layer][2][2] *= so2/scale_values[2][6]
+      Atmosphere[layer][2][2] *= no2/scale_values[2][6]
+      Atmosphere[layer][2][2] *= nh3/scale_values[2][6]
+      Atmosphere[layer][2][2] *= hno3/scale_values[2][6]
+
 
     #Now, Read in the ParameterFile and edit the necessary parameters
     parameters = MakeTape5.ReadParFile(parameterfile=TelluricModelingDir + "ParameterFile")
+    parameters[48] = "%.1f" %lat
+    parameters[49] = "%.1f" %alt
     parameters[51] = "%.5f" %angle
     parameters[17] = lowfreq
     if (highfreq - lowfreq > 2000.0):
@@ -341,7 +356,7 @@ def ReduceResolutionAndRebinData(data,resolution,xgrid):
 if __name__ == "__main__":
   pressure = 796.22906
   temperature = 270.40
-  humidity = 60.0
+  humidity = 50.0
   angle = 40.8
   co2 = 368.5
   o3 = 0.039
@@ -350,11 +365,11 @@ if __name__ == "__main__":
   o2 = 4.266e6
   o2 = 2.2e5
 
-  lowwave = 300
-  highwave = 1000
+  lowwave = 500
+  highwave = 600
   lowfreq = 1e7/highwave
   highfreq = 1e7/lowwave
-  Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, o2=o2, save=True)
+  Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, o2=o2, alt=4.5, save=True)
   #Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, co2=co2, o3=o3, ch4=ch4, co=co, o2=o2, save=True)
           
 

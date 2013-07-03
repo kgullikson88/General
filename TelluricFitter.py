@@ -46,6 +46,7 @@ import DataStructures
 import FindContinuum
 from FittingUtilities import *
 import FitBstar
+import FittingUtilities
 
 
 class TelluricFitter:
@@ -59,6 +60,10 @@ class TelluricFitter:
                        1e-4, 1e-4, 1e-4, 5.6e-4]
     self.bounds = [[0.0, 1e30] for par in self.parnames]  #Basically just making sure everything is > 0
     self.fitting = [False]*len(self.parnames)
+    #Latitude and altitude (to nearest km) of the observatory
+    #  Defaults are for McDonald Observatory
+    self.observatory = {"latitude": 30.6,
+                        "altitude": 2.0}
     self.data = None
     self.resolution_bounds = [10000.0, 100000.0]
 
@@ -127,6 +132,38 @@ class TelluricFitter:
       except ValueError:
         print "Error! Bad parameter name given. Currently available are: "
         self.DisplayVariables()
+
+
+  """
+    Set the observatory. Can either give a dictionary with the latitude and altitude,
+      or give the name of the observatory. Some names are hard-coded in here.
+  """
+  def SetObservatory(self, observatory):
+    if type(observatory) == str:
+      if observatory == "CTIO" or observatory == "ctio":
+        self.observatory["latitude"] = -30.6
+        self.observatory["altitude"] = 2.2
+      if observatory == "La Silla" or observatory == "la silla":
+        self.observatory["latitude"] = -29.3
+        self.observatory["altitude"] = 2.4
+      if observatory == "Paranal" or observatory == "paranal":
+        self.observatory["latitude"] = -24.6
+        self.observatory["altitude"] = 2.6
+      if observatory == "Mauna Kea" or observatory == "mauna kea":
+        self.observatory["latitude"] = 19.8
+        self.observatory["altitude"] = 4.2
+      if observatory == "McDonald" or observatory == "mcdonald":
+        self.observatory["latitude"] = 30.7
+        self.observatory["altitude"] = 2.1
+    elif type(observatory) == dict:
+      if "latitude" in observatory.keys() and "altitude" in observatory.keys():
+        self.observatory = observatory
+      else:
+        print "Error! Wrong keys in observatory dictionary! Keys must be"
+        print "'latitude' and 'altitude'. Yours are: ", observatory.keys()
+        sys.exit()
+    else:
+      sys.exit("Error! Unrecognized input to TelluricFitter.SetObservatory()")
     
 
   """
@@ -232,7 +269,7 @@ class TelluricFitter:
         outfile.write("%.5g\t" %fitpars[fit_idx])
         fit_idx += 1
       elif len(self.bounds[i]) == 2 and self.parnames[i] != "resolution":
-        print "Warning! A constant parameter is bounded!"
+        print "Warning! A constant parameter (%s) is bounded!" %(self.parnames[i])
         return_array += bound(self.bounds[i], self.const_pars[i])
   
     print "X^2 = ", numpy.sum(return_array)/float(weights.size)
@@ -242,12 +279,12 @@ class TelluricFitter:
 
 
 
-"""
+  """
   This function does the actual work of generating a model with the given parameters,
     fitting the continuum, making sure the model and data are well aligned in
     wavelength, and fitting the detector resolution
 
-"""
+  """
   def GenerateModel(self, pars, linelist, nofit=False, separate_primary=False):
     data = self.data
     #Update self.const_pars to include the new values in fitpars
@@ -280,10 +317,13 @@ class TelluricFitter:
         
     wavenum_start = 1e7/waveend
     wavenum_end = 1e7/wavestart
+    lat = self.observatory["latitude"]
+    alt = self.observatory["altitude"]
+    
 
     #Generate the model:
     if data == None:
-      model = MakeModel.Main(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, wavegrid=None, resolution=None)
+      model = MakeModel.Main(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, lat=lat, alt=alt, wavegrid=None, resolution=None)
       model = MakeModel.ReduceResolution(model.copy(), resolution)
       return model
     else:
@@ -316,7 +356,7 @@ class TelluricFitter:
       return model
      
     #Shift the data (or model) by a constant offset. This gets the wavelength calibration close
-    shift = self.CCImprove(data, model)
+    shift = FittingUtilities.CCImprove(data, model)
     if self.adjust_wave == "data":
       data.x += shift
     elif self.adjust_wave == "model":
@@ -346,7 +386,9 @@ class TelluricFitter:
     if self.fit_primary:
       data2 = data.copy()
       data2.y /= model.y
-      primary_star = FitBstar.GetApproximateSpectrum(data2, bcwidth=100)
+      primary_star = data.copy()
+      primary_star.y = FittingUtilities.savitzky_golay(data2.y, 91, 4)
+      #primary_star = FitBstar.GetApproximateSpectrum(data2, bcwidth=100)
       primary_star.y /= primary_star.y.mean()
       PRIMARY_STAR = UnivariateSpline(primary_star.x, primary_star.y, s=0)
 
@@ -577,7 +619,7 @@ class TelluricFitter:
   """
     Improve the wavelength solution by a constant shift
   """
-  def CCImprove(self, data, model, be_safe=True, tol=0.2):
+  def CCImprove(self, data, model, be_safe=True, tol=0.2, debug=False):
     ycorr = scipy.correlate(data.y/data.cont-1.0, model.y-1.0, mode="full")
     xcorr = numpy.arange(ycorr.size)
     maxindex = ycorr.argmax()
