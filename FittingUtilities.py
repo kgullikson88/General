@@ -195,3 +195,23 @@ def LowPassFilter(data, vel, width=5):
   delay_idx = numpy.searchsorted(data.x, data.x[0] + delay) - 1
   smoothed_y = smoothed_y[data.size()+delay_idx:-data.size()+delay_idx]
   return smoothed_y
+
+
+
+def IterativeLowPass(data, vel, numiter=100, lowreject=3, highreject=3, width=5):
+  done = False
+  iter = 0
+  datacopy = data.copy()
+  datacopy.cont = Continuum(datacopy.x, datacopy.y, fitorder=9, lowreject=2.5, highreject=5)
+  while not done and iter<numiter:
+    done = True
+    iter += 1
+    smoothed = LowPassFilter(datacopy, vel, width=width)
+    residuals = datacopy.y / smoothed
+    mean = numpy.mean(residuals)
+    std = numpy.std(residuals)
+    badpoints = numpy.where(numpy.logical_or((residuals - mean) < -lowreject*std, residuals - mean > highreject*std))[0]
+    if badpoints.size > 0:
+      done = False
+      datacopy.y[badpoints] = smoothed[badpoints]
+  return smoothed
