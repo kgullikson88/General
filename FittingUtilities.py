@@ -162,7 +162,19 @@ def savitzky_golay(y, window_size, order, deriv=0, rate=1):
     vel is the width of the features you want to remove, in velocity space (in cm/s)
     width is how long it takes the filter to cut off, in units of wavenumber
 """
-def LowPassFilter(data, vel, width=5):
+def LowPassFilter(data, vel, width=5, linearize=False):
+  if linearize:
+    data = data.copy()
+    datafcn = spline(data.x, data.y, k=1)
+    errorfcn = spline(data.x, data.err, k=1)
+    contfcn = spline(data.x, data.cont, k=1)
+    linear = DataStructures.xypoint(data.x.size)
+    linear.x = numpy.linspace(data.x[0], data.x[-1], linear.size())
+    linear.y = datafcn(linear.x)
+    linear.err = errorfcn(linear.x)
+    linear.cont = contfcn(linear.x)
+    data = linear
+    
   #Figure out cutoff frequency from the velocity.
   featuresize = data.x.mean()*vel/constants.c.cgs.value    #vel MUST be given in units of cm
   dlam = data.x[1] - data.x[0]   #data.x MUST have constant x-spacing
@@ -198,10 +210,26 @@ def LowPassFilter(data, vel, width=5):
 
 
 
-def IterativeLowPass(data, vel, numiter=100, lowreject=3, highreject=3, width=5):
+def IterativeLowPass(data, vel, numiter=100, lowreject=3, highreject=3, width=5, linearize=False):
+  datacopy = data.copy()
+  if linearize:
+    datafcn = spline(datacopy.x, datacopy.y, k=3)
+    errorfcn = spline(datacopy.x, datacopy.err, k=1)
+    contfcn = spline(datacopy.x, datacopy.cont, k=1)
+    linear = DataStructures.xypoint(datacopy.x.size)
+    linear.x = numpy.linspace(datacopy.x[0], datacopy.x[-1], linear.size())
+    linear.y = datafcn(linear.x)
+    linear.err = errorfcn(linear.x)
+    linear.cont = contfcn(linear.x)
+    #import matplotlib.pyplot as plt
+    #plt.figure(10)
+    #plt.plot(datacopy.x, datacopy.y)
+    #plt.plot(linear.x, linear.y)
+    #plt.show()
+    datacopy = linear.copy()
+    
   done = False
   iter = 0
-  datacopy = data.copy()
   datacopy.cont = Continuum(datacopy.x, datacopy.y, fitorder=9, lowreject=2.5, highreject=5)
   while not done and iter<numiter:
     done = True
@@ -214,7 +242,10 @@ def IterativeLowPass(data, vel, numiter=100, lowreject=3, highreject=3, width=5)
     if badpoints.size > 0:
       done = False
       datacopy.y[badpoints] = smoothed[badpoints]
-  return smoothed
+  if linearize:
+    return smoothed, linear
+  else:
+    return smoothed
 
 
 
@@ -225,9 +256,21 @@ def IterativeLowPass(data, vel, numiter=100, lowreject=3, highreject=3, width=5)
     vel is the width of the features you want to remove, in velocity space (in cm/s)
     width is how long it takes the filter to cut off, in units of wavenumber
 """
-def HighPassFilter(data, vel, width=5):
+def HighPassFilter(data, vel, width=5, linearize=False):
+  if linearize:
+    data = data.copy()
+    datafcn = spline(data.x, data.y, k=3)
+    errorfcn = spline(data.x, data.err, k=3)
+    contfcn = spline(data.x, data.cont, k=3)
+    linear = DataStructures.xypoint(data.x.size)
+    linear.x = numpy.linspace(data.x[0], data.x[-1], linear.size())
+    linear.y = datafcn(linear.x)
+    linear.err = errorfcn(linear.x)
+    linear.cont = contfcn(linear.x)
+    data = linear
+  
   #Figure out cutoff frequency from the velocity.
-  featuresize = data.x.mean()*vel/constants.c.cgs.value    #vel MUST be given in units of cm
+  featuresize = 2*data.x.mean()*vel/constants.c.cgs.value    #vel MUST be given in units of cm
   dlam = data.x[1] - data.x[0]   #data.x MUST have constant x-spacing
   Npix = featuresize / dlam
   cutoff_hz = 1.0/Npix   #Cutoff frequency of the filter
@@ -259,4 +302,7 @@ def HighPassFilter(data, vel, width=5):
   delay = 0.5 * (N-1) / sample_rate
   delay_idx = numpy.searchsorted(data.x, data.x[0] + delay) - 1
   smoothed_y = smoothed_y[data.size()+delay_idx:-data.size()+delay_idx]
-  return smoothed_y
+  if linearize:
+    return linear.x, smoothed_y
+  else:
+    return smoothed_y
