@@ -7,6 +7,9 @@ from scipy.interpolate import UnivariateSpline as smoother
 import DataStructures
 from astropy import units, constants
 import scipy.signal as sig
+import pywt
+
+
 
 #Define bounding functions:
 # lower bound:            lbound(boundary_value, parameter)
@@ -306,3 +309,33 @@ def HighPassFilter(data, vel, width=5, linearize=False):
     return linear.x, smoothed_y
   else:
     return smoothed_y
+
+
+
+
+"""
+  Function to remove some of the noise in a spectrum using a wavelet transform
+  data:      an xypoint structure containing the noisy data
+  snr:       The signal-to-noise ratio of the data
+  wavelet:   Either the name of the pywt wavelet to use, or an instance of it
+  reduction_factor:   The factor by which to reduce the noise. Do not increase this
+                      too much, or you will remove secondary star spectra!
+"""
+def Denoise(data, snr, wavelet='bior6.8', reduction_factor=0.1):
+  if data.size() % 2 != 0:
+    data = data[:-1]
+    print "trimming data to be even"
+  
+  WC = pywt.wavedec(data.y, wavelet)#, level=levels)
+  sig = numpy.median(data.y)/snr*reduction_factor
+  threshold=sig*numpy.sqrt(2.0*numpy.log2(data.y.size))
+  print WC
+  print "threshold: ",threshold
+  NWC = map(lambda x: pywt.thresholding.soft(x, threshold), WC)
+  print NWC
+  data.y = pywt.waverec(NWC, wavelet)
+  return data
+
+
+
+#THIS WORKS IF I RUN THE WAVEDEC CODE ON THE DATA IN IPYTHON, BUT GIVES INFINITIES IN THE MAIN PROGRAM. WHY????!!!!!!
