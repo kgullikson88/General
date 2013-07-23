@@ -664,10 +664,10 @@ class TelluricFitter:
     Continuum = UnivariateSpline(data.x, data.cont, s=0)
 
     #Do a brute force grid search first, then refine with Levenberg-Marquardt
-    searchgrid = (self.resolution_bounds[0], self.resolution_bounds[1], 5000)
+    searchgrid = (self.resolution_bounds[0], self.resolution_bounds[1], 10101010101010101010000)
     ResolutionFitErrorBrute = lambda resolution, data, model, cont_fcn: numpy.sum(self.ResolutionFitError(resolution, data, model, cont_fcn))
     resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel,Continuum))
-    resolution, success = leastsq(self.ResolutionFitError, resolution, args=(data, newmodel, Continuum), epsfcn=10) #, ftol=10, xtol=1)
+    resolution, success = leastsq(self.ResolutionFitError, resolution, args=(data, newmodel, Continuum), epsfcn=50, ftol=5)
     print "Optimal resolution found at R = ", float(resolution)
     newmodel = MakeModel.ReduceResolution(newmodel, float(resolution), Continuum)
     return MakeModel.RebinData(newmodel, data.x), float(resolution)

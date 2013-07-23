@@ -4,11 +4,12 @@ Just a set of useful functions that I use often while fitting
 import numpy
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.interpolate import UnivariateSpline as smoother
+import scipy.stats
 import DataStructures
 from astropy import units, constants
 import scipy.signal as sig
 import pywt
-
+import mlpy
 
 
 #Define bounding functions:
@@ -157,6 +158,24 @@ def savitzky_golay(y, window_size, order, deriv=0, rate=1):
     return np.convolve( m[::-1]/m.sum(), y, mode='valid')
 
 
+#Iterative version of the savitzky-golay smoothing function
+def Iterative_SV(y, window_size, order, lowreject=3, highreject=3, numiters=100, deriv=0, rate=1):
+  done = False
+  iteration = 0
+  while not done and iteration < numiters:
+    iteration += 1
+    done = True
+    smoothed = savitzky_golay(y, window_size, order, deriv, rate)
+      
+    reduced = y/smoothed
+    sigma = numpy.std(reduced)
+    mean = numpy.mean(reduced)
+    badindices = numpy.where(numpy.logical_or((reduced - mean)/sigma < -lowreject, (reduced - mean)/sigma > highreject))[0]
+    if badindices.size > 0:
+      done = False
+      y[badindices] = smoothed[badindices]
+  return smoothed
+
 
 
 """
@@ -209,7 +228,10 @@ def LowPassFilter(data, vel, width=5, linearize=False):
   delay = 0.5 * (N-1) / sample_rate
   delay_idx = numpy.searchsorted(data.x, data.x[0] + delay) - 1
   smoothed_y = smoothed_y[data.size()+delay_idx:-data.size()+delay_idx]
-  return smoothed_y
+  if linearize:
+    return linear.x, smoothed_y
+  else:
+    return smoothed_y
 
 
 
@@ -276,13 +298,12 @@ def HighPassFilter(data, vel, width=5, linearize=False):
   featuresize = 2*data.x.mean()*vel/constants.c.cgs.value    #vel MUST be given in units of cm
   dlam = data.x[1] - data.x[0]   #data.x MUST have constant x-spacing
   Npix = featuresize / dlam
-  cutoff_hz = 1.0/Npix   #Cutoff frequency of the filter
-  cutoff_hz = 1.0/featuresize
 
   nsamples = data.size()
   sample_rate = 1.0/dlam
   nyq_rate = sample_rate / 2.0    # The Nyquist rate of the signal.
   width /= nyq_rate
+  cutoff_hz = min(1.0/featuresize, nyq_rate-width*nyq_rate/2.0)   #Cutoff frequency of the filter
 
   # The desired attenuation in the stop band, in dB.
   ripple_db = 60.0
@@ -326,7 +347,7 @@ def Denoise(data, snr, wavelet='bior6.8', reduction_factor=0.1):
     data = data[:-1]
     print "trimming data to be even"
   
-  WC = pywt.wavedec(data.y, wavelet)#, level=levels)
+  WC = pywt.wavedec(data.y, wavelet)
   sig = numpy.median(data.y)/snr*reduction_factor
   threshold=sig*numpy.sqrt(2.0*numpy.log2(data.y.size))
   print WC
@@ -338,4 +359,54 @@ def Denoise(data, snr, wavelet='bior6.8', reduction_factor=0.1):
 
 
 
-#THIS WORKS IF I RUN THE WAVEDEC CODE ON THE DATA IN IPYTHON, BUT GIVES INFINITIES IN THE MAIN PROGRAM. WHY????!!!!!!
+def Denoise2(data, snr, reduction_factor=0.1):
+  y, boolarr = mlpy.wavelet.pad(data.y)
+  WC = mlpy.wavelet.uwt(y, 'd', 10, 0)
+
+  sig = numpy.median(data.y)/snr*reduction_factor
+  threshold=sig*numpy.sqrt(2.0*numpy.log2(data.y.size))
+  for i in range(len(WC)):
+    WC[i][numpy.abs(WC[i]) < threshold] = 0.0
+    WC[i][numpy.abs(WC[i]) >= threshold] -= threshold*numpy.sign(WC[i][numpy.abs(WC[i]) >= threshold])
+  y2 = mlpy.wavelet.iuwt(WC, 'd', 10)
+  data.y = y2[boolarr]
+  return data
+
+
+"""
+  This function implements the denoising given in the url below:
+  http://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=4607982&tag=1
+
+  with title "Astronomical Spectra Denoising Based on Simplifed SURE-LET Wavelet Thresholding"
+"""
+
+def Denoise3(data, reduction_factor=0.1):
+  y, boolarr = mlpy.wavelet.pad(data.y)
+  WC = mlpy.wavelet.dwt(y, 'd', 10, 0)
+  #Figure out the unknown parameter 'a'
+  sum1 = 0.0
+  sum2 = 0.0
+  numlevels = int(numpy.log2(WC.size))
+  start = 2**(numlevels-1)
+  median = numpy.median(WC[start:])
+  sigma = numpy.median(numpy.abs(WC[start:] - median)) / 0.6745
+  for w in WC:
+    phi = w*numpy.exp(-w**2 / (12.0*sigma**2) )
+    dphi = numpy.exp(-w**2 / (12.0*sigma**2) ) * (1 - 2*w**2 / (12*sigma**2) )
+    sum1 += sigma**2 * dphi
+    sum2 += phi**2
+  a = -sum1 / sum2
+
+  #Adjust all wavelet coefficients
+  WC = WC + a*WC*numpy.exp( -WC**2 / (12*sigma**2) )
+
+  #Now, do a soft threshold
+  threshold = scipy.stats.scoreatpercentile(WC, 80.0)
+  WC[numpy.abs(WC) <= threshold] = 0.0
+  WC[numpy.abs(WC) > threshold] -= threshold*numpy.sign(WC[numpy.abs(WC) > threshold])
+
+  #Transform back
+  y2 = mlpy.wavelet.idwt(WC, 'd', 10)
+  data.y = y2[boolarr]
+  return data
+  
