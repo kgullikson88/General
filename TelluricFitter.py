@@ -675,7 +675,7 @@ class TelluricFitter:
 
   #This function gets called by scipy.optimize.leastsq
   def ResolutionFitError(self, resolution, data, model, cont_fcn):
-    newmodel = MakeModel.ReduceResolution(model, resolution, cont_fcn)
+    newmodel = MakeModel.ReduceResolution(model, int(resolution+0.5), cont_fcn)
     newmodel = MakeModel.RebinData(newmodel, data.x)
     weights = 1.0/data.err
     weights = weights/weights.sum()
