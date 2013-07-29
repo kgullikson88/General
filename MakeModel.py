@@ -11,6 +11,7 @@ import MakeTape5
 from astropy import constants, units
 from collections import defaultdict
 import lockfile
+import struct
 
 homedir = os.environ['HOME']
 #TelluricModelingDir = "%s/School/Research/aerlbl_v12.2/rundir2/" %homedir
@@ -188,6 +189,7 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     parameters[49] = "%.1f" %alt
     parameters[51] = "%.5f" %angle
     parameters[17] = lowfreq
+    freq, transmission = numpy.array([]), numpy.array([])
     if (highfreq - lowfreq > 2000.0):
       while lowfreq + 2000.0 <= highfreq:
 	parameters[18] = lowfreq + 2000.00000
@@ -195,8 +197,9 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
 	MakeTape5.WriteTape5(parameters, output=TelluricModelingDir + "TAPE5", atmosphere=Atmosphere)
 
 	#Run lblrtm
-        cmd = "cd " + TelluricModelingDir + ";sh runlblrtm_v2.sh"
+        cmd = "cd " + TelluricModelingDir + ";sh runlblrtm_v3.sh"
 	command = subprocess.check_call(cmd, shell=True)
+        freq, transmission = ReadTAPE12(TelluricModelingDir, appendto=(freq, transmission))
         lowfreq = lowfreq + 2000.00001
 	parameters[17] = lowfreq
 
@@ -204,13 +207,14 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     MakeTape5.WriteTape5(parameters, output=TelluricModelingDir + "TAPE5", atmosphere=Atmosphere)
 
     #Run lblrtm
-    cmd = "cd " + TelluricModelingDir + ";sh runlblrtm_v2.sh"
+    cmd = "cd " + TelluricModelingDir + ";sh runlblrtm_v3.sh"
     command = subprocess.check_call(cmd, shell=True)
-
+    freq, transmission = ReadTAPE12(TelluricModelingDir, appendto=(freq, transmission))
 
     #Convert from frequency to wavelength units
     #freq2wave.Fix("FullSpectrum.freq")
-    wavelength, transmission = FixTelluric(TelluricModelingDir + "FullSpectrum.freq", TelluricModelingDir)
+    #wavelength, transmission = FixTelluric(TelluricModelingDir + "FullSpectrum.freq", TelluricModelingDir)
+    wavelength = units.cm.to(units.nm)/freq
 
     #Correct for index of refraction of air:
     """
@@ -263,6 +267,59 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
 
     return DataStructures.xypoint(x=wavelength[::-1], y=transmission[::-1])
 
+
+
+
+#Function to read the output of LBLRTM, called TAPE12
+def ReadTAPE12(directory, filename="TAPE12_ex", appendto=None):
+  if not directory.endswith("/"):
+    directory = directory + "/"
+  infile = open("%s%s" %(directory, filename), 'rb')
+  content = infile.read()
+  infile.close()
+
+  offset = 1068   #WHY?!
+  size = struct.calcsize('=ddfl')
+  pv1,pv2,pdv,np = struct.unpack('=ddfl', content[offset:offset+size])
+  v1 = pv1
+  v2 = pv2
+  dv = pdv
+  print 'info: ',pv1,pv2,pdv,np
+  npts = np
+  spectrum = []
+  while np > 0:
+    offset += size + struct.calcsize("=4f")
+    size = struct.calcsize("=%if" %np)
+    temp1 = struct.unpack("=%if" %np, content[offset:offset+size])
+    offset += size
+    temp2 = struct.unpack("=%if" %np, content[offset:offset+size])
+    npts += np
+    junk = [spectrum.append(temp2[i]) for i in range(np)]
+
+    offset += size + 8  #WHERE DOES 8 COME FROM?
+    size = struct.calcsize('=ddfl')
+    if len(content) > offset + size:
+      pv1,pv2,pdv,np = struct.unpack('=ddfl', content[offset:offset+size])
+      v2 = pv2
+    else:
+      break
+
+  v = numpy.arange(v1, v2+dv, dv)
+  spectrum = numpy.array(spectrum)
+
+  if appendto != None and appendto[0].size > 0:
+    old_v, old_spectrum = appendto[0], appendto[1]
+    #Check for overlap (there shouldn't be any)
+    last_v = old_v[-1]
+    firstindex = numpy.searchsorted(v, last_v)
+    v = numpy.r_[old_v, v[firstindex:]]
+    spectrum = numpy.r_[old_spectrum, spectrum[firstindex:]]
+  
+  return v, spectrum
+
+
+
+  
 
 def FixTelluric(filename, TelluricModelingDir):
   wavenumber, transmission = numpy.loadtxt(filename,unpack=True)
