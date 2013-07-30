@@ -219,7 +219,10 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     
     if save:
       print "All done! Output Transmission spectrum is located in the file below:"
-      print model_name    
+      print model_name
+      print wavelength.shape, transmission.shape
+      print wavelength
+      print transmission
       numpy.savetxt(model_name, numpy.transpose((wavelength, transmission)), fmt="%.8g")
 
     #Unlock directory
@@ -287,8 +290,11 @@ def ReadTAPE12(directory, filename="TAPE12_ex", appendto=None):
     else:
       break
 
-  v = numpy.arange(v1, v2+dv, dv)
+  v = numpy.arange(v1, v2, dv)
   spectrum = numpy.array(spectrum)
+  if v.size < spectrum.size:
+      v = numpy.r_[v, v2+dv]
+  print "v, spec size: ", v.size, spectrum.size
 
   if appendto != None and appendto[0].size > 0:
     old_v, old_spectrum = appendto[0], appendto[1]
@@ -386,8 +392,8 @@ if __name__ == "__main__":
   o2 = 4.266e6
   o2 = 2.2e5
 
-  lowwave = 500
-  highwave = 600
+  lowwave = 300
+  highwave = 1000
   lowfreq = 1e7/highwave
   highfreq = 1e7/lowwave
   Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, o2=o2, alt=4.5, save=True)
