@@ -14,9 +14,7 @@ import lockfile
 import struct
 
 homedir = os.environ['HOME']
-#TelluricModelingDir = "%s/School/Research/aerlbl_v12.2/rundir2/" %homedir
 TelluricModelingDirRoot = "%s/School/Research/aerlbl_v12.2/" %homedir
-#ModelDir = "%sOutputModels/" %TelluricModelingDir
 NumRunDirs = 4
 
 
@@ -150,6 +148,7 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
 	for i, level in enumerate(levels):
 	  Atmosphere[layers[int(j*levelsperline+i)]][2].append(float(level))
 
+
     #Now, scale the abundances from those at 'alt' km
     #  (Linearly interpolate)
     keys = sorted(Atmosphere.keys())
@@ -162,7 +161,7 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     for mol in range(len(scale_values[2])):
       scale_values[2][mol] = (Atmosphere[upper][2][mol]-Atmosphere[lower][2][mol]) / (keys[upper]-keys[lower]) * (alt-keys[lower]) + Atmosphere[lower][2][mol]
 
-    #Now, do the actual scaling
+    #Do the actual scaling
     scale_values = Atmosphere[2]
     pressure_scalefactor = pressure/scale_values[0]
     temperature_scalefactor = temperature/scale_values[1]
@@ -212,26 +211,11 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     freq, transmission = ReadTAPE12(TelluricModelingDir, appendto=(freq, transmission))
 
     #Convert from frequency to wavelength units
-    #freq2wave.Fix("FullSpectrum.freq")
-    #wavelength, transmission = FixTelluric(TelluricModelingDir + "FullSpectrum.freq", TelluricModelingDir)
     wavelength = units.cm.to(units.nm)/freq
 
-    #Correct for index of refraction of air:
-    """
-    #Using Equation 32 from Owens paper (Saved in Dropbox/School/Research/opticsPaper02
-    pressure *= Units.torr/Units.hPa
-    pressure *= units.torr.to(units.hPa)
-    temperature -= 273.15
-    wavenumber = 1.0 / (wavelength*Units.cm/Units.nm)
-    nminus1 = 1e-8 * (8342.13 + 2406030./(130. - 1.0/wavenumber**2) + 15997./(38.9 - 1.0/wavenumber**2)) * pressure/720.775 * (1 + pressure*(0.817 - 0.133*(temperature))*1e-6)/(1+0.0036610*(temperature))
-    n = nminus1 + 1
-    """
+    #Correct for index of refraction of air (only done approximately):
     n = 1.00026
     wavelength /= n
-    
-    if "FullSpectrum.freq" in os.listdir(TelluricModelingDir):
-      cmd = "rm " + TelluricModelingDir + "FullSpectrum.freq"
-      command = subprocess.check_call(cmd, shell=True)
     
     if save:
       print "All done! Output Transmission spectrum is located in the file below:"
@@ -250,7 +234,7 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
       #Also, only keep the section near the chip wavelengths
       wavelength = wavelength[::-1]
       transmission = transmission[::-1]
-      xspacing = (wavelength[-1] - wavelength[0])/float(wavelength.size)
+      xspacing = (wavelength[-1] - wavelength[0])/float(wavelength.size-1)
       tol = 10  #Go 10 nm on either side of the chip
       left = numpy.searchsorted(wavelength, wavegrid[0]-tol)
       right = numpy.searchsorted(wavelength, wavegrid[-1]+tol)
@@ -259,7 +243,6 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
       Model = scipy.interpolate.UnivariateSpline(wavelength, transmission, s=0)
       model = DataStructures.xypoint(right-left+1)
       model.x = numpy.arange(wavelength[left], wavelength[right], xspacing)
-      #model.x = numpy.copy(wavegrid)
       model.y = Model(model.x)
       model.cont = numpy.ones(model.x.size)
 
@@ -319,23 +302,6 @@ def ReadTAPE12(directory, filename="TAPE12_ex", appendto=None):
 
 
 
-  
-
-def FixTelluric(filename, TelluricModelingDir):
-  wavenumber, transmission = numpy.loadtxt(filename,unpack=True)
-  wavelength = 1e4/wavenumber
-  
-  #Check for any overlaps/duplicates.
-  #Note: the wavelength array goes backwards, so the indices
-  #      are opposite of what you might expect!
-  change = numpy.array( [wavelength[i] - wavelength[i+1] for i in range(wavelength.size-1)] )
-  badindices = numpy.where(change < 1e-8)[0]
-  wavelength = numpy.delete(wavelength, badindices)
-  transmission = numpy.delete(transmission, badindices)
-  numpy.savetxt(TelluricModelingDir + "FullSpectrum.wave", numpy.transpose((wavelength, transmission)), fmt="%.8g")
-  return wavelength*1000.0, transmission
-
-
 """
 The following functions are useful for the actual telluric modeling.
 They are not used to actually create a telluric absorption spectrum.
@@ -393,11 +359,9 @@ def ReduceResolution(data,resolution, cont_fcn=None, extend=True):
     cont2 = cont_fcn(x2)
     cont1[cont1 < 0.01] = 1
   
-    #newdata.y = numpy.convolve(extended*cont2, gaussian/gaussian.sum(), mode=conv_mode)/cont1
     newdata.y = fftconvolve(extended*cont2, gaussian/gaussian.sum(), mode=conv_mode)/cont1
 
   else:
-    #newdata.y = numpy.convolve(extended, gaussian/gaussian.sum(), mode=conv_mode)
     newdata.y = fftconvolve(extended, gaussian/gaussian.sum(), mode=conv_mode)
     
   return newdata
@@ -427,6 +391,5 @@ if __name__ == "__main__":
   lowfreq = 1e7/highwave
   highfreq = 1e7/lowwave
   Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, o2=o2, alt=4.5, save=True)
-  #Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, co2=co2, o3=o3, ch4=ch4, co=co, o2=o2, save=True)
           
 

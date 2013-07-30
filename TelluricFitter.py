@@ -31,7 +31,6 @@ Usage:
 
 
 import pylab
-import pyfits
 import numpy
 import sys
 import os
@@ -43,9 +42,6 @@ from scipy.linalg import svd, diagsvd
 from scipy import mat
 import MakeModel
 import DataStructures
-import FindContinuum
-from FittingUtilities import *
-import FitBstar
 import FittingUtilities
 
 
@@ -60,6 +56,7 @@ class TelluricFitter:
                        1e-4, 1e-4, 1e-4, 5.6e-4]
     self.bounds = [[0.0, 1e30] for par in self.parnames]  #Basically just making sure everything is > 0
     self.fitting = [False]*len(self.parnames)
+    
     #Latitude and altitude (to nearest km) of the observatory
     #  Defaults are for McDonald Observatory
     self.observatory = {"latitude": 30.6,
@@ -75,6 +72,7 @@ class TelluricFitter:
     self.first_iteration=True
     self.continuum_fit_order = 7
     self.wavelength_fit_order = 3
+
 
 
   """
@@ -388,7 +386,6 @@ class TelluricFitter:
       data2.y /= model.y
       primary_star = data.copy()
       primary_star.y = FittingUtilities.savitzky_golay(data2.y, 91, 4)
-      #primary_star = FitBstar.GetApproximateSpectrum(data2, bcwidth=100)
       primary_star.y /= primary_star.y.mean()
       PRIMARY_STAR = UnivariateSpline(primary_star.x, primary_star.y, s=0)
 
@@ -398,7 +395,7 @@ class TelluricFitter:
     
     #As the model gets better, the continuum will be less affected by
     #  telluric lines, and so will get better
-    data.cont = FindContinuum.Continuum(data.x, resid, fitorder=self.continuum_fit_order, lowreject=2, highreject=2)
+    data.cont = FittingUtilities.Continuum(data.x, resid, fitorder=self.continuum_fit_order, lowreject=2, highreject=2)
 
     #Fine-tune the wavelength calibration by fitting the location of several telluric lines
     if self.fit_primary:
@@ -615,27 +612,6 @@ class TelluricFitter:
       pylab.show()
     return fit, mean
 
-
-  """
-    Improve the wavelength solution by a constant shift
-  """
-  def CCImprove(self, data, model, be_safe=True, tol=0.2, debug=False):
-    ycorr = scipy.correlate(data.y/data.cont-1.0, model.y-1.0, mode="full")
-    xcorr = numpy.arange(ycorr.size)
-    maxindex = ycorr.argmax()
-    lags = xcorr - (data.y.size-1)
-    distancePerLag = (data.x[-1] - data.x[0])/float(data.x.size)
-    offsets = -lags*distancePerLag
-    if debug:
-      print "maximum offset: ", offsets[maxindex], " nm"
-
-    if numpy.abs(offsets[maxindex]) < tol or not be_safe:
-      #Apply offset
-      if debug:
-        print "Applying offset"
-      return offsets[maxindex]
-    else:
-      return 0.0
 
 
   """
