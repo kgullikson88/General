@@ -49,7 +49,7 @@ def CCImprove(data, model, be_safe=True, tol=0.2, debug=False):
 points over one standard deviation below the mean, which are assumed
 to be absorption lines.
 """
-def Continuum(x, y, fitorder=3, lowreject=1, highreject=3, numiter=10000, function="poly"):
+def Continuum(x, y, fitorder=3, lowreject=2, highreject=4, numiter=10000, function="poly"):
   done = False
   x2 = numpy.copy(x)
   y2 = numpy.copy(y)
@@ -268,7 +268,7 @@ def IterativeLowPass(data, vel, numiter=100, lowreject=3, highreject=3, width=5,
       done = False
       datacopy.y[badpoints] = smoothed[badpoints]
   if linearize:
-    return smoothed, linear
+    return linear.x, smoothed
   else:
     return smoothed
 
