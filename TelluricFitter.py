@@ -228,7 +228,7 @@ class TelluricFitter:
       return
     
     #Read in line list (used only for wavelength calibration):
-    linelist = numpy.loadtxt(self.LineListFile)
+    linelist = numpy.loadtxt(self.LineListFile, usecols=(0,))
 
     #Set up the fitting logfile
     outfile = open("chisq_summary.dat", "a")
@@ -263,12 +263,11 @@ class TelluricFitter:
     for i in range(len(self.bounds)):
       if self.fitting[i]:
         if len(self.bounds[i]) == 2:
-          return_array += bound(self.bounds[i], fitpars[fit_idx])
+          return_array += FittingUtilities.bound(self.bounds[i], fitpars[fit_idx])
         outfile.write("%.5g\t" %fitpars[fit_idx])
         fit_idx += 1
       elif len(self.bounds[i]) == 2 and self.parnames[i] != "resolution":
-        print "Warning! A constant parameter (%s) is bounded!" %(self.parnames[i])
-        return_array += bound(self.bounds[i], self.const_pars[i])
+        return_array += FittingUtilities.bound(self.bounds[i], self.const_pars[i])
   
     print "X^2 = ", numpy.sum(return_array)/float(weights.size)
     outfile.write("\n")
@@ -617,7 +616,7 @@ class TelluricFitter:
   """
     Fits the instrumental resolution with a Gaussian
   """
-  def FitResolution(self, data, model, resolution=75000, debug=False):
+  def FitResolution(self, data, model, resolution=75000.0, dR=10000.0, debug=False):
     ####resolution is the initial guess####
     
     if debug:
@@ -638,12 +637,22 @@ class TelluricFitter:
       pylab.show()
 
     Continuum = UnivariateSpline(data.x, data.cont, s=0)
-
-    #Do a brute force grid search first, then refine with Levenberg-Marquardt
-    searchgrid = (self.resolution_bounds[0], self.resolution_bounds[1], 10101010101010101010000)
+    
     ResolutionFitErrorBrute = lambda resolution, data, model, cont_fcn: numpy.sum(self.ResolutionFitError(resolution, data, model, cont_fcn))
-    resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel,Continuum))
-    resolution, success = leastsq(self.ResolutionFitError, resolution, args=(data, newmodel, Continuum), epsfcn=50, ftol=5)
+    """
+    #Do a brute force grid search first, then refine with Levenberg-Marquardt
+    searchgrid = (self.resolution_bounds[0], self.resolution_bounds[1], dR)
+    resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel,Continuum), finish=None)
+    searchgrid = (resolution-dR, resolution+dR+1, dR/10.0)
+    resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel,Continuum), finish=None)
+    searchgrid = (resolution-dR/10.0, resolution+dR/10.0+1, dR/100.0)
+    resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel,Continuum), finish=None)
+    """
+    #print "Brute search best: %f" %(float(resolution))
+    #resolution, success = leastsq(self.ResolutionFitError, resolution, args=(data, newmodel, Continuum), epsfcn=.00001, ftol=0.05)
+    
+    resolution = scipy.optimize.fminbound(ResolutionFitErrorBrute, self.resolution_bounds[0], self.resolution_bounds[1], xtol=1, args=(data,newmodel,Continuum))
+    
     print "Optimal resolution found at R = ", float(resolution)
     newmodel = MakeModel.ReduceResolution(newmodel, float(resolution), Continuum)
     return MakeModel.RebinData(newmodel, data.x), float(resolution)
@@ -651,11 +660,12 @@ class TelluricFitter:
 
   #This function gets called by scipy.optimize.leastsq
   def ResolutionFitError(self, resolution, data, model, cont_fcn):
-    newmodel = MakeModel.ReduceResolution(model, int(resolution+0.5), cont_fcn)
+    resolution = max(1000.0, float(int(float(resolution) + 0.5)))
+    newmodel = MakeModel.ReduceResolution(model, resolution, cont_fcn)
     newmodel = MakeModel.RebinData(newmodel, data.x)
     weights = 1.0/data.err
     weights = weights/weights.sum()
-    returnvec = (data.y - data.cont*newmodel.y)**2*weights + bound(self.resolution_bounds, resolution)
+    returnvec = (data.y - data.cont*newmodel.y)**2*weights + FittingUtilities.bound(self.resolution_bounds, resolution)
     print "Resolution-fitting X^2 = ", numpy.sum(returnvec)/float(weights.size), "at R = ", resolution
     if numpy.isnan(numpy.sum(returnvec**2)):
       print "Error! NaN found in ResolutionFitError!"
