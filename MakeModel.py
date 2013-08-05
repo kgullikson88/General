@@ -314,21 +314,28 @@ They are not used to actually create a telluric absorption spectrum.
 """
 
 #This function rebins (x,y) data onto the grid given by the array xgrid
+#  It is designed to rebin to a courser wavelength grid, but can also
+#  interpolate to a finer grid
 def RebinData(data,xgrid):
-  Model = scipy.interpolate.UnivariateSpline(data.x, data.y, s=0)
-  Continuum = scipy.interpolate.UnivariateSpline(data.x, data.cont, s=0)
-  newdata = DataStructures.xypoint(xgrid.size)
-  newdata.x = numpy.copy(xgrid)
-  newdata.y = Model(newdata.x)
-  newdata.cont = Continuum(newdata.x)
+  data_spacing = data.x[1] - data.x[0]
+  grid_spacing = xgrid[1] - xgrid[0]
+  if grid_spacing < 2.0*data_spacing:
+    Model = scipy.interpolate.UnivariateSpline(data.x, data.y, s=0)
+    Continuum = scipy.interpolate.UnivariateSpline(data.x, data.cont, s=0)
+    newdata = DataStructures.xypoint(xgrid.size)
+    newdata.x = numpy.copy(xgrid)
+    newdata.y = Model(newdata.x)
+    newdata.cont = Continuum(newdata.x)
 
-  left = numpy.searchsorted(data.x, (3*xgrid[0]-xgrid[1])/2.0)
-  for i in range(xgrid.size-1):
-    right = numpy.searchsorted(data.x, (xgrid[i]+xgrid[i+1])/2.0)
-    newdata.y[i] = numpy.mean(data.y[left:right])
-    left = right
-  right = numpy.searchsorted(data.x, (3*xgrid[-1]-xgrid[-2])/2.0)
-  newdata.y[xgrid.size-1] = numpy.mean(data.y[left:right])
+  else:
+    left = numpy.searchsorted(data.x, (3*xgrid[0]-xgrid[1])/2.0)
+    for i in range(xgrid.size-1):
+      right = numpy.searchsorted(data.x, (xgrid[i]+xgrid[i+1])/2.0)
+      newdata.y[i] = numpy.mean(data.y[left:right])
+      newdata.cont[i] = numpy.mean(data.cont[left:right])
+      left = right
+    right = numpy.searchsorted(data.x, (3*xgrid[-1]-xgrid[-2])/2.0)
+    newdata.y[xgrid.size-1] = numpy.mean(data.y[left:right])
   
   return newdata
 

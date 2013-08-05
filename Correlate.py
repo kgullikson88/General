@@ -448,7 +448,7 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
         left -= 1
       x2 = model.x[left:right].copy()
       y2 = model.y[left:right].copy()
-      cont2 = FindContinuum.Continuum(x2, y2, fitorder=5)
+      cont2 = FittingUtilities.Continuum(x2, y2, fitorder=5)
       MODEL = UnivariateSpline(x2,y2, s=0)
       CONT = UnivariateSpline(x2, cont2, s=0)
       
