@@ -319,11 +319,10 @@ They are not used to actually create a telluric absorption spectrum.
 def RebinData(data,xgrid):
   data_spacing = data.x[1] - data.x[0]
   grid_spacing = xgrid[1] - xgrid[0]
+  newdata = DataStructures.xypoint(x=xgrid)
   if grid_spacing < 2.0*data_spacing:
     Model = scipy.interpolate.UnivariateSpline(data.x, data.y, s=0)
     Continuum = scipy.interpolate.UnivariateSpline(data.x, data.cont, s=0)
-    newdata = DataStructures.xypoint(xgrid.size)
-    newdata.x = numpy.copy(xgrid)
     newdata.y = Model(newdata.x)
     newdata.cont = Continuum(newdata.x)
 
