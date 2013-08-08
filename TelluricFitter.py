@@ -236,6 +236,7 @@ class TelluricFitter:
     for i in range(len(self.parnames)):
       if self.fitting[i]:
         outfile.write("%s\t" %self.parnames[i])
+      outfile.write("X^2")
     outfile.write("\n")
     outfile.close()
 
@@ -268,9 +269,8 @@ class TelluricFitter:
         fit_idx += 1
       elif len(self.bounds[i]) == 2 and self.parnames[i] != "resolution":
         return_array += FittingUtilities.bound(self.bounds[i], self.const_pars[i])
-  
+    outfile.write("%g\n" %(numpy.sum(return_array)/float(weights.size)))
     print "X^2 = ", numpy.sum(return_array)/float(weights.size)
-    outfile.write("\n")
     outfile.close()
     return return_array
 
