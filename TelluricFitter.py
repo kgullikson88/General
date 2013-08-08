@@ -670,10 +670,10 @@ class TelluricFitter:
     if numpy.isnan(numpy.sum(returnvec**2)):
       print "Error! NaN found in ResolutionFitError!"
       outfile=open("ResolutionFitError.log", "a")
-      for i in range(data.y.size):
-        outfile.write("%.10g\t" %data.x[i] + "%.10g\t" %data.y[i] + "%.10g\t" %data.cont[i] + "%.10g\t" %newmodel.x[i] + "%.10g\n" %newmodel.y[i])
+      numpy.savetxt(outfile, numpy.transpose((data.x, data.y, data.cont, model.x, model.y, newmodel.y, newmodel.y)), fmt="%.10g")
       outfile.write("\n\n\n\n")
       outfile.close()
+      raise ValueError
     return returnvec
 
   
