@@ -393,7 +393,6 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
 """
    Very similar to the above version, but takes in a list of xypoint chips (more modern...)
 """
-
 def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, gravities=gravity_list, metallicities=metallicity_list, corr_mode='valid', process_model=True, normalize=False, vsini=15*units.km.to(units.cm), resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, outfilebase="", debug=False):
 
   makefname = False
@@ -494,8 +493,8 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
       reducedmodel = model2.y/model2.cont
       meandata = reduceddata.mean()
       meanmodel = reducedmodel.mean()
-      data_rms = numpy.sqrt(numpy.sum((reduceddata - meandata)**2))
-      model_rms = numpy.sqrt(numpy.sum((reducedmodel - meanmodel)**2))
+      data_rms = numpy.sqrt(numpy.sum((reduceddata - meandata)**2)/float(reduceddata.size))
+      model_rms = numpy.sqrt(numpy.sum((reducedmodel - meanmodel)**2)/float(reducedmodel.size))
       left = numpy.searchsorted(model2.x, order.x[0])
       right = model2.x.size - numpy.searchsorted(model2.x, order.x[-1])
       delta = left - right
@@ -519,7 +518,7 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
       corr = DataStructures.xypoint(velocity.size)
       corr.x = velocity[::-1]
       #corr.y = ycorr[::-1]/model_rms
-      corr.y = ycorr[::-1]/(data_rms*model_rms)
+      corr.y = ycorr[::-1]/(data_rms*model_rms*float(reduceddata.size))
         
       #i: Only save part of the correlation
       left = numpy.searchsorted(corr.x, minvel)
@@ -541,12 +540,17 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
         numpy.savetxt("%s.order%i" %(outfilename, ordernum+1), numpy.transpose((corr.x, corr.y)))
         #corr.output("%s.order%i" %(outfilename, ordernum+1))
 
-    #Add up the individual CCFs
-    master_corr = corrlist[0]
+    #Add up the individual CCFs (use the Maximum Likelihood method from Zucker, 2003, MNRAS, 342, 1291)
+    total = corrlist[0].copy()
+    total.y = 1.0 - total.y**2
+    #master_corr = corrlist[0]
     for corr in corrlist[1:]:
       correlation = UnivariateSpline(corr.x, corr.y, s=0)
-      master_corr.y += correlation(master_corr.x)
-    master_corr.y /= normalization
+      total *= (1.0 - correlation(total.x)**2)
+      #master_corr.y += correlation(master_corr.x)
+    #master_corr.y /= normalization
+    master_corr = total.copy()
+    master_corr.y = 1.0 - (total.y)**(1.0/float(len(corrlist)))
 
     #Finally, output
     if makefname:
