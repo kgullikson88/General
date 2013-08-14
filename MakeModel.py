@@ -12,6 +12,8 @@ from astropy import constants, units
 from collections import defaultdict
 import lockfile
 import struct
+from pysynphot import observation
+from pysynphot import spectrum
 
 homedir = os.environ['HOME']
 TelluricModelingDirRoot = "%s/School/Research/aerlbl_v12.2/" %homedir
@@ -65,7 +67,7 @@ This is the main code to generate a telluric absorption spectrum.
 The pressure, temperature, etc... can be adjusted all the way 
 on the bottom of this file.
 """
-def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=45.0, humidity=50.0, co2=368.5, o3=3.9e-2, n2o=0.32, co=0.14, ch4=1.8, o2=2.1e5, no=1.1e-19, so2=1e-4, no2=1e-4, nh3=1e-4, hno3=5.6e-4, lat=30.6, alt=2.1, wavegrid=None, resolution=None, nmolecules=12, save=False):
+def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=45.0, humidity=50.0, co2=368.5, o3=3.9e-2, n2o=0.32, co=0.14, ch4=1.8, o2=2.1e5, no=1.1e-19, so2=1e-4, no2=1e-4, nh3=1e-4, hno3=5.6e-4, lat=30.6, alt=2.1, wavegrid=None, resolution=None, nmolecules=12, save=False, libfile=None):
 
     #Determine output filename
     found = False
@@ -223,7 +225,11 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
       print wavelength.shape, transmission.shape
       print wavelength
       print transmission
-      numpy.savetxt(model_name, numpy.transpose((wavelength, transmission)), fmt="%.8g")
+      numpy.savetxt(model_name, numpy.transpose((wavelength[::-1], transmission[::-1])), fmt="%.8g")
+      if libfile != None:
+        infile = open(libfile, "a")
+        infile.write(model_name + "\n")
+        infile.close()
 
     #Unlock directory
     try:
@@ -316,27 +322,45 @@ They are not used to actually create a telluric absorption spectrum.
 #This function rebins (x,y) data onto the grid given by the array xgrid
 #  It is designed to rebin to a courser wavelength grid, but can also
 #  interpolate to a finer grid
-def RebinData(data,xgrid):
-  data_spacing = data.x[1] - data.x[0]
-  grid_spacing = xgrid[1] - xgrid[0]
-  newdata = DataStructures.xypoint(x=xgrid)
-  if grid_spacing < 2.0*data_spacing:
-    Model = scipy.interpolate.UnivariateSpline(data.x, data.y, s=0)
-    Continuum = scipy.interpolate.UnivariateSpline(data.x, data.cont, s=0)
-    newdata.y = Model(newdata.x)
-    newdata.cont = Continuum(newdata.x)
-
+def RebinData(data,xgrid, synphot=True):
+  if synphot:
+    newdata = DataStructures.xypoint(x=xgrid)
+    newdata.y = rebin_spec(data.x, data.y, xgrid)
+    newdata.y[0] = data.y[0]
+    newdata.y[-1] = data.y[-1]
+    return newdata
   else:
-    left = numpy.searchsorted(data.x, (3*xgrid[0]-xgrid[1])/2.0)
-    for i in range(xgrid.size-1):
-      right = numpy.searchsorted(data.x, (xgrid[i]+xgrid[i+1])/2.0)
-      newdata.y[i] = numpy.mean(data.y[left:right])
-      newdata.cont[i] = numpy.mean(data.cont[left:right])
-      left = right
-    right = numpy.searchsorted(data.x, (3*xgrid[-1]-xgrid[-2])/2.0)
-    newdata.y[xgrid.size-1] = numpy.mean(data.y[left:right])
+    data_spacing = data.x[1] - data.x[0]
+    grid_spacing = xgrid[1] - xgrid[0]
+    newdata = DataStructures.xypoint(x=xgrid)
+    if grid_spacing < 2.0*data_spacing:
+      Model = scipy.interpolate.UnivariateSpline(data.x, data.y, s=0)
+      Continuum = scipy.interpolate.UnivariateSpline(data.x, data.cont, s=0)
+      newdata.y = Model(newdata.x)
+      newdata.cont = Continuum(newdata.x)
+
+    else:
+      left = numpy.searchsorted(data.x, (3*xgrid[0]-xgrid[1])/2.0)
+      for i in range(xgrid.size-1):
+        right = numpy.searchsorted(data.x, (xgrid[i]+xgrid[i+1])/2.0)
+        newdata.y[i] = numpy.mean(data.y[left:right])
+        newdata.cont[i] = numpy.mean(data.cont[left:right])
+        left = right
+      right = numpy.searchsorted(data.x, (3*xgrid[-1]-xgrid[-2])/2.0)
+      newdata.y[xgrid.size-1] = numpy.mean(data.y[left:right])
   
-  return newdata
+    return newdata
+  
+
+
+def rebin_spec(wave, specin, wavnew):
+  spec = spectrum.ArraySourceSpectrum(wave=wave, flux=specin)
+  f = numpy.ones(len(wave))
+  filt = spectrum.ArraySpectralElement(wave, f)
+  obs = observation.Observation(spec, filt, binset=wavnew, force='taper')
+  
+  return obs.binflux
+
 
 #This function reduces the resolution by convolving with a gaussian kernel
 def ReduceResolution(data,resolution, cont_fcn=None, extend=True):
