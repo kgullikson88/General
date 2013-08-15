@@ -326,6 +326,7 @@ def RebinData(data,xgrid, synphot=True):
   if synphot:
     newdata = DataStructures.xypoint(x=xgrid)
     newdata.y = rebin_spec(data.x, data.y, xgrid)
+    newdata.cont = rebin_spec(data.x, data.cont, xgrid)
     newdata.y[0] = data.y[0]
     newdata.y[-1] = data.y[-1]
     return newdata

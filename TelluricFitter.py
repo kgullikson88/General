@@ -46,7 +46,7 @@ import FittingUtilities
 
 
 class TelluricFitter:
-  def __init__(self):
+  def __init__(self, debug=False, debug_level=2):
     #Set up parameters
     self.parnames = ["pressure", "temperature", "angle", "resolution", "wavestart", "waveend",
                      "h2o", "co2", "o3", "n2o", "co", "ch4", "o2", "no",
@@ -72,6 +72,8 @@ class TelluricFitter:
     self.first_iteration=True
     self.continuum_fit_order = 7
     self.wavelength_fit_order = 3
+    self.debug = debug
+    self.debug_level = debug_level   #Number from 1-5, with 5 being the most verbose
 
 
 
@@ -231,13 +233,11 @@ class TelluricFitter:
     linelist = numpy.loadtxt(self.LineListFile, usecols=(0,))
 
     #Set up the fitting logfile
-    outfile = open("chisq_summary.dat", "a")
-    outfile.write("\n\n\n\n")
+    outfile = open("chisq_summary.dat", "w")
     for i in range(len(self.parnames)):
       if self.fitting[i]:
         outfile.write("%s\t" %self.parnames[i])
-      outfile.write("X^2")
-    outfile.write("\n")
+    outfile.write("X^2\n")
     outfile.close()
 
 
@@ -344,10 +344,9 @@ class TelluricFitter:
       model = MakeModel.RebinData(model, data.x)
       
     elif "gauss" in self.resolution_fit_mode or self.first_iteration:
-      Continuum = UnivariateSpline(data.x.copy(), data.cont.copy(), s=0)
       if (resolution - 10 < self.resolution_bounds[0] or resolution+10 > self.resolution_bounds[1]):
         resolution = numpy.mean(self.resolution_bounds)
-      model = MakeModel.ReduceResolution(model.copy(), resolution, Continuum)
+      model = MakeModel.ReduceResolution(model.copy(), resolution)
       model = MakeModel.RebinData(model.copy(), data.x.copy())
 
     else:
@@ -376,7 +375,7 @@ class TelluricFitter:
         model = MakeModel.RebinData(model, data.x)
       
       elif "gauss" in self.resolution_fit_mode or self.first_iteration:
-        model = MakeModel.ReduceResolution(model_original.copy(), resolution, Continuum)
+        model = MakeModel.ReduceResolution(model_original.copy(), resolution)
         model = MakeModel.RebinData(model.copy(), data.x.copy())
 
     
@@ -401,6 +400,8 @@ class TelluricFitter:
     data.cont = FittingUtilities.Continuum(data.x, resid, fitorder=self.continuum_fit_order, lowreject=2, highreject=2)
 
     #Fine-tune the wavelength calibration by fitting the location of several telluric lines
+    if self.debug and self.debug_level >= 4:
+      numpy.savetxt("Debug_Output1.log", numpy.transpose((data.x, data.y, data.cont, model.x, model.y)))
     if self.fit_primary:
       modelfcn, mean = self.FitWavelength(data, model2.copy(), linelist, fitorder=self.wavelength_fit_order)
     else:
@@ -409,7 +410,7 @@ class TelluricFitter:
       test = modelfcn(data.x - mean)
       xdiff = [test[j] - test[j-1] for j in range(1, len(test)-1)]
       if min(xdiff) > 0 and numpy.max(test - data.x) < 0.2:
-        print "Adjusting wavelengths by at most %g" %numpy.max(test - model.x)
+        print "Adjusting data wavelengths by at most %.8f" %numpy.max(test - model.x)
         data.x = test.copy()
       else:
         print "Warning! Wavelength calibration did not succeed!"
@@ -418,13 +419,20 @@ class TelluricFitter:
       xdiff = [test[j] - test[j-1] for j in range(1, len(test)-1)]
       if min(xdiff) > 0 and numpy.max(test - model.x) < 0.5:
         model.x = test.copy()
-        print "Adjusting wavelengths by at most %g" %numpy.max(test - model.x)
+        print "Adjusting model wavelengths by at most %.8f" %numpy.max(test - model.x)
+        if self.debug:
+          self.DisplayVariables()
+          print model_original.x
         model_original.x = modelfcn(model_original.x - mean)
+        if self.debug:
+          print model_original.x
       else:
         print "Warning! Wavelength calibration did not succeed!"
     else:
       sys.exit("Error! adjust_wave set to an invalid value: %s" %self.adjust_wave)
 
+    if self.debug and self.debug_level >= 4:
+      numpy.savetxt("Debug_Output2.log", numpy.transpose((data.x, data.y, data.cont, model.x, model.y)))
     #Fit instrumental resolution
     done = False
     while not done:
@@ -446,7 +454,7 @@ class TelluricFitter:
           prim[prim < 0.0] = 0.0
           prim[prim > 10.0] = 10.0
           model2.y *= prim
-          model, resolution = self.FitResolution(data.copy(), model_original.copy(), resolution)
+          model, resolution = self.FitResolution(data.copy(), model2.y, resolution)
         else:
           model, resolution = self.FitResolution(data.copy(), model_original.copy(), resolution)
         #Save resolution
@@ -506,26 +514,16 @@ class TelluricFitter:
     Wavelength calibration MUST already be very close for this algorithm
       to succeed!
   """
-  def FitWavelength(self, data_original, telluric, linelist, tol=0.05, oversampling=4, debug=False, fitorder=3):
+  def FitWavelength(self, data_original, telluric, linelist, tol=0.05, oversampling=4, fitorder=3):
+    print "Fitting Wavelength"
     old = []
     new = []
 
     #Interpolate to finer spacing
-    DATA_FCN = UnivariateSpline(data_original.x, data_original.y, s=0)
-    CONT_FCN = UnivariateSpline(data_original.x, data_original.cont, s=0)
-    MODEL_FCN = UnivariateSpline(telluric.x, telluric.y, s=0)
-    data = DataStructures.xypoint(data_original.x.size*oversampling)
-    data.x = numpy.linspace(data_original.x[0], data_original.x[-1], data_original.x.size*oversampling)
-    data.y = DATA_FCN(data.x)
-    data.cont = CONT_FCN(data.x)
-    model = DataStructures.xypoint(data.x.size)
-    model.x = numpy.copy(data.x)
-    model.y = MODEL_FCN(model.x)
+    xgrid = numpy.linspace(data_original.x[0], data_original.x[-1], data_original.x.size*oversampling)
+    data = MakeModel.RebinData(data_original, xgrid)
+    model = MakeModel.RebinData(telluric, xgrid)
 
-    if debug:
-      print "In FitWavelength:"
-      print linelist
-      print data.x
   
     #Begin loop over the lines
     numlines = 0
@@ -574,9 +572,10 @@ class TelluricFitter:
         offsets = -lags*distancePerLag
         shift = offsets[maxindex]
         shift, success = leastsq(self.WavelengthErrorFunction, shift, args=(argdata, argmodel))
-        if (debug):
+        if self.debug and self.debug_level >= 3:
           print argdata.x[0], argdata.x[-1], argdata.x.size
           print "wave: ", mean, "\tshift: ", shift, "\tsuccess = ", success
+          pylab.figure(1)
           pylab.plot(model.x[left:right]-shift, model.y[left:right])
           pylab.plot(argmodel.x, argmodel.y)
           pylab.plot(argdata.x, argdata.y)
@@ -588,11 +587,14 @@ class TelluricFitter:
             new.append(mean - float(shift))
           else:
             sys.exit("Error! adjust_wave set to an invalid value: %s" %self.adjust_wave)
-    if debug:
-      pylab.show()
+    if self.debug and self.debug_level >= 3:
+      pylab.figure(2)
       pylab.plot(old, new, 'ro')
-      pylab.show()
-      
+      pylab.title("Fitted Line shifts")
+      pylab.xlabel("Old Wavelength")
+      pylab.ylabel("New Wavelength")
+
+    print "Found %i lines in this order" %numlines
     #Iteratively fit to a cubic with sigma-clipping
     if len(old) <= fitorder:
       fit = lambda x: x
@@ -610,8 +612,12 @@ class TelluricFitter:
         del old[badindex]
         del new[badindex]
         done = False
-    if debug:
+    if self.debug and self.debug_level >= 3:
+      pylab.figure(3)
       pylab.plot(old, fit(old - mean) - new, 'ro')
+      pylab.title("Residuals")
+      pylab.xlabel("Wavelength")
+      pylab.ylabel("Delta-lambda")
       pylab.show()
     return fit, mean
 
@@ -620,61 +626,55 @@ class TelluricFitter:
   """
     Fits the instrumental resolution with a Gaussian
   """
-  def FitResolution(self, data, model, resolution=75000.0, dR=10000.0, debug=False):
+  def FitResolution(self, data, model, resolution=75000.0, dR=10000.0):
     ####resolution is the initial guess####
-    
-    if debug:
-      print "Fitting resolution"
-      pylab.plot(data.x, data.y/data.cont)
-      pylab.plot(model.x, model.y)
-      pylab.show()
 
+    print "Fitting Resolution"
     #Interpolate to constant wavelength spacing
-    ModelFcn = UnivariateSpline(model.x, model.y, s=0)
-    newmodel = DataStructures.xypoint(model.x.size)
-    newmodel.x = numpy.linspace(model.x[0], model.x[-1], model.x.size)
-    newmodel.y = ModelFcn(newmodel.x)
+    xgrid = numpy.linspace(model.x[0], model.x[-1], model.x.size)
+    newmodel = MakeModel.RebinData(model, xgrid)
 
-    if debug:
-      pylab.plot(data.x, data.y/data.cont)
-      pylab.plot(newmodel.x, newmodel.y)
-      pylab.show()
-
-    Continuum = UnivariateSpline(data.x, data.cont, s=0)
-    
-    ResolutionFitErrorBrute = lambda resolution, data, model, cont_fcn: numpy.sum(self.ResolutionFitError(resolution, data, model, cont_fcn))
+    ResolutionFitErrorBrute = lambda resolution, data, model: numpy.sum(self.ResolutionFitError(resolution, data, model))
     """
     #Do a brute force grid search first, then refine with Levenberg-Marquardt
     searchgrid = (self.resolution_bounds[0], self.resolution_bounds[1], dR)
-    resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel,Continuum), finish=None)
+    resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel), finish=None)
     searchgrid = (resolution-dR, resolution+dR+1, dR/10.0)
-    resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel,Continuum), finish=None)
+    resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel), finish=None)
     searchgrid = (resolution-dR/10.0, resolution+dR/10.0+1, dR/100.0)
-    resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel,Continuum), finish=None)
+    resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel), finish=None)
     """
     #print "Brute search best: %f" %(float(resolution))
-    #resolution, success = leastsq(self.ResolutionFitError, resolution, args=(data, newmodel, Continuum), epsfcn=.00001, ftol=0.05)
+    #resolution, success = leastsq(self.ResolutionFitError, resolution, args=(data, newmodel), epsfcn=.00001, ftol=0.05)
     
-    resolution = scipy.optimize.fminbound(ResolutionFitErrorBrute, self.resolution_bounds[0], self.resolution_bounds[1], xtol=1, args=(data,newmodel,Continuum))
+    resolution = scipy.optimize.fminbound(ResolutionFitErrorBrute, self.resolution_bounds[0], self.resolution_bounds[1], xtol=1, args=(data,newmodel))
     
     print "Optimal resolution found at R = ", float(resolution)
-    newmodel = MakeModel.ReduceResolution(newmodel, float(resolution), Continuum)
+    newmodel = MakeModel.ReduceResolution(newmodel, float(resolution))
     return MakeModel.RebinData(newmodel, data.x), float(resolution)
   
 
   #This function gets called by scipy.optimize.leastsq
-  def ResolutionFitError(self, resolution, data, model, cont_fcn):
+  def ResolutionFitError(self, resolution, data, model):
     resolution = max(1000.0, float(int(float(resolution) + 0.5)))
-    newmodel = MakeModel.ReduceResolution(model, resolution, cont_fcn)
+    if self.debug and self.debug_level >= 5:
+      print "Saving inputs: R = ", resolution
+      numpy.savetxt("Debug_ResFit.log", numpy.transpose((data.x, data.y, data.cont)))
+      numpy.savetxt("Debug_Resfit2.log", numpy.transpose((model.x, model.y)))
+    newmodel = MakeModel.ReduceResolution(model, resolution)
     newmodel = MakeModel.RebinData(newmodel, data.x)
     weights = 1.0/data.err
     weights = weights/weights.sum()
     returnvec = (data.y - data.cont*newmodel.y)**2*weights + FittingUtilities.bound(self.resolution_bounds, resolution)
-    print "Resolution-fitting X^2 = ", numpy.sum(returnvec)/float(weights.size), "at R = ", resolution
+    if self.debug:
+      print "Resolution-fitting X^2 = ", numpy.sum(returnvec)/float(weights.size), "at R = ", resolution
     if numpy.isnan(numpy.sum(returnvec**2)):
       print "Error! NaN found in ResolutionFitError!"
       outfile=open("ResolutionFitError.log", "a")
-      numpy.savetxt(outfile, numpy.transpose((data.x, data.y, data.cont, model.x, model.y, newmodel.x, newmodel.y)), fmt="%.10g")
+      outfile.write("#Error attempting R = %g\n" %(resolution))
+      numpy.savetxt(outfile, numpy.transpose((data.x, data.y, data.cont, newmodel.x, newmodel.y)), fmt="%.10g")
+      outfile.write("\n\n\n\n")
+      numpy.savetxt(outfile, numpy.transpose((model.x, model.y)), fmt="%.10g")
       outfile.write("\n\n\n\n")
       outfile.close()
       raise ValueError
