@@ -75,6 +75,9 @@ class TelluricFitter:
     self.debug = debug
     self.debug_level = debug_level   #Number from 1-5, with 5 being the most verbose
 
+    #Just open and close chisq_summary, to clear anything already there
+    outfile = open("chisq_summary.dat", "w")
+    outfile.close()
 
 
   """
@@ -233,7 +236,8 @@ class TelluricFitter:
     linelist = numpy.loadtxt(self.LineListFile, usecols=(0,))
 
     #Set up the fitting logfile
-    outfile = open("chisq_summary.dat", "w")
+    outfile = open("chisq_summary.dat", "a")
+    outfile.write("\n\n\n\n")
     for i in range(len(self.parnames)):
       if self.fitting[i]:
         outfile.write("%s\t" %self.parnames[i])
