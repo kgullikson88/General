@@ -156,6 +156,7 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     keys = sorted(Atmosphere.keys())
     lower = max(0, numpy.searchsorted(keys, alt)-1)
     upper = min(lower + 1, len(keys)-1)
+    print alt, lower, upper, keys[lower], keys[upper]
     scale_values = list(Atmosphere[lower])
     scale_values[2] = list(Atmosphere[lower][2])
     scale_values[0] = (Atmosphere[upper][0]-Atmosphere[lower][0]) / (keys[upper]-keys[lower]) * (alt-keys[lower]) + Atmosphere[lower][0]
@@ -164,9 +165,10 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
       scale_values[2][mol] = (Atmosphere[upper][2][mol]-Atmosphere[lower][2][mol]) / (keys[upper]-keys[lower]) * (alt-keys[lower]) + Atmosphere[lower][2][mol]
 
     #Do the actual scaling
-    scale_values = Atmosphere[2]
+    #scale_values = Atmosphere[2]
     pressure_scalefactor = pressure/scale_values[0]
     temperature_scalefactor = temperature/scale_values[1]
+    print h2o, scale_values[2][0]
     for layer in layers:
       Atmosphere[layer][0] *= pressure_scalefactor
       Atmosphere[layer][1] *= temperature_scalefactor
@@ -414,19 +416,21 @@ def ReduceResolutionAndRebinData(data,resolution,xgrid):
 if __name__ == "__main__":
   pressure = 796.22906
   temperature = 270.40
-  humidity = 50.0
+  humidity = 10.0
   angle = 40.8
   co2 = 368.5
   o3 = 0.039
   ch4 = 4.0
   co = 0.15
-  o2 = 4.266e6
   o2 = 2.2e5
+  #o2 = 4.4e5
 
-  lowwave = 300
-  highwave = 1000
+  lowwave = 445
+  highwave = 446
+  lowwave = 700
+  highwave = 800
   lowfreq = 1e7/highwave
   highfreq = 1e7/lowwave
-  Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, o2=o2, alt=4.5, save=True)
+  Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, o2=o2, alt=2.1, save=True)
           
 

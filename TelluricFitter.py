@@ -226,7 +226,7 @@ class TelluricFitter:
     #Make fitpars array
     fitpars = [self.const_pars[i] for i in range(len(self.parnames)) if self.fitting[i] ]
     if len(fitpars) < 1:
-      print "Error! Must fit at least one variable!"
+      print "Error! Must fit at least one variable!\n"
       return
     
     #Read in line list (used only for wavelength calibration):
@@ -420,12 +420,7 @@ class TelluricFitter:
       if min(xdiff) > 0 and numpy.max(test - model.x) < 0.5:
         model.x = test.copy()
         print "Adjusting model wavelengths by at most %.8f" %numpy.max(test - model.x)
-        if self.debug:
-          self.DisplayVariables()
-          print model_original.x
         model_original.x = modelfcn(model_original.x - mean)
-        if self.debug:
-          print model_original.x
       else:
         print "Warning! Wavelength calibration did not succeed!"
     else:
