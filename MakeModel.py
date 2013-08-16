@@ -67,7 +67,7 @@ This is the main code to generate a telluric absorption spectrum.
 The pressure, temperature, etc... can be adjusted all the way 
 on the bottom of this file.
 """
-def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=45.0, humidity=50.0, co2=368.5, o3=3.9e-2, n2o=0.32, co=0.14, ch4=1.8, o2=2.1e5, no=1.1e-19, so2=1e-4, no2=1e-4, nh3=1e-4, hno3=5.6e-4, lat=30.6, alt=2.1, wavegrid=None, resolution=None, nmolecules=12, save=False, libfile=None):
+def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=45.0, humidity=50.0, co2=368.5, o3=3.9e-2, n2o=0.32, co=0.14, ch4=1.8, o2=2.1e5, no=1.1e-19, so2=1e-4, no2=1e-4, nh3=1e-4, hno3=5.6e-4, lat=30.6, alt=2.1, wavegrid=None, resolution=None, nmolecules=12, save=False, libfile=None, debug=False):
 
     #Determine output filename
     found = False
@@ -100,7 +100,8 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     indices = {}
     
     #Read in MIPAS_atmosphere_profile
-    print "Generating new atmosphere profile"
+    if debug:
+      print "Generating new atmosphere profile"
     filename = TelluricModelingDir + "MIPAS_atmosphere_profile"
     infile = open(filename)
     lines = infile.readlines()
@@ -156,7 +157,6 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     keys = sorted(Atmosphere.keys())
     lower = max(0, numpy.searchsorted(keys, alt)-1)
     upper = min(lower + 1, len(keys)-1)
-    print alt, lower, upper, keys[lower], keys[upper]
     scale_values = list(Atmosphere[lower])
     scale_values[2] = list(Atmosphere[lower][2])
     scale_values[0] = (Atmosphere[upper][0]-Atmosphere[lower][0]) / (keys[upper]-keys[lower]) * (alt-keys[lower]) + Atmosphere[lower][0]
@@ -168,7 +168,6 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     #scale_values = Atmosphere[2]
     pressure_scalefactor = pressure/scale_values[0]
     temperature_scalefactor = temperature/scale_values[1]
-    print h2o, scale_values[2][0]
     for layer in layers:
       Atmosphere[layer][0] *= pressure_scalefactor
       Atmosphere[layer][1] *= temperature_scalefactor
@@ -212,7 +211,7 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     #Run lblrtm
     cmd = "cd " + TelluricModelingDir + ";sh runlblrtm_v3.sh"
     command = subprocess.check_call(cmd, shell=True)
-    freq, transmission = ReadTAPE12(TelluricModelingDir, appendto=(freq, transmission))
+    freq, transmission = ReadTAPE12(TelluricModelingDir, appendto=(freq, transmission), debug=debug)
 
     #Convert from frequency to wavelength units
     wavelength = units.cm.to(units.nm)/freq
@@ -224,9 +223,6 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     if save:
       print "All done! Output Transmission spectrum is located in the file below:"
       print model_name
-      print wavelength.shape, transmission.shape
-      print wavelength
-      print transmission
       numpy.savetxt(model_name, numpy.transpose((wavelength[::-1], transmission[::-1])), fmt="%.8g")
       if libfile != None:
         infile = open(libfile, "a")
@@ -265,7 +261,7 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
 
 
 #Function to read the output of LBLRTM, called TAPE12
-def ReadTAPE12(directory, filename="TAPE12_ex", appendto=None):
+def ReadTAPE12(directory, filename="TAPE12_ex", appendto=None, debug=False):
   if not directory.endswith("/"):
     directory = directory + "/"
   infile = open("%s%s" %(directory, filename), 'rb')
@@ -278,7 +274,8 @@ def ReadTAPE12(directory, filename="TAPE12_ex", appendto=None):
   v1 = pv1
   v2 = pv2
   dv = pdv
-  print 'info: ',pv1,pv2,pdv,np
+  if debug:
+    print 'info: ',pv1,pv2,pdv,np
   npts = np
   spectrum = []
   while np > 0:
@@ -302,7 +299,8 @@ def ReadTAPE12(directory, filename="TAPE12_ex", appendto=None):
   spectrum = numpy.array(spectrum)
   if v.size < spectrum.size:
       v = numpy.r_[v, v2+dv]
-  print "v, spec size: ", v.size, spectrum.size
+  if debug:
+    print "v, spec size: ", v.size, spectrum.size
 
   if appendto != None and appendto[0].size > 0:
     old_v, old_spectrum = appendto[0], appendto[1]
