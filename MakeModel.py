@@ -12,8 +12,10 @@ from astropy import constants, units
 from collections import defaultdict
 import lockfile
 import struct
-from pysynphot import observation
-from pysynphot import spectrum
+#from pysynphot import observation
+#from pysynphot import spectrum
+from pysynphot.observation import Observation
+from pysynphot.spectrum import ArraySourceSpectrum, ArraySpectralElement
 
 homedir = os.environ['HOME']
 TelluricModelingDirRoot = "%s/School/Research/aerlbl_v12.2/" %homedir
@@ -351,14 +353,15 @@ def RebinData(data,xgrid, synphot=True):
       newdata.y[xgrid.size-1] = numpy.mean(data.y[left:right])
   
     return newdata
-  
+
 
 
 def rebin_spec(wave, specin, wavnew):
-  spec = spectrum.ArraySourceSpectrum(wave=wave, flux=specin)
+  
+  spec = ArraySourceSpectrum(wave=wave, flux=specin)
   f = numpy.ones(len(wave))
-  filt = spectrum.ArraySpectralElement(wave, f)
-  obs = observation.Observation(spec, filt, binset=wavnew, force='taper')
+  filt = ArraySpectralElement(wave, f)
+  obs = Observation(spec, filt, binset=wavnew, force='taper')
   
   return obs.binflux
 
@@ -415,7 +418,7 @@ def ReduceResolutionAndRebinData(data,resolution,xgrid):
 if __name__ == "__main__":
   pressure = 796.22906
   temperature = 270.40
-  humidity = 10.0
+  humidity = 90.0
   angle = 40.8
   co2 = 368.5
   o3 = 0.039
@@ -426,8 +429,8 @@ if __name__ == "__main__":
 
   lowwave = 445
   highwave = 446
-  lowwave = 700
-  highwave = 800
+  lowwave = 710
+  highwave = 730
   lowfreq = 1e7/highwave
   highfreq = 1e7/lowwave
   Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, o2=o2, alt=2.1, save=True)

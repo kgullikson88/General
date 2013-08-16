@@ -635,6 +635,11 @@ class TelluricFitter:
     ####resolution is the initial guess####
 
     print "Fitting Resolution"
+
+    #Subsample the model to speed this part up (it doesn't affect the accuracy much)
+    xgrid = numpy.linspace(model.x[0], model.x[-1], model.size()/5)
+    newmodel = MakeModel.RebinData(model, xgrid)
+    
     #Interpolate to constant wavelength spacing
     #xgrid = numpy.linspace(model.x[0], model.x[-1], model.x.size)
     #newmodel = MakeModel.RebinData(model, xgrid)
@@ -652,10 +657,10 @@ class TelluricFitter:
     #print "Brute search best: %f" %(float(resolution))
     #resolution, success = leastsq(self.ResolutionFitError, resolution, args=(data, newmodel), epsfcn=.00001, ftol=0.05)
     
-    resolution = scipy.optimize.fminbound(ResolutionFitErrorBrute, self.resolution_bounds[0], self.resolution_bounds[1], xtol=1, args=(data,model))
+    resolution = scipy.optimize.fminbound(ResolutionFitErrorBrute, self.resolution_bounds[0], self.resolution_bounds[1], xtol=1, args=(data,newmodel))
     
     print "Optimal resolution found at R = ", float(resolution)
-    newmodel = MakeModel.ReduceResolution(model, float(resolution))
+    newmodel = MakeModel.ReduceResolution(newmodel, float(resolution))
     return MakeModel.RebinData(newmodel, data.x), float(resolution)
   
 
