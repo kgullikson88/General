@@ -377,7 +377,8 @@ def ReduceResolution(data,resolution, cont_fcn=None, extend=True):
     #Extend array to try to remove edge effects (do so circularly)
     before = data.y[-gaussian.size/2+1:]
     after = data.y[:gaussian.size/2]
-    extended = numpy.append(numpy.append(before, data.y), after)
+    #extended = numpy.append(numpy.append(before, data.y), after)
+    extended = numpy.r_[before, data.y, after]
 
     first = data.x[0] - float(int(gaussian.size/2.0+0.5))*xspacing
     last = data.x[-1] + float(int(gaussian.size/2.0+0.5))*xspacing

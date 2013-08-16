@@ -321,14 +321,24 @@ class TelluricFitter:
     #Generate the model:
     if data == None:
       model = MakeModel.Main(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, lat=lat, alt=alt, wavegrid=None, resolution=None, debug=self.debug)
-      model_name = "Models/transmission"+"-%.2f" %pressure + "-%.2f" %temperature + "-%.1f" %h2o + "-%.1f" %angle + "-%.2f" %(co2) + "-%.2f" %(o3*100) + "-%.2f" %ch4 + "-%.2f" %(co*10)
-      numpy.savetxt(model_name, numpy.transpose((model.x, model.y)), fmt="%.8f")
+      if self.debug and self.debug_level >= 5:
+        model_name = "Models/transmission"+"-%.2f" %pressure + "-%.2f" %temperature + "-%.1f" %h2o + "-%.1f" %angle + "-%.2f" %(co2) + "-%.2f" %(o3*100) + "-%.2f" %ch4 + "-%.2f" %(co*10)
+        numpy.savetxt(model_name, numpy.transpose((model.x, model.y)), fmt="%.8f")
+      
+      #Interpolate to constant wavelength spacing
+      xgrid = numpy.linspace(model.x[0], model.x[-1], model.x.size)
+      model = MakeModel.RebinData(model, xgrid)
       model = MakeModel.ReduceResolution(model.copy(), resolution)
       return model
     else:
       model = MakeModel.Main(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, wavegrid=data.x, resolution=resolution, debug=self.debug)
-      model_name = "Models/transmission"+"-%.2f" %pressure + "-%.2f" %temperature + "-%.1f" %h2o + "-%.1f" %angle + "-%.2f" %(co2) + "-%.2f" %(o3*100) + "-%.2f" %ch4 + "-%.2f" %(co*10)
-      numpy.savetxt(model_name, numpy.transpose((model.x, model.y)), fmt="%.8f")
+      if self.debug and self.debug_level >= 5:
+        model_name = "Models/transmission"+"-%.2f" %pressure + "-%.2f" %temperature + "-%.1f" %h2o + "-%.1f" %angle + "-%.2f" %(co2) + "-%.2f" %(o3*100) + "-%.2f" %ch4 + "-%.2f" %(co*10)
+        numpy.savetxt(model_name, numpy.transpose((model.x, model.y)), fmt="%.8f")
+      
+      #Interpolate to constant wavelength spacing
+      xgrid = numpy.linspace(model.x[0], model.x[-1], model.x.size)
+      model = MakeModel.RebinData(model, xgrid)
 
     model_original = model.copy()
   
@@ -626,8 +636,8 @@ class TelluricFitter:
 
     print "Fitting Resolution"
     #Interpolate to constant wavelength spacing
-    xgrid = numpy.linspace(model.x[0], model.x[-1], model.x.size)
-    newmodel = MakeModel.RebinData(model, xgrid)
+    #xgrid = numpy.linspace(model.x[0], model.x[-1], model.x.size)
+    #newmodel = MakeModel.RebinData(model, xgrid)
 
     ResolutionFitErrorBrute = lambda resolution, data, model: numpy.sum(self.ResolutionFitError(resolution, data, model))
     """
@@ -642,10 +652,10 @@ class TelluricFitter:
     #print "Brute search best: %f" %(float(resolution))
     #resolution, success = leastsq(self.ResolutionFitError, resolution, args=(data, newmodel), epsfcn=.00001, ftol=0.05)
     
-    resolution = scipy.optimize.fminbound(ResolutionFitErrorBrute, self.resolution_bounds[0], self.resolution_bounds[1], xtol=1, args=(data,newmodel))
+    resolution = scipy.optimize.fminbound(ResolutionFitErrorBrute, self.resolution_bounds[0], self.resolution_bounds[1], xtol=1, args=(data,model))
     
     print "Optimal resolution found at R = ", float(resolution)
-    newmodel = MakeModel.ReduceResolution(newmodel, float(resolution))
+    newmodel = MakeModel.ReduceResolution(model, float(resolution))
     return MakeModel.RebinData(newmodel, data.x), float(resolution)
   
 
@@ -656,7 +666,7 @@ class TelluricFitter:
       print "Saving inputs: R = ", resolution
       numpy.savetxt("Debug_ResFit.log", numpy.transpose((data.x, data.y, data.cont)))
       numpy.savetxt("Debug_Resfit2.log", numpy.transpose((model.x, model.y)))
-    newmodel = MakeModel.ReduceResolution(model, resolution)
+    newmodel = MakeModel.ReduceResolution(model, resolution, extend=False)
     newmodel = MakeModel.RebinData(newmodel, data.x)
     weights = 1.0/data.err
     weights = weights/weights.sum()
