@@ -532,7 +532,6 @@ class TelluricFitter:
     xgrid = numpy.linspace(data_original.x[0], data_original.x[-1], data_original.x.size*oversampling)
     data = MakeModel.RebinData(data_original, xgrid)
     model = MakeModel.RebinData(telluric, xgrid)
-
   
     #Begin loop over the lines
     numlines = 0

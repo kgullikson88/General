@@ -5,6 +5,7 @@ import numpy
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.interpolate import UnivariateSpline as smoother
 import scipy.stats
+from scipy.signal import argrelmin
 import DataStructures
 from astropy import units, constants
 import scipy.signal as sig
@@ -410,3 +411,31 @@ def Denoise3(data, reduction_factor=0.1):
   data.y = y2[boolarr]
   return data
   
+
+
+
+"""
+  Function to find the spectral lines, given a model spectrum
+  spectrum:        An xypoint instance with the model
+  tol:             The line strength needed to count the line (0 is a strong line, 1 is weak)
+  linespacing:     The minimum spacing between two consecutive lines
+"""
+def FindLines(spectrum, tol=0.99, linespacing = 0.01, debug=False):
+  distance = 0.01
+  xspacing = float(max(spectrum.x) - min(spectrum.x))/float(spectrum.size())
+  N = int( linespacing / xspacing + 0.5)
+  lines = list(argrelmin(spectrum.y, order=N)[0])
+  for i in range(len(lines)-1, -1, -1):
+    idx = lines[i]
+    xval = spectrum.x[idx]
+    yval = spectrum.y[idx]
+    if yval > tol:
+      lines.pop(i)
+    elif debug:
+      plt.plot([xval, xval], [yval-0.01, yval-0.03], 'r-')
+      
+  if debug:
+    plt.plot(spectrum.x, spectrum.y, 'k-')
+    plt.show()
+  return numpy.array(lines)
+#numpy.savetxt("Linelist4.dat", lines, fmt="%.8f")
