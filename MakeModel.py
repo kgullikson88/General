@@ -194,9 +194,10 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
     parameters[51] = "%.5f" %angle
     parameters[17] = lowfreq
     freq, transmission = numpy.array([]), numpy.array([])
-    if (highfreq - lowfreq > 2000.0):
-      while lowfreq + 2000.0 <= highfreq:
-	parameters[18] = lowfreq + 2000.00000
+    maxdiff = 1999.9
+    if (highfreq - lowfreq > maxdiff):
+      while lowfreq + maxdiff <= highfreq:
+	parameters[18] = lowfreq + maxdiff
 	
 	MakeTape5.WriteTape5(parameters, output=TelluricModelingDir + "TAPE5", atmosphere=Atmosphere)
 
