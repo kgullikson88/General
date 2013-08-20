@@ -11,6 +11,7 @@ from astropy import units, constants
 import scipy.signal as sig
 import pywt
 import mlpy
+import matplotlib.pyplot as plt
 
 
 #Define bounding functions:
@@ -31,19 +32,25 @@ fixed  = lambda p, x: bound((p,p), x)
 def CCImprove(data, model, be_safe=True, tol=0.2, debug=False):
   ycorr = numpy.correlate(data.y/data.cont-1.0, model.y/model.cont-1.0, mode="full")
   xcorr = numpy.arange(ycorr.size)
-  maxindex = ycorr.argmax()
   lags = xcorr - (data.y.size-1)
   distancePerLag = (data.x[-1] - data.x[0])/float(data.x.size)
   offsets = -lags*distancePerLag
+  offsets = offsets[::-1]
+  ycorr = ycorr[::-1]
 
-  if numpy.abs(offsets[maxindex]) < tol or not be_safe:
-    if debug:
-      return offsets[maxindex], DataStructures.xypoint(x=offsets, y=ycorr)
-    else:
-      return offsets[maxindex]
+  if be_safe:
+    left = numpy.searchsorted(offsets, -tol)
+    right = numpy.searchsorted(offsets, tol)
   else:
-    return 0.0
+    left, right = 0, ycorr.size
+    
+  maxindex = ycorr[left:right].argmax() + left
 
+  if debug:
+    return offsets[maxindex], DataStructures.xypoint(x=offsets, y=ycorr)
+  else:
+    return offsets[maxindex]
+ 
 
 """
   This function fits the continuum spectrum by iteratively removing
@@ -436,6 +443,9 @@ def FindLines(spectrum, tol=0.99, linespacing = 0.01, debug=False):
       
   if debug:
     plt.plot(spectrum.x, spectrum.y, 'k-')
+    plt.title("Lines found in FittingUtilities.FindLine")
+    plt.xlabel("Wavelength (nm)")
+    plt.ylabel("Flux")
     plt.show()
   return numpy.array(lines)
 #numpy.savetxt("Linelist4.dat", lines, fmt="%.8f")

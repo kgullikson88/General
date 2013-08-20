@@ -396,7 +396,7 @@ class TelluricFitter:
     #model.y[model.y < 0.05] = (data.y/data.cont)[model.y < 0.05]
     resid = data.y/model.y
     nans = numpy.isnan(resid)
-    resid[nans] = 1.0
+    resid[nans] = data.cont[nans]
     if self.fit_primary:
       data2 = data.copy()
       data2.y /= model.y
@@ -413,13 +413,17 @@ class TelluricFitter:
     #  telluric lines, and so will get better
     data.cont = FittingUtilities.Continuum(data.x, resid, fitorder=self.continuum_fit_order, lowreject=2, highreject=2)
 
-    #Fine-tune the wavelength calibration by fitting the location of several telluric lines
     if self.debug and self.debug_level >= 4:
       numpy.savetxt("Debug_Output1.log", numpy.transpose((data.x, data.y, data.cont, model.x, model.y)))
+
+    #Fine-tune the wavelength calibration by fitting the location of several telluric lines
     if self.fit_primary:
-      modelfcn, mean = self.FitWavelength(data, model2.copy(), linelist, fitorder=self.wavelength_fit_order)
+      modelfcn, mean = self.FitWavelengthOld(data, model2.copy(), linelist, fitorder=self.wavelength_fit_order)
+      #modelfcn, mean = self.FitWavelength(data, model2.copy(), fitorder=self.wavelength_fit_order)
     else:
-      modelfcn, mean = self.FitWavelength(data, model.copy(), linelist, fitorder=self.wavelength_fit_order)
+      modelfcn, mean = self.FitWavelengthOld(data, model.copy(), linelist, fitorder=self.wavelength_fit_order)
+      #modelfcn, mean = self.FitWavelength(data, model.copy(), fitorder=self.wavelength_fit_order)
+      
     if self.adjust_wave == "data":
       test = modelfcn(data.x - mean)
       xdiff = [test[j] - test[j-1] for j in range(1, len(test)-1)]
@@ -429,12 +433,14 @@ class TelluricFitter:
       else:
         print "Warning! Wavelength calibration did not succeed!"
     elif self.adjust_wave == "model":
-      test = modelfcn(model.x - mean)
+      test = modelfcn(model_original.x - mean)
+      test2 = modelfcn(model.x - mean)
       xdiff = [test[j] - test[j-1] for j in range(1, len(test)-1)]
-      if min(xdiff) > 0 and numpy.max(test - model.x) < 0.5:
-        model.x = test.copy()
-        print "Adjusting model wavelengths by at most %.8f" %numpy.max(test - model.x)
-        model_original.x = modelfcn(model_original.x - mean)
+      if min(xdiff) > 0 and numpy.max(test2 - model.x) < 0.2:
+        print min(xdiff)
+        model.x = test2.copy()
+        model_original.x = test.copy()
+        print "Adjusting model wavelengths by at most %.8f" %numpy.max(test2 - model.x)
       else:
         print "Warning! Wavelength calibration did not succeed!"
     else:
@@ -442,6 +448,7 @@ class TelluricFitter:
 
     if self.debug and self.debug_level >= 4:
       numpy.savetxt("Debug_Output2.log", numpy.transpose((data.x, data.y, data.cont, model.x, model.y)))
+
     #Fit instrumental resolution
     done = False
     while not done:
@@ -501,6 +508,7 @@ class TelluricFitter:
     returnvec = (data.y - newmodel)**2*weight
     return returnvec
 
+
   #Gaussian absorption line
   def GaussianFitFunction(self, x,params):
     cont = params[0]
@@ -508,6 +516,7 @@ class TelluricFitter:
     mu = params[2]
     sig = params[3]
     return cont - depth*numpy.exp(-(x-mu)**2/(2*sig**2))
+
 
   #Returns the residuals between the fit from above and the actual values
   def GaussianErrorFunction(self, params, x, y):
@@ -523,10 +532,88 @@ class TelluricFitter:
     Wavelength calibration MUST already be very close for this algorithm
       to succeed!
   """
-  def FitWavelength(self, data_original, telluric, linelist, tol=0.05, oversampling=4, fitorder=3):
+  def FitWavelength(self, data_original, telluric, tol=0.05, oversampling=10, fitorder=5, segmentsize=0.5):
+    lines = FittingUtilities.FindLines(telluric)
+    if lines.size < 2:
+      fit = lambda x: x
+      mean = 0.0
+      return fit, mean
+
+    xgrid = numpy.linspace(data_original.x[0], data_original.x[-1], data_original.x.size*oversampling)
+    data = MakeModel.RebinData(data_original, xgrid)
+    model = MakeModel.RebinData(telluric, xgrid)
+
+    left = 0
+    right = 0
+    pixels = []
+    waves = []
+    while right < model.size():
+      right = numpy.searchsorted(model.x, model.x[left]+segmentsize)
+      model_segment = model[left:right]
+      data_segment = data[left:right]
+      shift, corr = FittingUtilities.CCImprove(data_segment, model_segment, tol=0.05, debug=True)
+      model_segment.x -= shift
+    
+      pixels.append(float(left + right)/2.0)
+      waves.append(numpy.median(model_segment.x))
+
+      left = right
+
+
+    if len(waves) < fitorder:
+      fitorder = len(waves) - 1
+    mean = numpy.median(data.x)
+    done = False
+    while not done and len(waves) > fitorder:
+      done = True
+      fit = numpy.poly1d(numpy.polyfit(data.x[pixels]-mean, waves, fitorder))
+      residuals = waves - fit(data.x[pixels]-mean)
+      std = numpy.std(residuals)
+      mean = numpy.mean(residuals)
+      pylab.plot(pixels, residuals, 'ro')
+      print std, mean
+      pylab.show()
+      for i in range(len(waves)-1, -1, -1):
+        if numpy.abs((residuals[i] - mean)/std) > 2:
+          done = False
+          waves.pop(i)
+          pixels.pop(i)
+      print done, len(waves), fitorder
+    if self.debug and self.debug_level >= 4:
+      print "Residual standard deviation = %g" %numpy.std(waves - fit(data.x[pixels]-mean))
+      pylab.plot(data.x[pixels], waves - fit(data.x[pixels]-mean), 'ro')
+      pylab.title("Residuals from wavelength fit")
+      pylab.xlabel("Old Wavelength (nm)")
+      pylab.ylabel("Fit - Points (nm)")
+      pylab.figure(2)
+      pylab.plot(data_original.x, data_original.y/data_original.cont)
+      pylab.plot(telluric.x, telluric.y)
+      pylab.plot(fit(telluric.x-mean), telluric.y)
+      pylab.show()
+    return fit, mean
+    
+
+
+  #FitWavelength function from a previous version. Left here in case I need it
+  def FitWavelengthOld(self, data_original, telluric, linelist, tol=0.05, oversampling=4, fitorder=3):
     print "Fitting Wavelength"
     old = []
     new = []
+    linelist = FittingUtilities.FindLines(telluric, debug=self.debug, tol=0.995)
+    if len(linelist) < 1:
+      fit = lambda x: x
+      mean = 0.0
+      return fit, mean
+    linelist = telluric.x[linelist]
+    
+    if self.debug and self.debug_level >= 5:
+      logfilename = "FitWavelength.log"
+      print "Outputting data and telluric model to %s" %logfilename
+      numpy.savetxt(logfilename, numpy.transpose((data_original.x, data_original.y, data_original.cont, data_original.err)), fmt="%.8f")
+      infile = open(logfilename, "a")
+      infile.write("\n\n\n\n\n")
+      numpy.savetxt(infile, numpy.transpose((telluric.x, telluric.y)), fmt="%.8f")
+      infile.close()
 
     #Interpolate to finer spacing
     xgrid = numpy.linspace(data_original.x[0], data_original.x[-1], data_original.x.size*oversampling)
@@ -603,11 +690,24 @@ class TelluricFitter:
       pylab.ylabel("New Wavelength")
 
     print "Found %i lines in this order" %numlines
-    #Iteratively fit to a cubic with sigma-clipping
-    if len(old) <= fitorder:
+    if numlines < fitorder:
       fit = lambda x: x
       mean = 0.0
       return fit, mean
+    
+    #Check if there is a large gap between the telluric lines and the end of the order (can cause the fit to go crazy)
+    keepfirst = False
+    keeplast = False
+    if min(old) - data.x[0] > 0.5:
+      old.insert(0, data.x[0])
+      new.insert(0, data.x[0])
+      keepfirst = True
+    if data.x[-1] - max(old) > 0.5:
+      old.append(data.x[-1])
+      new.append(data.x[-1])
+      keeplast = True
+      
+    #Iteratively fit to a cubic with sigma-clipping
     done = False
     while not done and len(old) > fitorder:
       done = True
@@ -617,6 +717,8 @@ class TelluricFitter:
       std = numpy.std(residuals)
       badindices = numpy.where(numpy.logical_or(residuals > 2*std, residuals < -2*std))[0]
       for badindex in badindices[::-1]:
+        if (badindex == 0 and keepfirst) or (badindex == len(residuals)-1 and keeplast):
+          continue
         del old[badindex]
         del new[badindex]
         done = False
@@ -626,6 +728,10 @@ class TelluricFitter:
       pylab.title("Residuals")
       pylab.xlabel("Wavelength")
       pylab.ylabel("Delta-lambda")
+      pylab.figure(4)
+      pylab.plot(data_original.x, data_original.y/data_original.cont)
+      pylab.plot(telluric.x, telluric.y)
+      pylab.plot(fit(telluric.x-mean), telluric.y)
       pylab.show()
     return fit, mean
 
