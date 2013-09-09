@@ -394,7 +394,7 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
 """
    Very similar to the above version, but takes in a list of xypoint chips (more modern...)
 """
-def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, gravities=gravity_list, metallicities=metallicity_list, corr_mode='valid', process_model=True, normalize=False, vsini=15*units.km.to(units.cm), resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, outfilebase="", debug=False):
+def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, gravities=gravity_list, metallicities=metallicity_list, corr_mode='valid', process_model=True, vsini=15*units.km.to(units.cm), resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, outfilebase="", debug=False):
 
   makefname = False
   if outfilename == None:
@@ -527,13 +527,6 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
       corr.x = corr.x[left:right]
       corr.y = corr.y[left:right]
 
-      """
-      #j: Adjust correlation by fit, if user wants
-      if normalize:
-        mean = numpy.mean(corr.y)
-        std = numpy.std(corr.y)
-        corr.y = (corr.y - mean)/std
-      """
       normalization += float(order.size())
       #k: Save correlation
       corrlist.append(corr.copy())
