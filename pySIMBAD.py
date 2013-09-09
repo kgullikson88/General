@@ -15,11 +15,14 @@ import re
 
 sirius="http://simbad.u-strasbg.fr/simbad/sim-id?Ident=sirius"
 
-def buildLink(value) :
+def buildLink(value, cfa_mirror=True) :
 	value = value.replace("+","%2B")
 	value = value.replace("#","%23")
 	value = value.replace(" ","+")
-	value = "http://simbad.u-strasbg.fr/simbad/sim-id?Ident=" + value
+	if cfa_mirror:
+	  value = "http://simbad.cfa.harvard.edu/simbad/sim-id?Ident=" + value
+	else:
+	  value = "http://simbad.u-strasbg.fr/simbad/sim-id?Ident=" + value
 	return value
 
 class simbad(object) :
