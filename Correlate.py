@@ -10,9 +10,10 @@ import DataStructures
 #import Units
 from astropy import units, constants
 import MakeModel
-import FindContinuum
+import FittingUtilities
 import RotBroad
 import time
+import FittingUtilities
 
 class Resid:
   def __init__(self, size):
@@ -284,7 +285,7 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
       model = DataStructures.xypoint(right - left + 1)
       x2 = x[left:right].copy()
       y2 = y[left:right].copy()
-      cont2 = FindContinuum.Continuum(x2, y2, fitorder=5)
+      cont2 = FittingUtilities.Continuum(x2, y2, fitorder=5)
       MODEL = UnivariateSpline(x2,y2, s=0)
       CONT = UnivariateSpline(x2, cont2, s=0)
       if debug:
@@ -533,7 +534,7 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
         std = numpy.std(corr.y)
         corr.y = (corr.y - mean)/std
       """
-      normalization += 1.0
+      normalization += float(order.size())
       #k: Save correlation
       corrlist.append(corr.copy())
       if debug:
@@ -542,15 +543,18 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
 
     #Add up the individual CCFs (use the Maximum Likelihood method from Zucker, 2003, MNRAS, 342, 1291)
     total = corrlist[0].copy()
-    total.y = 1.0 - total.y**2
+    total.y = numpy.ones(total.size())
+    #N = orders[0].size()
+    #total.y = numpy.power(1.0 - total.y**2, float(N)/normalization)
     #master_corr = corrlist[0]
-    for corr in corrlist[1:]:
+    for i, corr in enumerate(corrlist):
       correlation = UnivariateSpline(corr.x, corr.y, s=0)
-      total *= (1.0 - correlation(total.x)**2)
+      N = data[i].size()
+      total.y *= numpy.power(1.0 - correlation(total.x)**2, float(N)/normalization)
       #master_corr.y += correlation(master_corr.x)
     #master_corr.y /= normalization
     master_corr = total.copy()
-    master_corr.y = 1.0 - (total.y)**(1.0/float(len(corrlist)))
+    master_corr.y = 1.0 - numpy.power(total.y, 1.0/float(len(corrlist)))
 
     #Finally, output
     if makefname:
@@ -608,7 +612,7 @@ def AutoCorrelate(data, stars=star_list, temps=temp_list, models=model_list, gra
         left -= 1
       x2 = model.x[left:right].copy()
       y2 = model.y[left:right].copy()
-      cont2 = FindContinuum.Continuum(x2, y2, fitorder=5)
+      cont2 = FittingUtilities.Continuum(x2, y2, fitorder=5)
       MODEL = UnivariateSpline(x2,y2, s=0)
       CONT = UnivariateSpline(x2, cont2, s=0)
       

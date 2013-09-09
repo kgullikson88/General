@@ -203,7 +203,17 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
 
 	#Run lblrtm
         cmd = "cd " + TelluricModelingDir + ";sh runlblrtm_v3.sh"
-	command = subprocess.check_call(cmd, shell=True)
+        try:
+          command = subprocess.check_call(cmd, shell=True)
+        except CalledProcessError:
+          #Unlock directory
+   	  try:
+            lock.release()
+          except lockfile.NotLocked:
+            print "Woah, the model directory was somehow unlocked prematurely!"
+          print "Error: Command '%s' failed in directory %s" %(cmd, TelluricModelingDir)
+          sys.exit()
+          
         freq, transmission = ReadTAPE12(TelluricModelingDir, appendto=(freq, transmission))
         lowfreq = lowfreq + 2000.00001
 	parameters[17] = lowfreq
@@ -213,7 +223,17 @@ def Main(pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=4
 
     #Run lblrtm
     cmd = "cd " + TelluricModelingDir + ";sh runlblrtm_v3.sh"
-    command = subprocess.check_call(cmd, shell=True)
+    try:
+      command = subprocess.check_call(cmd, shell=True)
+    except CalledProcessError:
+      #Unlock directory
+      try:
+        lock.release()
+      except lockfile.NotLocked:
+        print "Woah, the model directory was somehow unlocked prematurely!"
+      print "Error: Command '%s' failed in directory %s" %(cmd, TelluricModelingDir)
+      sys.exit()
+    
     freq, transmission = ReadTAPE12(TelluricModelingDir, appendto=(freq, transmission), debug=debug)
 
     #Convert from frequency to wavelength units

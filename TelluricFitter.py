@@ -412,6 +412,7 @@ class TelluricFitter:
     #As the model gets better, the continuum will be less affected by
     #  telluric lines, and so will get better
     data.cont = FittingUtilities.Continuum(data.x, resid, fitorder=self.continuum_fit_order, lowreject=2, highreject=2)
+    #data.cont = FittingUtilities.Iterative_SV(resid, 101, 5, numiters=10)
 
     if self.debug and self.debug_level >= 4:
       numpy.savetxt("Debug_Output1.log", numpy.transpose((data.x, data.y, data.cont, model.x, model.y)))
@@ -690,9 +691,9 @@ class TelluricFitter:
       pylab.ylabel("New Wavelength")
 
     print "Found %i lines in this order" %numlines
+    fit = lambda x: x
+    mean = 0.0
     if numlines < fitorder:
-      fit = lambda x: x
-      mean = 0.0
       return fit, mean
     
     #Check if there is a large gap between the telluric lines and the end of the order (can cause the fit to go crazy)
@@ -709,7 +710,7 @@ class TelluricFitter:
       
     #Iteratively fit to a cubic with sigma-clipping
     done = False
-    while not done and len(old) > fitorder:
+    while not done and len(old) >= fitorder:
       done = True
       mean = numpy.mean(old)
       fit = numpy.poly1d(numpy.polyfit(old - mean, new, fitorder))
