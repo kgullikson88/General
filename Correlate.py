@@ -458,8 +458,8 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
     normalization = 0.0
     for ordernum, order in enumerate(data):
       if process_model:
-        left = numpy.searchsorted(model.x, order.x[0] - 10.0)
-        right = numpy.searchsorted(model.x, order.x[-1] + 10.0)
+        left = numpy.searchsorted(model.x, 2*order.x[0] - order.x[-1])
+        right = numpy.searchsorted(model.x, 2*order.x[-1] - order.x[0])
         if left > 0:
           left -= 1
 
@@ -541,12 +541,14 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
     #total.y = numpy.power(1.0 - total.y**2, float(N)/normalization)
     #master_corr = corrlist[0]
     for i, corr in enumerate(corrlist):
-      correlation = UnivariateSpline(corr.x, corr.y, s=0)
+      correlation = UnivariateSpline(corr.x, corr.y, s=0, k=1)
       N = data[i].size()
+      print float(N)/normalization, '\t', numpy.min(1.0-correlation(total.x)**2)
       total.y *= numpy.power(1.0 - correlation(total.x)**2, float(N)/normalization)
       #master_corr.y += correlation(master_corr.x)
     #master_corr.y /= normalization
     master_corr = total.copy()
+    print 1.0/float(len(corrlist))
     master_corr.y = 1.0 - numpy.power(total.y, 1.0/float(len(corrlist)))
 
     #Finally, output
