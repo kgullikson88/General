@@ -11,7 +11,7 @@ import DataStructures
 from astropy import units, constants
 import MakeModel
 import FittingUtilities
-import RotBroad
+import RotBroad_Fast as RotBroad
 import time
 import FittingUtilities
 
