@@ -527,7 +527,7 @@ class MainSequence:
     else:
       return spnum
 
-  def GetAbsoluteMagnitude(self, spt, color):
+  def GetAbsoluteMagnitude(self, spt, color='V'):
     Vmag = self.Interpolate(self.AbsMag, spt)
     if color == "V":
       return Vmag
