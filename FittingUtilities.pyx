@@ -4,12 +4,18 @@ Just a set of useful functions that I use often while fitting
 import numpy
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.interpolate import UnivariateSpline as smoother
+from scipy.linalg import solve_banded
 import scipy.stats
+from scipy.signal import argrelmin
 import DataStructures
 from astropy import units, constants
 import scipy.signal as sig
 import pywt
 import mlpy
+import matplotlib.pyplot as plt
+import fast_cubic_spline
+import functools
+import MakeModel
 
 
 #Define bounding functions:
@@ -30,46 +36,38 @@ fixed  = lambda p, x: bound((p,p), x)
 def CCImprove(data, model, be_safe=True, tol=0.2, debug=False):
   ycorr = numpy.correlate(data.y/data.cont-1.0, model.y/model.cont-1.0, mode="full")
   xcorr = numpy.arange(ycorr.size)
-  maxindex = ycorr.argmax()
   lags = xcorr - (data.y.size-1)
   distancePerLag = (data.x[-1] - data.x[0])/float(data.x.size)
   offsets = -lags*distancePerLag
+  offsets = offsets[::-1]
+  ycorr = ycorr[::-1]
 
-  if numpy.abs(offsets[maxindex]) < tol or not be_safe:
-    if debug:
-      return offsets[maxindex], DataStructures.xypoint(x=offsets, y=ycorr)
-    else:
-      return offsets[maxindex]
+  if be_safe:
+    left = numpy.searchsorted(offsets, -tol)
+    right = numpy.searchsorted(offsets, tol)
   else:
-    return 0.0
+    left, right = 0, ycorr.size
+    
+  maxindex = ycorr[left:right].argmax() + left
 
+  if debug:
+    return offsets[maxindex], DataStructures.xypoint(x=offsets, y=ycorr)
+  else:
+    return offsets[maxindex]
+ 
 
 """
   This function fits the continuum spectrum by iteratively removing
 points over one standard deviation below the mean, which are assumed
 to be absorption lines.
 """
-# "cimport" is used to import special compile-time information
-# about the numpy module (this is stored in a file numpy.pxd which is
-# currently part of the Cython distribution).
-cimport numpy
-# We now need to fix a datatype for our arrays. I've used the variable
-# DTYPE for this, which is assigned to the usual NumPy runtime
-# type info object.
-DTYPE = numpy.float64
-# "ctypedef" assigns a corresponding compile-time type to DTYPE_t. For
-# every type in the numpy module there's a corresponding compile-time
-# type with a _t-suffix.
-ctypedef numpy.float64_t DTYPE_t
-def Continuum(numpy.ndarray[DTYPE_t, ndim=1] x, numpy.ndarray[DTYPE_t, ndim=1] y, fitorder=3, lowreject=2, highreject=4, numiter=10000, function="poly"):
+def Continuum(x, y, fitorder=3, lowreject=2, highreject=4, numiter=10000, function="poly"):
   done = False
-  cdef numpy.ndarray[DTYPE_t, ndim=1] x2 = x.copy()
-  cdef numpy.ndarray[DTYPE_t, ndim=1] y2 = y.copy()
-  cdef numpy.ndarray[DTYPE_t, ndim=1] residuals = y2.copy()
+  x2 = numpy.copy(x)
+  y2 = numpy.copy(y)
   iteration = 0
-  #numpy.ndarray[DTYPE_T, ndim=1] residuals = numpy
   while not done and iteration < numiter:
-    iteration += 1
+    numiter += 1
     done = True
     if function == "poly":
       fit = numpy.poly1d(numpy.polyfit(x2 - x2.mean(), y2, fitorder))
@@ -394,10 +392,8 @@ def Denoise2(data, snr, reduction_factor=0.1):
   with title "Astronomical Spectra Denoising Based on Simplifed SURE-LET Wavelet Thresholding"
 """
 
-def Denoise3(data):
-  print "here"
-  newdata = data.copy()
-  y, boolarr = mlpy.wavelet.pad(newdata.y)
+def Denoise3(data, reduction_factor=0.1):
+  y, boolarr = mlpy.wavelet.pad(data.y)
   WC = mlpy.wavelet.dwt(y, 'd', 10, 0)
   #Figure out the unknown parameter 'a'
   sum1 = 0.0
@@ -423,6 +419,38 @@ def Denoise3(data):
 
   #Transform back
   y2 = mlpy.wavelet.idwt(WC, 'd', 10)
-  newdata.y = y2[boolarr]
-  return newdata
+  data.y = y2[boolarr]
+  return data
   
+
+
+
+"""
+  Function to find the spectral lines, given a model spectrum
+  spectrum:        An xypoint instance with the model
+  tol:             The line strength needed to count the line (0 is a strong line, 1 is weak)
+  linespacing:     The minimum spacing between two consecutive lines
+"""
+def FindLines(spectrum, tol=0.99, linespacing = 0.01, debug=False):
+  distance = 0.01
+  xspacing = float(max(spectrum.x) - min(spectrum.x))/float(spectrum.size())
+  N = int( linespacing / xspacing + 0.5)
+  lines = list(argrelmin(spectrum.y, order=N)[0])
+  for i in range(len(lines)-1, -1, -1):
+    idx = lines[i]
+    xval = spectrum.x[idx]
+    yval = spectrum.y[idx]
+    if yval > tol:
+      lines.pop(i)
+    elif debug:
+      plt.plot([xval, xval], [yval-0.01, yval-0.03], 'r-')
+      
+  if debug:
+    plt.plot(spectrum.x, spectrum.y, 'k-')
+    plt.title("Lines found in FittingUtilities.FindLine")
+    plt.xlabel("Wavelength (nm)")
+    plt.ylabel("Flux")
+    plt.show()
+  return numpy.array(lines)
+
+

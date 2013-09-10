@@ -472,9 +472,9 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
         #d: Rotationally broaden
         if vsini > 1.0*units.km.to(units.cm):
           model2 = RotBroad.Broaden(model2, vsini, linear=True)
-        if debug:
-          print "After rotational broadening"
-          print model2.y
+          if debug:
+            print "After rotational broadening"
+            print model2.y
       
         #e: Convolve to detector resolution
         model2 = MakeModel.ReduceResolution(model2.copy(), resolution, extend=False)
