@@ -543,12 +543,10 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
     for i, corr in enumerate(corrlist):
       correlation = UnivariateSpline(corr.x, corr.y, s=0, k=1)
       N = data[i].size()
-      print float(N)/normalization, '\t', numpy.min(1.0-correlation(total.x)**2)
       total.y *= numpy.power(1.0 - correlation(total.x)**2, float(N)/normalization)
       #master_corr.y += correlation(master_corr.x)
     #master_corr.y /= normalization
     master_corr = total.copy()
-    print 1.0/float(len(corrlist))
     master_corr.y = 1.0 - numpy.power(total.y, 1.0/float(len(corrlist)))
 
     #Finally, output
