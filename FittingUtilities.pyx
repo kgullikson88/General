@@ -13,7 +13,6 @@ import scipy.signal as sig
 import pywt
 import mlpy
 import matplotlib.pyplot as plt
-import fast_cubic_spline
 import functools
 import MakeModel
 
