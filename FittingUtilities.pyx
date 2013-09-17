@@ -33,9 +33,10 @@ fixed  = lambda p, x: bound((p,p), x)
   Improve the wavelength solution by a constant shift
 """
 def CCImprove(data, model, be_safe=True, tol=0.2, debug=False):
+  correction = data.y.size + float(numpy.searchsorted(model.x, data.x[0]))/2.0 - 1
   ycorr = numpy.correlate(data.y/data.cont-1.0, model.y/model.cont-1.0, mode="full")
   xcorr = numpy.arange(ycorr.size)
-  lags = xcorr - (data.y.size-1)
+  lags = xcorr - correction
   distancePerLag = (data.x[-1] - data.x[0])/float(data.x.size)
   offsets = -lags*distancePerLag
   offsets = offsets[::-1]

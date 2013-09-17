@@ -450,8 +450,8 @@ if __name__ == "__main__":
 
   lowwave = 445
   highwave = 446
-  lowwave = 710
-  highwave = 730
+  lowwave = 770
+  highwave = 781
   lowfreq = 1e7/highwave
   highfreq = 1e7/lowwave
   Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, o2=o2, alt=2.1, save=True)
