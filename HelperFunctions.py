@@ -68,10 +68,101 @@ def CheckMultiplicityWDS(starname):
       except ValueError:
         mag_sec = "Unknown"
         s_spt = "Unknown"
-      print sep, mag_prim, mag_sec
       components[component]["Separation"] = sep
       components[component]["Primary Magnitude"] = mag_prim
       components[component]["Secondary Magnitude"] = mag_sec
       components[component]["Secondary SpT"] = s_spt
   return components
       
+
+
+
+#Check to see if the given star is a binary in the SB9 catalog
+#if so, return some orbital information about all the components
+SB9_location = "%s/Dropbox/School/Research/AstarStuff/TargetLists/SB9public" %(os.environ["HOME"])
+def CheckMultiplicitySB9(starname):
+  #First, find the record number in SB9
+  infile = open("%s/Alias.dta" %SB9_location)
+  lines = infile.readlines()
+  infile.close()
+
+  index = -1
+  for line in lines:
+    segments = line.split("|")
+    name = segments[1] + " " + segments[2].strip()
+    if starname == name:
+      index = int(segments[0])
+  if index < 0:
+    #Star not in SB9
+    return False
+
+  #Now, get summary information for our star
+  infile = open("%s/Main.dta" %SB9_location)
+  lines = infile.readlines()
+  infile.close()
+
+  companion = {}
+
+  num_matches = 0
+  for line in lines:
+    segments = line.split("|")
+    if int(segments[0]) == index:
+      num_matches += 1
+      #information found
+      component = segments[3]
+      mag1 = float(segments[4]) if len(segments[4]) > 0 else "Unknown"
+      filt1 = segments[5]
+      mag2 = float(segments[6]) if len(segments[6]) > 0 else "Unknown"
+      filt2 = segments[7]
+      spt1 = segments[8]
+      spt2 = segments[9]
+      if filt1 == "V":
+        companion["Magnitude"] = mag2
+      else:
+        companion["Magnitude"] = Unknown #TODO: work out from blackbody
+      companion["SpT"] = spt2
+
+  #Finally, get orbit information for our star (Use the most recent publication)
+  infile = open("%s/Orbits.dta" %SB9_location)
+  lines = infile.readlines()
+  infile.close()
+
+  matches = []
+  for line in lines:
+    segments = line.split("|")
+    if int(segments[0]) == index:
+      matches.append(line)
+  if len(matches) == 1:
+    line = matches[0]
+  else:
+    date = 0
+    line = matches[0]
+    for match in matches:
+      try:
+        year = int(match.split("|")[22][:4])
+        if year > date:
+          date = year
+          line = match
+      except ValueError:
+        continue
+        
+  #information found
+  period = float(segments[2]) if len(segments[2]) > 0 else "Unknown"
+  T0 = float(segments[4]) if len(segments[4]) > 0 else "Unknown"
+  e = float(segments[7]) if len(segments[7]) > 0 else "Unknown"
+  omega = float(segments[9]) if len(segments[9]) > 0 else "Unknown"
+  K1 = float(segments[11]) if len(segments[11]) > 0 else "Unknown"
+  K2 = float(segments[13]) if len(segments[13]) > 0 else "Unknown"
+
+  companion["Period"] = period
+  companion["Periastron Time"] = T0
+  companion["Eccentricity"] = e
+  companion["Argument of Periastron"] = omega
+  companion["K1"] = K1
+  companion["K2"] = K2
+
+  return companion
+
+  
+
+  
