@@ -7,7 +7,9 @@ import csv
 import pySIMBAD as sim
 from collections import defaultdict
 import SpectralTypeRelations
-
+import numpy
+from scipy.misc import factorial
+from scipy.optimize import fminbound
 
 #Ensure a directory exists. Create it if not
 def ensure_dir(f):
@@ -162,6 +164,40 @@ def CheckMultiplicitySB9(starname):
   companion["K2"] = K2
 
   return companion
+
+
+
+"""
+  A function to determine the error bars from binomial statistics.
+  Follows Burgasser et al 2003, ApJ 586, 512
+  
+  n is the number observed
+  N is the sample size
+"""
+def BinomialErrors(n, N):
+  n = int(n)
+  N = int(N)
+  p0 = float(n)/float(N)  #Observed probability
+  #guess_errors = numpy.sqrt(n*p0*(1.0-p0)/float(N))
+  
+  func = lambda x: numpy.sum([factorial(N+1)/(factorial(i)*factorial(N+1-i)) * x**i * (1.0-x)**(N+1-i) for i in range(1, n+1)])
+  lower_errfcn = lambda x: numpy.abs(func(x) - 0.84)
+  upper_errfcn = lambda x: numpy.abs(func(x) - 0.16)
+  
+  lower = fminbound(lower_errfcn, 0, p0)
+  upper = fminbound(upper_errfcn, p0, 1)
+  
+  return lower, upper
+
+
+
+
+
+
+
+
+
+
 
   
 
