@@ -392,7 +392,7 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
 
 
 """
-   Very similar to the above version, but takes in a list of xypoint chips (more modern...)
+   Very similar to the above version, but takes in a list of xypoint chips (for echelles...)
 """
 def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, gravities=gravity_list, metallicities=metallicity_list, corr_mode='valid', process_model=True, vsini=15*units.km.to(units.cm), resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, outfilebase="", debug=False):
 
@@ -440,6 +440,8 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
       model = DataStructures.xypoint(x=x, y=y, cont=cont)
     elif isinstance(models[i], DataStructures.xypoint):
       model = models[i].copy()
+    else:
+      sys.exit("Model #%i of unkown type in Correlate.PyCorr2!" %i) 
 
     if process_model:
       left = numpy.searchsorted(model.x, data[0].x[0] - 10.0)
@@ -458,8 +460,8 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
     normalization = 0.0
     for ordernum, order in enumerate(data):
       if process_model:
-        left = numpy.searchsorted(model.x, 2*order.x[0] - order.x[-1])
-        right = numpy.searchsorted(model.x, 2*order.x[-1] - order.x[0])
+        left = max(0, numpy.searchsorted(model.x, 2*order.x[0] - order.x[-1])-1)
+        right = min(model.x.size-1, numpy.searchsorted(model.x, 2*order.x[-1] - order.x[0]))
         if left > 0:
           left -= 1
 
