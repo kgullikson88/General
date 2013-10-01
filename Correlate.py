@@ -394,11 +394,14 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
 """
    Very similar to the above version, but takes in a list of xypoint chips (for echelles...)
 """
-def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, gravities=gravity_list, metallicities=metallicity_list, corr_mode='valid', process_model=True, vsini=15*units.km.to(units.cm), resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, outfilebase="", debug=False):
+def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, model_fcns = None, gravities=gravity_list, metallicities=metallicity_list, corr_mode='valid', process_model=True, vsini=15*units.km.to(units.cm), resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, outfilebase="", debug=False):
 
   makefname = False
   if outfilename == None:
     makefname = True
+
+  if model_fcns == None:
+    model_fcns = [None for m in models]
 
   for i, order in enumerate(data):
     #Sigma-clipping?
@@ -451,8 +454,13 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
       x2 = model.x[left:right].copy()
       y2 = model.y[left:right].copy()
       cont2 = FittingUtilities.Continuum(x2, y2, fitorder=5)
-      MODEL = UnivariateSpline(x2,y2, s=0)
-      CONT = UnivariateSpline(x2, cont2, s=0)
+      if model_fcns[i] == None:
+        if debug:
+          print "Interpolating model"
+        MODEL = UnivariateSpline(x2,y2, s=0)
+      else:
+        MODEL = model_fcns[i]
+      #CONT = UnivariateSpline(x2, cont2, s=0)
       
     
     #h: Cross-correlate
@@ -469,7 +477,7 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
         model2 = DataStructures.xypoint(right - left + 1)
         model2.x = numpy.linspace(model.x[left], model.x[right], right - left + 1)
         model2.y = MODEL(model2.x)
-        model2.cont = CONT(model2.x)
+        model2.cont = FittingUtilities.Continuum(model2.x, model2.y)
 
         #d: Rotationally broaden
         if vsini > 1.0*units.km.to(units.cm):
@@ -505,7 +513,7 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
         order.output("Corr_inputdata.dat")
         model2.output("Corr_inputmodel.dat")
     
-      #ycorr = scipy.signal.fftconvolve((order.y/order.cont-1.0), (model2.y/model2.cont-1.0)[::-1], mode=corr_mode)
+      #ycorr = scipy.signal.fftconvolve((reduceddata - meandata), (reducedmodel - meanmodel)[::-1], mode=corr_mode)
       ycorr = numpy.correlate(reduceddata - meandata, reducedmodel - meanmodel, mode=corr_mode)
       xcorr = numpy.arange(ycorr.size)
       if corr_mode == 'valid':
