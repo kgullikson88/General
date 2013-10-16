@@ -38,8 +38,9 @@ Created by Rick White based on my IDL readechelle.pro, 2012 August 15
 Apologies for any IDL-isms that remain!
 """
 
-import numpy as np, pyfits
-
+import numpy as np
+#from astropy.io import fits as pyfits
+from astropy.io import fits as pyfits
 
 def nonlinearwave(nwave, specstr, verbose=False):
 

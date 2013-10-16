@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import numpy
 import HelperFunctions
 import SpectralTypeRelations
-import pyfits
+from astropy.io import fits as pyfits
 import StarData
 from astropy import units, constants
 

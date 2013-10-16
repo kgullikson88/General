@@ -3,7 +3,7 @@ from scipy.interpolate import UnivariateSpline
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.optimize import leastsq
 from collections import defaultdict
-import pyfits
+from astropy.io import fits as pyfits
 import numpy
 import sys
 import os

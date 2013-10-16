@@ -2,7 +2,7 @@ import numpy
 from scipy.interpolate import UnivariateSpline
 import os
 from collections import defaultdict
-import pyfits
+from astropy.io import fits as pyfits
 import pylab
 import DataStructures
 import Units
