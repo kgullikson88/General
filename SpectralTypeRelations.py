@@ -12,7 +12,6 @@ from astropy import constants
   Usage:
          Make instance of class (currently only MainSequence class available
          call instance.Interpolate(instance.dict, SpT) where dict is the name of the dictionary you want to interpolate (Temperature, Radius, or Mass) and SpT is the spectral type of what you wish to interpolate to.
-  
 """
 
 
@@ -555,84 +554,94 @@ class MainSequence:
         best_difference = difference
         besttype = spt
     return besttype
+    
+    
+    
+    
 
 ########################################################
 ########               Pre-Main Sequence         #######
 ########################################################
 import os
+import HelperFunctions
+import numpy
 homedir = os.environ["HOME"] + "/"
-tracksfile = homedir + "Dropbox/School/Research/Summer2011/EvolutionaryTracks.dat"
+tracksfile = homedir + "Dropbox/School/Research/Stellar_Evolution/Padova_Tracks.dat"
 
 class PreMainSequence:
-  def __init__(self, pms_tracks_file=tracksfile):
-    import numpy
+  def __init__(self, pms_tracks_file=tracksfile, maximum_stage = 1):
+    #We need an instance of MainSequence to get temperature from spectral type
+    self.MS = MainSequence()
+    
+    #Now, read in the evolutionary tracks
     infile = open(pms_tracks_file)
     lines = infile.readlines()
     infile.close()
-
-    #self.Mass = defaultdict(float)
-    #self.Radius = defaultdict(float)
-    #self.Age = defaultdict(float)
-    M = []   # mass (solar masses)
-    t = []   # age (Myr)
-    T = []   # temperature
-    R = []   # radius (solar radii)
-
-    G = constants.G.cgs.value
-    M_sun = constants.M_sun.cgs.value
-    R_sun = constants.R_sun.cgs.value
-
+    Tracks = defaultdict( lambda : defaultdict(list))
     for line in lines:
       if not line.startswith("#"):
-        if line != "\n":
-          columns = line.split()
-          mass = float(columns[0])
-          age = 10**float(columns[1])
-          temperature = 10**float(columns[3])
-          g = 10**float(columns[4])
-          radius = numpy.sqrt(G * mass*M_sun / g) / R_sun
-          #radius = numpy.sqrt(Units.G*mass*Units.Msun/g)/Units.Rsun
-          M.append(mass)
-          t.append(age/1e6)
-          T.append(temperature)
-          R.append(radius)
-
-    from scipy.interpolate import SmoothBivariateSpline, interp2d, griddata
+        segments = line.split()
+        age = float(segments[1])
+        m_initial = float(segments[2])    #Initial mass
+        mass = float(segments[3])
+        Lum = float(segments[4])  #Luminosity
+        Teff = float(segments[5])  #Effective temperature
+        logg = float(segments[6])   #gravity
+        evol_stage = int(segments[-1])
+      
+        if evol_stage <= maximum_stage:      
+          Tracks[age]["Initial Mass"].append(m_initial)
+          Tracks[age]["Mass"].append(mass)
+          Tracks[age]["Temperature"].append(Teff)
+          Tracks[age]["Luminosity"].append(Lum)
+          Tracks[age]["Gravity"].append(logg)
+          
+          
+    self.Tracks = Tracks
+        
+        
+  def GetFromTemperature(self, age, temperature, key='Mass'):
+    Tracks = self.Tracks
+    age = numpy.log10(age)
+    temperature = numpy.log10(temperature)
+  
+    #First, get the two closest ages to the one requested
+    best_age, next_best_age = HelperFunctions.GetSurrounding(Tracks.keys(), age)
+  
+    #For each age, find the two closest temperatures to the one requested,
+    #  and linearly interpolate to find the corresponding mass
+    T = Tracks[best_age]["Temperature"]
+    M = Tracks[best_age][key]
+    tmp = zip(T,M)
+    tmp.sort()
+    T, M = zip(*tmp)
+    best_idx, next_best_idx = HelperFunctions.GetSurrounding(T, temperature, return_index=True)
+    T1, T2 = T[best_idx], T[next_best_idx]
+    m1, m2 = M[best_idx], M[next_best_idx]
+    best_mass = m1 if T1 == T2 else (m2 - m1)/(T2-T1)*(temperature - T1) + m1
+  
+    T = Tracks[next_best_age]["Temperature"]
+    M = Tracks[next_best_age][key]
+    tmp = zip(T,M)
+    tmp.sort()
+    T, M = zip(*tmp)
+    best_idx, next_best_idx = HelperFunctions.GetSurrounding(T, temperature, return_index=True)
+    T1, T2 = T[best_idx], T[next_best_idx]
+    m1, m2 = M[best_idx], M[next_best_idx]
+    next_best_mass = m1 if T1 == T2 else (m2 - m1)/(T2-T1)*(temperature - T1) + m1
+  
+    #Finally, linearly interpolate the mass to get the requested age
+    mass = (next_best_mass - best_mass)/(next_best_age - best_age) * (age - best_age) + best_mass
+    return mass      
     
-    self.Mass = SmoothBivariateSpline(T, t, M, kx=1, ky=1, s=0)
-    self.Radius = SmoothBivariateSpline(T, t, R, kx=1, ky=1, s=0)
-    self.AgeFromTemperatureAndMass = SmoothBivariateSpline(T, M, t, kx=1, ky=1, s=0)
-    #self.Mass = interp2d(T, t, M)
-    #self.Radius = interp2d(T, t, R)
-    #self.AgeFromTemperatureAndMass = interp2d(T, M, t)
-
-    #Todo: These interpolation functions not working in simple tests
-    #   (z=x^2 + y^2). Find what I am doing wrong or something that works!
-    #import pylab
     
-    self.MS = MainSequence()
-
-  def Interpolate(self, SpT, yvar, value):
-    #Get the temperature from the spectral type (use main sequence relations)
-    temperature = self.MS.Interpolate(self.MS.Temperature, SpT)
+  def Interpolate(self, SpT, age, key="Mass"):
+    Teff = self.MS.Interpolate(self.MS.Temperature, SpT)
+    return self.GetFromTemperature(age, Teff, key)
+        
+        
+        
     
-    if type(value) == str:
-      if "mass" in value or "Mass" in value:
-        fcn = self.Mass
-      elif "radius" in value or "Radius" in value:
-        fcn = self.Radius
-      elif "age" in value or "Age" in value:
-        fcn = self.AgeFromMassAndTemperature
-      elif "temperature" in value or "Temperature" in value:
-        return temperature
-      else:
-        print "Error! Unknown value: %s" %value
-        return
-    else:
-      fcn = value
-
-
-    return fcn(temperature, yvar)
           
       
       
