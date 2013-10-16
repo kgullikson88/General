@@ -100,8 +100,9 @@ def nonlinearwave(nwave, specstr, verbose=False):
                 print 'Dispersion is order-%d Legendre polynomial (NEEDS TEST)' % order
         if len(fields) != 15+order:
             #raise ValueError('Bad order-%d polynomial format (%d fields)' % (order, len(fields)))
-            print 'Bad order-%d polynomial format (%d fields)' % (order, len(fields))
-            print "Changing order from %i to %i" %(order, len(fields)-15)
+            if verbose:
+                print 'Bad order-%d polynomial format (%d fields)' % (order, len(fields))
+                print "Changing order from %i to %i" %(order, len(fields)-15)
             order = len(fields)-15
         coeff = np.asarray(fields[15:],dtype=float)
         # normalized x coordinates

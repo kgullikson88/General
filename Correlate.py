@@ -544,7 +544,7 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
         numpy.savetxt("%s.order%i" %(outfilename, ordernum+1), numpy.transpose((corr.x, corr.y)))
         #corr.output("%s.order%i" %(outfilename, ordernum+1))
 
-    #Add up the individual CCFs (use the Maximum Likelihood method from Zucker, 2003, MNRAS, 342, 1291)
+    #Add up the individual CCFs (use the Maximum Likelihood method from Zucker 2003, MNRAS, 342, 1291)
     total = corrlist[0].copy()
     total.y = numpy.ones(total.size())
     #N = orders[0].size()

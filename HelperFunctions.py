@@ -4,7 +4,9 @@
 """
 import os
 import csv
+from astropy.io import fits as pyfits
 import pySIMBAD as sim
+import DataStructures
 from collections import defaultdict
 import SpectralTypeRelations
 import numpy
@@ -219,8 +221,89 @@ def BinomialErrors(n, N, debug=False, tol=0.001):
 
 
 
+"""
+  The following series of functions will read in a fits file
+  I think this works for all instruments, though maybe just HET...
+"""
+def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None, debug=False):
+  if debug:
+    print "Reading in file %s: " %datafile
 
+  if extensions:
+    #This means the data is in fits extensions, with one order per extension
+    #At least x and y should be given (and should be strings to identify the field in the table record array)
+    if type(x) != str:
+      x = raw_input("Give name of the field which contains the x array: ")
+    if type(y) != str:
+      y = raw_input("Give name of the field which contains the y array: ")
+    orders = []
+    hdulist = pyfits.open(datafile)
+    if cont == None:
+      if not errors:
+        for i in range(1,len(hdulist)):
+          data = hdulist[i].data
+          xypt = DataStructures.xypoint(x=data.field(x), y=data.field(y))
+          orders.append(xypt)
+      else:
+        if type(errors) != str:
+          errors = raw_input("Give name of the field which contains the errors/sigma array: ")
+        for i in range(1,len(hdulist)):
+          data = hdulist[i].data
+          xypt = DataStructures.xypoint(x=data.field(x), y=data.field(y), err=data.field(errors))
+          orders.append(xypt)
+    elif type(cont) == str:
+      if not errors:
+        for i in range(1,len(hdulist)):
+          data = hdulist[i].data
+          xypt = DataStructures.xypoint(x=data.field(x), y=data.field(y), cont=data.field(cont))
+          orders.append(xypt)
+      else:
+        if type(errors) != str:
+          errors = raw_input("Give name of the field which contains the errors/sigma array: ")
+        for i in range(1,len(hdulist)):
+          data = hdulist[i].data
+          xypt = DataStructures.xypoint(x=data.field(x), y=data.field(y), cont=data.field(cont), err=data.field(errors))
+          orders.append(xypt)
 
+  else:
+    #Data is in multispec format rather than in fits extensions
+    #Call Rick White's script
+    retdict = multispec.readmultispec(datafile, quiet=not debug)
+  
+    #Check if wavelength units are in angstroms (common, but I like nm)
+    hdulist = pyfits.open(datafile)
+    header = hdulist[0].header
+    hdulist.close()
+    wave_factor = 1.0   #factor to multiply wavelengths by to get them in nanometers
+    for key in sorted(header.keys()):
+      if "WAT1" in key:
+        if "label=Wavelength"  in header[key] and "units" in header[key]:
+          waveunits = header[key].split("units=")[-1]
+          if waveunits == "angstroms" or waveunits == "Angstroms":
+            #wave_factor = Units.nm/Units.angstrom
+            wave_factor = units.angstrom.to(units.nm)
+            if debug:
+              print "Wavelength units are Angstroms. Scaling wavelength by ", wave_factor
+
+    if errors == False:
+      numorders = retdict['flux'].shape[0]
+    else:
+      numorders = retdict['flux'].shape[1]
+    orders = []
+    for i in range(numorders):
+      wave = retdict['wavelen'][i]*wave_factor
+      if errors == False:
+        flux = retdict['flux'][i]
+        err = numpy.ones(flux.size)*1e9
+        err[flux > 0] = numpy.sqrt(flux[flux > 0])
+      else:
+        if type(errors) != int:
+          errors = int(raw_input("Enter the band number (in C-numbering) of the error/sigma band: "))
+        flux = retdict['flux'][0][i]
+        err = retdict['flux'][errors][i]
+      cont = FindContinuum.Continuum(wave, flux, lowreject=2, highreject=4)
+      orders.append(DataStructures.xypoint(x=wave, y=flux, err=err , cont=cont))
+  return orders
 
 
 

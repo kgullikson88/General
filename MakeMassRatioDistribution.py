@@ -27,46 +27,52 @@ from astropy import units, constants
   The key is the star name, and the value is the estimated temperature
 """
 NewDetections = {"HIP 67782": [3900,],
-    		 "HIP 77336": [6500,],
-		 "HIP 88818": [6000,],
-		 "HIP 85379": [6700,],
-		 "HIP 72154": [3500,5700],
-		 "HIP 93393": [3800,],
-		 "HIP 92312": [5000,],
-		 "HIP 96840": [3500,5200],
-		 "HIP 100069": [3200,],
-		 "HIP 8704": [3500,],
-		 "HIP 105972": [7600,],
-		 "HIP 116582": [3200,6700],
-		 "HIP 2548": [6500,],
-		 "HIP 17527": [3500,],
-		 "HIP 97870": [3300,],
-		 "HIP 13165": [3500,],
-		 "HIP 14143": [3500,7300],
-		 "HIP 20430": [5800,],
-		 "HIP 105282": [3700,3700],
-		 "HIP 8016": [3500,3500],
-		 "HIP 14043": [6200,],
-		 "HIP 58590": [3800,],
+                 "HIP 77336": [6500,],
+                 #"HIP 85379": [6700,],
+                 #		 "HIP 72154": [3500,5700],
+                 "HIP 72515": [5700,],
+                 "HIP 93393": [3800,],
+                 "HIP 92312": [5000,],
+                 "HIP 96840": [3500,5200],
+#"HIP 100069": [3200,],
+                 #		 "HIP 8704": [3500,],
+                 #"HIP 105972": [7600,],
+                 #		 "HIP 116582": [3200,6700],    THIS MIGHT BE A FOREGROUND BINARY!
+                 "HIP 2548": [6500,],
+                 #		 "HIP 17527": [3500,],
+                 #		 "HIP 97870": [3300,],
+                 "HIP 13165": [3500,],
+                 "HIP 14143": [3500,],#7300],
+                 "HIP 20430": [5800,],
+                 #		 "HIP 105282": [3700,3700],
+                 "HIP 105282": [3700,],
+                 #		 "HIP 8016": [3500,3500],
+                 "HIP 14043": [6200,],
+                 #		 "HIP 58590": [3800,],
                  "HIP 82673": [6000,],
-		 "HIP 87108": [3500,4400],
-		 "HIP 104139": [5000,],
-		 "HIP 95241": [4300,],
-		 "HIP 116247": [3400,],
-		 "HIP 117452": [4700,],
-		 "HIP 60009": [3300,5500],
-		 "HIP 63724": [3400,],
-		 "HIP 79404": [3800,6000],
-		 "HIP 92855": [4000,5800],
-		 "HIP 112029": [6300,],
-		 "HIP 76600": [5600,],
-		 "HIP 77516": [3500,],
-		 "HIP 78820": [4000,],
-		 "HIP 76267": [6500,],
-		 "HIP 88816": [6400,],
-		 "HIP 80883": [3700,],
-		 "HIP 78554": [3400,]
+                 #		 "HIP 87108": [3500,4400],
+                 #		 "HIP 104139": [5000,],
+                 		 "HIP 95241": [4300,],
+                 #		 "HIP 116247": [3400,],
+                 #		 "HIP 117452": [4700,],
+                 #		 "HIP 60009": [3300,5500],
+                 "HIP 60009": [5500,],
+                 #		 "HIP 63724": [3400,],
+                 #		 "HIP 79404": [3800,6000],
+                 #		 "HIP 92855": [4000,5800],
+                 "HIP 112029": [6300,],
+                 #		 "HIP 76600": [5600,],
+                 #		 "HIP 77516": [3500,],
+                 #		 "HIP 78820": [4000,],
+                 "HIP 88816": [6400,],
+                 #		 "HIP 80883": [3700,],
+                 #		 "HIP 78554": [3400,],
+                 "HIP 95241": [3900,]
 		 }
+
+#Do the same thing for known binaries not in WDS or SB9
+KnownBinaries = {"HIP 76267": [5800,]
+                 }
 
 
 """
@@ -285,11 +291,14 @@ if __name__ == "__main__":
   dirlist = []
   chiron_only = False
   het_only = False
+  color = False
   for arg in sys.argv[1:]:
     if "-chiron" in arg:
       chiron_only = True
     elif "-het" in arg:
       het_only = True
+    elif "-color" in arg:
+      color = True
     else:
       dirlist.append(arg)
   if len(dirlist) == 0:
@@ -321,7 +330,10 @@ if __name__ == "__main__":
     mass_ratios = [mass_ratios, new_massratios]
   else:
     mass_ratios = [mass_ratios, []]
-  plt.hist(mass_ratios, bins=bins, color=['0.25','0.5'], histtype='barstacked', label=["Known companions", "Candidate companions"])
+  if color:
+    plt.hist(mass_ratios, bins=bins, color=['chocolate','deepskyblue'], histtype='barstacked', label=["Known companions", "Candidate companions"], rwidth=1)
+  else:
+    plt.hist(mass_ratios, bins=bins, color=['0.25','0.5'], histtype='barstacked', label=["Known companions", "Candidate companions"], rwidth=1)
   plt.legend(loc='best')
   #Make error bars
   nums = numpy.zeros(bins.size-1)
@@ -344,9 +356,9 @@ if __name__ == "__main__":
     plt.bar(bins[:-1], y, bottom=numpy.array(height), color='green', align='edge')
     #plt.hist(new_massratios, bins=bins, bottom=height, color='green')
   """
-  plt.xlabel(r"$\rm M_s/M_p$")
-  plt.ylabel("Number")
-  plt.title("Mass Ratio Distribution for Companions within 100\"")
+  plt.xlabel(r"$\rm M_s/M_p$", fontsize=20)
+  plt.ylabel("Number", fontsize=20)
+  plt.title("Mass Ratio Distribution for Companions within 100\"", fontsize=30)
   
   #plt.figure(2)
   #plt.hist(mass_ratios, bins=bins, color=['gray','green'], cumulative=True, normed=True, histtype='step', linewidth=2, stacked=True)
