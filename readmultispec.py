@@ -39,7 +39,6 @@ Apologies for any IDL-isms that remain!
 """
 
 import numpy as np
-#from astropy.io import fits as pyfits
 from astropy.io import fits as pyfits
 
 def nonlinearwave(nwave, specstr, verbose=False):
@@ -198,7 +197,8 @@ def readmultispec(fitsfile, reform=True, quiet=False):
         # hack to fix the fact that older pyfits versions (< 3.1)
         # strip trailing blanks from string values in an apparently
         # irrecoverable way
-        v = wat2[i].value
+        #v = wat2[i].value
+        v = wat2[i]
         v = v + (" "*(68-len(v))) # restore trailing blanks
         watstr.append(v)
     watstr = ''.join(watstr)

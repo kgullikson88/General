@@ -1,6 +1,7 @@
 """
   Just a set of helper functions that I use often
-
+  VERY miscellaneous! Might want to organize this into separate
+    files at some point...
 """
 import os
 import csv
@@ -319,6 +320,60 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
 
 
 
+"""
+  Function to output a fits file
+  column_dict is a dictionary where the key is the name of the column
+     and the value is a numpy array with the data. Example of a column
+     would be the wavelength or flux at each pixel
+  template is the filename of the template fits file. The header will
+     be taken from this file and used as the main header
+  mode determines how the outputted file is made. Append will just add
+     a fits extension to the existing file (and then save it as outfilename)
+     "new" mode will create a new fits file. 
+     header_info takes a list of lists. Each sub-list should have size 2 where the first element is the name of the new keyword, and the second element is the corresponding value. A 3rd element may be added as a comment
+"""
+def OutputFitsFileExtensions(column_dicts, template, outfilename, mode="append", headers_info=[]):
+  #Get header from template. Use this in the new file
+  if mode == "new":
+    header = pyfits.getheader(template)
+    
+  if not isinstance(column_dicts, list):
+    column_dicts = [column_dicts, ]
+  if len(headers_info) < len(column_dicts):
+    for i in range(len(column_dicts) - len(headers_info)):
+      headers_info.append([])
+
+  if mode == "append":
+    hdulist = pyfits.open(template)
+  elif mode == "new":
+    header = pyfits.getheader(template)
+    pri_hdu = pyfits.PrimaryHDU(header=header)
+    hdulist = pyfits.HDUList([pri_hdu,])
+      
+  for i in range(len(column_dicts)):
+    column_dict = column_dicts[i]
+    header_info = headers_info[i]
+    columns = []
+    for key in column_dict.keys():
+      columns.append(pyfits.Column(name=key, format="D", array=column_dict[key]))
+    cols = pyfits.ColDefs(columns)
+    tablehdu = pyfits.new_table(cols)
+  
+    #Add keywords to extension header
+    num_keywords = len(header_info)
+    header = tablehdu.header
+    for i in range(num_keywords):
+      info = header_info[i]
+      if len(info) > 2:
+        header.update(info[0], info[1], info[2])
+      elif len(info) == 2:
+        header.update(info[0], info[1])
+
+    hdulist.append(tablehdu)
+
+      
+  hdulist.writeto(outfilename, clobber=True, output_verify='ignore')
+  hdulist.close()
 
 
   
