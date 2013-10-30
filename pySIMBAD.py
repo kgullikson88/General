@@ -15,7 +15,7 @@ import re
 
 sirius="http://simbad.u-strasbg.fr/simbad/sim-id?Ident=sirius"
 
-def buildLink(value, cfa_mirror=True) :
+def buildLink(value, cfa_mirror=False) :
 	value = value.replace("+","%2B")
 	value = value.replace("#","%23")
 	value = value.replace(" ","+")

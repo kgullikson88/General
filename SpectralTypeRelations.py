@@ -542,7 +542,7 @@ class MainSequence:
       else:
         raise ValueError("Color %s not known!" %color)
 
-  def GetSpectralType(self, dictionary, value):
+  def GetSpectralType(self, dictionary, value, interpolate=False):
     #Returns the spectral type that is closest to the value (within 0.1 subtypes)
     testgrid = numpy.arange(self.SpT_To_Number("O1"), self.SpT_To_Number("M9"), 0.1)
     besttype = "O1"
@@ -553,7 +553,17 @@ class MainSequence:
       if difference < best_difference:
         best_difference = difference
         besttype = spt
-    return besttype
+    if not interpolate:
+      return besttype
+    else:
+      bestvalue = self.Interpolate(dictionary, besttype)
+      num = self.SpT_To_Number(besttype)
+      spt = self.Number_To_SpT(num-0.1)
+      secondvalue = self.Interpolate(dictionary, spt)
+      slope = 0.1/(bestvalue - secondvalue)
+      num2 = slope*(bestvalue - value) + num
+      return self.Number_To_SpT(num2)
+      
     
     
     

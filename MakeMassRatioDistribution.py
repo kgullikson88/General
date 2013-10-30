@@ -26,14 +26,14 @@ from astropy import units, constants
     star lines in known SB1s.
   The key is the star name, and the value is the estimated temperature
 """
-NewDetections = {"HIP 67782": [3900,],
+NewDetections = {#"HIP 67782": [3900,],
                  "HIP 77336": [6500,],
                  #"HIP 85379": [6700,],
                  #		 "HIP 72154": [3500,5700],
-                 "HIP 72515": [5700,],
+                 #"HIP 72515": [5700,],
                  "HIP 93393": [3800,],
-                 "HIP 92312": [5000,],
-                 "HIP 96840": [3500,5200],
+#"HIP 92312": [5000,],
+#"HIP 96840": [3500,5200],
 #"HIP 100069": [3200,],
                  #		 "HIP 8704": [3500,],
                  #"HIP 105972": [7600,],
@@ -41,18 +41,18 @@ NewDetections = {"HIP 67782": [3900,],
                  "HIP 2548": [6500,],
                  #		 "HIP 17527": [3500,],
                  #		 "HIP 97870": [3300,],
-                 "HIP 13165": [3500,],
-                 "HIP 14143": [3500,],#7300],
-                 "HIP 20430": [5800,],
+                 #"HIP 13165": [3500,],
+                 #"HIP 14143": [3500,],#7300],
+                 #"HIP 20430": [5800,],
                  #		 "HIP 105282": [3700,3700],
-                 "HIP 105282": [3700,],
+                 #"HIP 105282": [3700,],
                  #		 "HIP 8016": [3500,3500],
                  "HIP 14043": [6200,],
                  #		 "HIP 58590": [3800,],
                  "HIP 82673": [6000,],
                  #		 "HIP 87108": [3500,4400],
                  #		 "HIP 104139": [5000,],
-                 		 "HIP 95241": [4300,],
+                 		 "HIP 95241": [4100,],
                  #		 "HIP 116247": [3400,],
                  #		 "HIP 117452": [4700,],
                  #		 "HIP 60009": [3300,5500],
@@ -67,7 +67,6 @@ NewDetections = {"HIP 67782": [3900,],
                  "HIP 88816": [6400,],
                  #		 "HIP 80883": [3700,],
                  #		 "HIP 78554": [3400,],
-                 "HIP 95241": [3900,]
 		 }
 
 #Do the same thing for known binaries not in WDS or SB9
@@ -149,7 +148,8 @@ def GetCHIRONdist(datadir="CHIRON_data/", MS=None):
       print starname
       stardata = StarData.GetData(starname)
       primary_mass = MS.Interpolate(MS.Mass, stardata.spectype[:2])
-      known_companions = GetWDSCompanions(starname, MS=MS, sep=100.0)
+      distance = 1000.0 / stardata.par
+      known_companions = GetWDSCompanions(starname, MS=MS, sep=200.0/distance)
       code, value = GetSB9Companions(starname)
       if len(known_companions) > 0:
         multiple = True
@@ -231,7 +231,8 @@ def GetHETdist(datadir="HET_data/", MS=None):
       print starname
       stardata = StarData.GetData(starname)
       primary_mass = MS.Interpolate(MS.Mass, stardata.spectype[:2])
-      known_companions = GetWDSCompanions(starname, MS=MS, sep=100.0)
+      distance = 1000.0 / stardata.par
+      known_companions = GetWDSCompanions(starname, MS=MS, sep=200.0/distance)
       code, value = GetSB9Companions(starname)
       if len(known_companions) > 0:
         multiple = True
@@ -358,7 +359,7 @@ if __name__ == "__main__":
   """
   plt.xlabel(r"$\rm M_s/M_p$", fontsize=20)
   plt.ylabel("Number", fontsize=20)
-  plt.title("Mass Ratio Distribution for Companions within 100\"", fontsize=30)
+  plt.title("Mass Ratio Distribution for Companions within 200 AU", fontsize=30)
   
   #plt.figure(2)
   #plt.hist(mass_ratios, bins=bins, color=['gray','green'], cumulative=True, normed=True, histtype='step', linewidth=2, stacked=True)
