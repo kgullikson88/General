@@ -75,6 +75,16 @@ class simbad(object) :
 			end = start + 200
 			return self.page[start:end].split("\n")[5].split("<")[0].strip()
 	        except : raise HtmlTagError("Spectral Type")
+	        
+	        
+	def Parallax(self):
+	        """Returns the parallax of the object, in mas"""
+	        try:
+	                start = re.search("Parallaxes", self.page).start()
+	                end = start + 200
+	                return float(self.page[start:end].split("\n")[5].split("[")[0].strip())
+	        except : raise HtmlTagError("Parallax")
+	        	
 
 
 

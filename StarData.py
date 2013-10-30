@@ -7,6 +7,7 @@ class stardata:
     self.Vmag = 0.0
     self.ra = ""
     self.dec = ""
+    self.par = 0.0   #parallax in arcseconds
 
 
 def GetData(starname):
@@ -18,6 +19,7 @@ def GetData(starname):
   coord = star.fk5()
   data.ra = star.ra(coord)
   data.dec = star.dec(coord)
+  data.par = star.Parallax()
   return data
 
 
