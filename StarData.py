@@ -21,7 +21,7 @@ def GetData(starname):
   data.dec = star.dec(coord)
   try:
     data.par = star.Parallax()
-  except: data.par = 50.0
+  except: data.par = 10.0  #Just guess. This is roughly the median for my sample
   return data
 
 
