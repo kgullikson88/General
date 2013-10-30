@@ -19,7 +19,9 @@ def GetData(starname):
   coord = star.fk5()
   data.ra = star.ra(coord)
   data.dec = star.dec(coord)
-  data.par = star.Parallax()
+  try:
+    data.par = star.Parallax()
+  except: data.par = 50.0
   return data
 
 
