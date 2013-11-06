@@ -40,7 +40,7 @@ from scipy.interpolate import interp1d, UnivariateSpline
 from scipy.optimize import leastsq, brute, fmin
 from scipy.linalg import svd, diagsvd
 from scipy import mat
-import MakeModel
+import MakeModel2 as MakeModel
 import DataStructures
 import FittingUtilities
 
@@ -74,6 +74,7 @@ class TelluricFitter:
     self.wavelength_fit_order = 3
     self.debug = debug
     self.debug_level = debug_level   #Number from 1-5, with 5 being the most verbose
+    self.Modeler = MakeModel.Modeler(debug=self.debug)
 
     #Just open and close chisq_summary, to clear anything already there
     outfile = open("chisq_summary.dat", "w")
@@ -187,6 +188,21 @@ class TelluricFitter:
   """
   def SetTelluricLineListFile(self, fname):
     self.LineListFile = fname
+
+
+
+  """
+    Just calls MakeModel.Cleanup(), which removes the lock from the modeling directory
+  """
+  def Cleanup(self):
+    self.Modeler.Cleanup()
+
+  """
+    Edits the atmosphere profile for a given parameter. This is just a wrapper
+      for the MakeModel.Modeler method.
+  """
+  def EditAtmosphereProfile(self, profilename, profile_height, profile_value):
+    self.Modeler.EditProfile(profilename, profile_height, profile_value)
 
 
 
@@ -324,7 +340,8 @@ class TelluricFitter:
 
     #Generate the model:
     if data == None:
-      model = MakeModel.Main(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, lat=lat, alt=alt, wavegrid=None, resolution=None, debug=self.debug)
+      #model = MakeModel.Main(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, lat=lat, alt=alt, wavegrid=None, resolution=None, debug=self.debug)
+      model = self.Modeler.MakeModel(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, lat=lat, alt=alt, wavegrid=None, resolution=None)
       if self.debug and self.debug_level >= 5:
         model_name = "Models/transmission"+"-%.2f" %pressure + "-%.2f" %temperature + "-%.1f" %h2o + "-%.1f" %angle + "-%.2f" %(co2) + "-%.2f" %(o3*100) + "-%.2f" %ch4 + "-%.2f" %(co*10)
         numpy.savetxt(model_name, numpy.transpose((model.x, model.y)), fmt="%.8f")
@@ -335,7 +352,8 @@ class TelluricFitter:
       model = MakeModel.ReduceResolution(model.copy(), resolution)
       return model
     else:
-      model = MakeModel.Main(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, wavegrid=data.x, resolution=resolution, debug=self.debug)
+      #model = MakeModel.Main(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, wavegrid=data.x, resolution=resolution, debug=self.debug)
+      model = self.Modeler.MakeModel(pressure, temperature, wavenum_start, wavenum_end, angle, h2o, co2, o3, n2o, co, ch4, o2, no, so2, no2, nh3, hno3, wavegrid=data.x, resolution=resolution)
       if self.debug and self.debug_level >= 5:
         model_name = "Models/transmission"+"-%.2f" %pressure + "-%.2f" %temperature + "-%.1f" %h2o + "-%.1f" %angle + "-%.2f" %(co2) + "-%.2f" %(o3*100) + "-%.2f" %ch4 + "-%.2f" %(co*10)
         numpy.savetxt(model_name, numpy.transpose((model.x, model.y)), fmt="%.8f")

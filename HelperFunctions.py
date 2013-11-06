@@ -53,6 +53,7 @@ def CheckMultiplicityWDS(starname):
   #Get absolute magnitude of the primary star, so that we can determine 
   #   the temperature of the secondary star from the magnitude difference
   MS = SpectralTypeRelations.MainSequence()
+  print star.SpectralType()[:2]
   p_Mag = MS.GetAbsoluteMagnitude(star.SpectralType()[:2], 'V')
   
 

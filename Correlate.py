@@ -1,8 +1,8 @@
 import subprocess
+import matplotlib.pyplot as plt
 import sys
 import os
 import numpy
-import pylab
 from collections import defaultdict
 from scipy.interpolate import UnivariateSpline
 import scipy.signal
@@ -207,11 +207,6 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
           done = False
       chip.opt = flux.copy()
 
-    #pylab.figure(1)
-    #pylab.plot(chip.wave, chip.opt, 'k-')
-    #pylab.plot(chip.wave, chip.cont, 'r-')
-    #print data.x
-    #print 10**data.x
 
     #Interpolate to constant wavelength grid (in log-space)
     left = numpy.searchsorted(data.x, numpy.log10(chip.wave[0]))
@@ -237,20 +232,9 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
       data.y[left:right] = OPT(data.x[left:right])/CONT(data.x[left:right])
       data.err[left:right] = OPTERR(data.x[left:right])
       #data.cont[left:right] = CONT(data.x[left:right])
-      #pylab.figure(2)
-      #pylab.plot(data.x[left:right], data.y[left:right], 'k-')
-      #pylab.plot(data.x[left:right], data.cont[left:right], 'r-')
       firstindex = left
-    #pylab.figure(1)
-    #pylab.plot(data.x, data.y)
-    #pylab.plot(data.x, data.cont)
-    #pylab.show()
 
   
-  #pylab.plot(data.x, data.y)
-  #pylab.plot(data.x, data.cont)
-  #pylab.show()
-  #sys.exit()
 
   #3: Begin loop over model spectra
   returnlist = []
@@ -333,10 +317,6 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
     delta = left - right
     #print "left=%i\tright=%i\tdelta=%i" %(left, right, delta)
     #weights = WEIGHTS(data.x)
-    #pylab.plot(10**data.x, (data.y/data.cont-1.0)*weights, 'k-')
-    #pylab.plot(10**data.x, data.y/data.cont - 1.0, 'r-')
-    #pylab.plot(10**model.x, model.y/model.cont-1.1, 'g-')
-    #pylab.show()
     #ycorr = numpy.correlate((data.y/data.cont-1.0), model.y/model.cont-1.0, mode=corr_mode)
     if debug:
       data.output("Corr_inputdata.dat")
@@ -453,7 +433,7 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
         left -= 1
       x2 = model.x[left:right].copy()
       y2 = model.y[left:right].copy()
-      cont2 = FittingUtilities.Continuum(x2, y2, fitorder=5)
+      cont2 = FittingUtilities.Continuum(x2, y2, fitorder=2)
       if model_fcns[i] == None:
         if debug:
           print "Interpolating model"
@@ -477,7 +457,8 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
         model2 = DataStructures.xypoint(right - left + 1)
         model2.x = numpy.linspace(model.x[left], model.x[right], right - left + 1)
         model2.y = MODEL(model2.x)
-        model2.cont = FittingUtilities.Continuum(model2.x, model2.y)
+        model2.cont = FittingUtilities.Continuum(model2.x, model2.y, lowreject=1.5, highreject=5, fitorder=2)
+        model2.cont[model2.cont < 1e-5] = 1e-5
 
         #d: Rotationally broaden
         if vsini > 1.0*units.km.to(units.cm):
@@ -514,6 +495,7 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
         model2.output("Corr_inputmodel.dat")
     
       #ycorr = scipy.signal.fftconvolve((reduceddata - meandata), (reducedmodel - meanmodel)[::-1], mode=corr_mode)
+      
       ycorr = numpy.correlate(reduceddata - meandata, reducedmodel - meanmodel, mode=corr_mode)
       xcorr = numpy.arange(ycorr.size)
       if corr_mode == 'valid':
@@ -530,6 +512,13 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
       corr.x = velocity[::-1]
       #corr.y = ycorr[::-1]/model_rms
       corr.y = ycorr[::-1]/(data_rms*model_rms*float(reduceddata.size))
+      if debug:
+        if numpy.any(numpy.isnan([corr.y[i] for i in range(corr.size())])):
+          print "NaN found in correlation!"
+          corr.output("badcorrelation.dat")
+          print data_rms, model_rms, reduceddata.size
+          sys.exit()
+          
         
       #i: Only save part of the correlation
       left = numpy.searchsorted(corr.x, minvel)
@@ -541,6 +530,7 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
       #k: Save correlation
       corrlist.append(corr.copy())
       if debug:
+        print "Outputting single-order CCF to %s.order%i" %(outfilename, ordernum+1)
         numpy.savetxt("%s.order%i" %(outfilename, ordernum+1), numpy.transpose((corr.x, corr.y)))
         #corr.output("%s.order%i" %(outfilename, ordernum+1))
 
@@ -816,9 +806,9 @@ def FindSectionsToUse(alldata, allnods, tol=1.15, cutoff=2290):
   if averages[0] > (averages[1] + averages[2])/2.0*tol:
     print "Chip 1 continuum might be bad!"
     print "ratio of standard deviations: ", averages[0]/((averages[1] + averages[2])/2.0)
-    pylab.plot(alldata[0][0].wave, alldata[0][0].opt)
-    pylab.plot(alldata[0][0].wave, alldata[0][0].cont)
-    pylab.show()
+    plt.plot(alldata[0][0].wave, alldata[0][0].opt)
+    plt.plot(alldata[0][0].wave, alldata[0][0].cont)
+    plt.show()
     inp = raw_input("Ignore chip 1 (y or n)? ")
     if "y" in inp:
       for j in range(all_good_indices[0].size):
@@ -847,22 +837,22 @@ def FindSectionsToUse(alldata, allnods, tol=1.15, cutoff=2290):
   if numpy.mean(B_averages)/numpy.mean(A_averages) > tol:
     print "Nod position B is much noisier than nod position A. Ratio = ", numpy.mean(B_averages)/numpy.mean(A_averages)
     for i in range(3):
-      pylab.plot(alldata[Aindex][i].wave, alldata[Aindex][i].opt/alldata[Aindex][i].cont, 'b-', label="Nod A")
-      pylab.plot(alldata[Bindex][i].wave, alldata[Bindex][i].opt/alldata[Bindex][i].cont - 0.1, 'k-', label="Nod B")
-    #pylab.legend(loc='best')
-    pylab.title("Blue: Nod A. Black: Nod B")
-    pylab.show()
+      plt.plot(alldata[Aindex][i].wave, alldata[Aindex][i].opt/alldata[Aindex][i].cont, 'b-', label="Nod A")
+      plt.plot(alldata[Bindex][i].wave, alldata[Bindex][i].opt/alldata[Bindex][i].cont - 0.1, 'k-', label="Nod B")
+    #plt.legend(loc='best')
+    plt.title("Blue: Nod A. Black: Nod B")
+    plt.show()
     inp = raw_input("Use only A nod positions? (y or n)? ")
     if "y" in inp:
       useBminusA = False
   elif numpy.mean(A_averages)/numpy.mean(B_averages) > tol:
     print "Nod position A is much noisier than nod position B. Ratio = ", numpy.mean(A_averages)/numpy.mean(B_averages)
     for i in range(3):
-      pylab.plot(alldata[Aindex][i].wave, alldata[Aindex][i].opt/alldata[Aindex][i].cont, 'b-', label="Nod A")
-      pylab.plot(alldata[Bindex][i].wave, alldata[Bindex][i].opt/alldata[Bindex][i].cont - 0.1, 'k-', label="Nod B")
-    #pylab.legend(loc='best')
-    pylab.title("Blue: Nod A. Black: Nod B")
-    pylab.show()
+      plt.plot(alldata[Aindex][i].wave, alldata[Aindex][i].opt/alldata[Aindex][i].cont, 'b-', label="Nod A")
+      plt.plot(alldata[Bindex][i].wave, alldata[Bindex][i].opt/alldata[Bindex][i].cont - 0.1, 'k-', label="Nod B")
+    #plt.legend(loc='best')
+    plt.title("Blue: Nod A. Black: Nod B")
+    plt.show()
     inp = raw_input("Use only B nod positions? (y or n)? ")
     if "y" in inp:
       useAminusB = False
@@ -970,7 +960,7 @@ if __name__ == "__main__":
           master[i].opt = master[i].opt + OPT(master[i].wave)*weight
           master[i].opterr = master[i].opterr + ERR(master[i].wave)*weight
           master[i].cont = master[i].cont + CONT(master[i].wave)*weight
-          #pylab.plot(master[i].wave, OPT(master[i].wave))
+          #plt.plot(master[i].wave, OPT(master[i].wave))
         index = index + 1
       for i in range(len(master)):
         chip = master[i]

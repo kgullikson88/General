@@ -67,6 +67,10 @@ NewDetections = {#"HIP 67782": [3900,],
                  "HIP 88816": [6400,],
                  #		 "HIP 80883": [3700,],
                  #		 "HIP 78554": [3400,],
+                 "HIP 15444": [6100,],
+                 "HIP 20789": [5400,],
+                 "HR 545":    [5000,],
+                 "HIP 5132":  [3700,],
 		 }
 
 #Do the same thing for known binaries not in WDS or SB9
@@ -288,16 +292,104 @@ def GetHETdist(datadir="HET_data/", MS=None):
 
 
 
+
+"""
+    This function returns the mass-ratio lists from TS23 data (same format as for CHIRON data)
+"""
+def GetTS23dist(datadir="McDonaldData/", MS=None):
+  if not datadir.endswith("/"):
+    datadir = datadir + "/"
+  dirlist = ["%s%s" %(datadir, d) for d in os.listdir(datadir) if d.startswith("201") and not d.startswith("201301")]
+
+  if MS == None:
+    MS = SpectralTypeRelations.MainSequence()
+
+  multiplicity = 0.0
+  numstars = 0.0
+  mass_ratios = []
+  new_massratios = []
+  for directory in dirlist:
+    starlist = [f for f in os.listdir(directory) if (f.startswith("HR") or f.startswith("HIP")) and f.endswith("-0.fits")]
+    for star in starlist:
+      #First, get the known companions
+      multiple = False
+      sb = False
+      header = pyfits.getheader("%s/%s" %(directory, star))
+      print star
+      starname = header['OBJECT']
+      print starname
+      stardata = StarData.GetData(starname)
+      primary_mass = MS.Interpolate(MS.Mass, stardata.spectype[:2])
+      distance = 1000.0 / stardata.par
+      known_companions = GetWDSCompanions(starname, MS=MS, sep=200.0/distance)
+      code, value = GetSB9Companions(starname)
+      if len(known_companions) > 0:
+        multiple = True
+        for comp in known_companions:
+          print "\tq = %g" %(comp[1]/(primary_mass))
+          mass_ratios.append(comp[1]/primary_mass)
+      if code == 1:
+	sb = True
+        multiple = True
+        q = value
+        wds = False
+        for comp in known_companions:
+          if abs(q-comp[1]) < 0.1 and comp[0] < 4.0:
+            wds = True
+        if not wds:
+          mass_ratios.append(q)
+        else:
+          print "Spectroscopic binary found which may match a WDS companion."
+          usr = raw_input("Use both (y or n)? ")
+          if "y" in usr:
+            mass_ratios.append(q)
+        print "Spectroscopic companion with q = %g" %q
+      elif code == 2:
+        print "Single-lined spectroscopic companion to %s found! Double-lined in my data?" %starname
+        multiple = True
+
+
+      #Now, put in my data
+      if starname in NewDetections:
+        for T in NewDetections[starname]:
+          spt = MS.GetSpectralType(MS.Temperature, T)
+          mass = MS.Interpolate(MS.Mass, spt)
+          new_q = mass/primary_mass
+	previously_known = False
+        for comp in known_companions:
+          if abs(new_q - comp[1]) < 0.1 and comp[0] < 4.0:
+            previously_known = True
+          if sb and abs(new_q - q) < 0.1:
+            previously_known = True
+        if not previously_known:
+          new_massratios.append(new_q)
+          multiple = True
+
+      #Keep track of total binary fraction
+      if multiple:
+        multiplicity += 1
+      numstars += 1.0
+
+
+  #Make some plots
+  mass_ratios = [min(q, 1.0) for q in mass_ratios]
+  return mass_ratios, new_massratios, multiplicity, numstars
+
+
+
 if __name__ == "__main__":
   dirlist = []
   chiron_only = False
   het_only = False
+  ts23_only = False
   color = False
   for arg in sys.argv[1:]:
     if "-chiron" in arg:
       chiron_only = True
     elif "-het" in arg:
       het_only = True
+    elif "-ts23" in arg:
+      ts23_only = True
     elif "-color" in arg:
       color = True
     else:
@@ -307,22 +399,41 @@ if __name__ == "__main__":
 
   MS = SpectralTypeRelations.MainSequence()
 
-  #Get data from HET and CHIRON
+  #Get data
+  ch_mass_ratios, ch_new_massratios, ch_num_multiple, ch_numstars = GetCHIRONdist(MS=MS)
+  het_mass_ratios, het_new_massratios, het_num_multiple, het_numstars = GetHETdist(MS=MS)
+  ts_mass_ratios, ts_new_massratios, ts_num_multiple, ts_numstars = GetTS23dist(MS=MS)
   if het_only:
-    mass_ratios = []
-    new_massratios = []
-    num_multiple=0
-    numstars = 0
+    mass_ratios = het_mass_ratios
+    new_massratios = het_new_massratios
+    num_multiple = het_num_multiple
+    numstars = het_numstars
+  elif chiron_only:
+    mass_ratios = ch_mass_ratios
+    new_massratios = ch_new_massratios
+    num_multiple = ch_num_multiple
+    numstars = ch_numstars
+  elif ts23_only:
+    mass_ratios = ts_mass_ratios
+    new_massratios = ts_new_massratios
+    num_multiple = ts_num_multiple
+    numstars = ts_numstars
   else:
-    mass_ratios, new_massratios, num_multiple, numstars = GetCHIRONdist(MS=MS)
-  if not chiron_only:
-    mass_ratios2, new_massratios2, num_multiple2, numstars2 = GetHETdist(MS=MS)
-    for q in mass_ratios2:
+    mass_ratios = het_mass_ratios
+    new_massratios = het_new_massratios
+    num_multiple = het_num_multiple
+    numstars = het_numstars
+    for q in ch_mass_ratios:
       mass_ratios.append(q)
-    for q in new_massratios2:
+    for q in ts_mass_ratios:
+      mass_ratios.append(q)
+    for q in ch_new_massratios:
       new_massratios.append(q)
-    num_multiple += num_multiple2
-    numstars += numstars2
+    for q in ts_new_massratios:
+      new_massratios.append(q)
+    num_multiple += ch_num_multiple + ts_num_multiple
+    numstars += ch_numstars + ts_numstars
+  
 
   print "Multiplicity fraction = %g" %(num_multiple/numstars)
   bins = numpy.arange(0.0, 1.1, 0.1)
