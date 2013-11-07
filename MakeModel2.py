@@ -74,24 +74,12 @@ class Modeler:
 
     Atmosphere = defaultdict(list)
     indices = {}
+    self.debug = debug
 
-    #Determine output filename
-    found = False
-    for i in range(1,NumRunDirs+1):
-      test = "%srundir%i/" %(TelluricModelingDirRoot, i)
-      lock = lockfile.FileLock(test)
-      if not lock.is_locked():
-        TelluricModelingDir = test
-        ModelDir = "%sOutputModels/" %TelluricModelingDir
-        lock.acquire()
-        found = True
-        break
-    if not found:
-      print "Un-locked directory not found!"
-      sys.exit()
-    if debug:
-      print "Telluric Modeling Directory: %s" %TelluricModelingDir
-      print "Model Directory: %s" %ModelDir
+    #Determine working directories
+    self.FindWorkingDirectory(NumRunDirs = NumRunDirs, TelluricModelingDirRoot = TelluricModelingDirRoot)
+    TelluricModelingDir = self.TelluricModelingDir
+    ModelDir = self.ModelDir
 
     #Read in MIPAS atmosphere profile for upper atmosphere layers
     if debug:
@@ -148,11 +136,10 @@ class Modeler:
     #Save some local variables as class variables, so that other functions can use them
     self.Atmosphere = Atmosphere
     self.layers = layers
-    self.TelluricModelingDir = TelluricModelingDir
-    self.ModelDir = ModelDir
-    self.debug = debug
-    self.lock = lock
     self.nmolecules = nmolecules
+    
+    self.Cleanup()
+    return
 
 
   """
@@ -230,9 +217,36 @@ class Modeler:
       print "Woah, the model directory was somehow unlocked prematurely!"
     return
 
+
+
+  def FindWorkingDirectory(self, NumRunDirs=4, TelluricModelingDirRoot="%s/School/Research/aerlbl_v12.2/" %(os.environ["HOME"])):
+    #Determine output filename
+    found = False
+    for i in range(1,NumRunDirs+1):
+      test = "%srundir%i/" %(TelluricModelingDirRoot, i)
+      lock = lockfile.FileLock(test)
+      if not lock.is_locked():
+        TelluricModelingDir = test
+        ModelDir = "%sOutputModels/" %TelluricModelingDir
+        lock.acquire()
+        found = True
+        break
+    if not found:
+      print "Un-locked directory not found!"
+      sys.exit()
+    if self.debug:
+      print "Telluric Modeling Directory: %s" %TelluricModelingDir
+      print "Model Directory: %s" %ModelDir
+
+    self.TelluricModelingDir = TelluricModelingDir
+    self.ModelDir = ModelDir
+    self.lock = lock
+
   
 
   def MakeModel(self, pressure=795.0, temperature=283.0, lowfreq=4000, highfreq=4600, angle=45.0, humidity=50.0, co2=368.5, o3=3.9e-2, n2o=0.32, co=0.14, ch4=1.8, o2=2.1e5, no=1.1e-19, so2=1e-4, no2=1e-4, nh3=1e-4, hno3=5.6e-4, lat=30.6, alt=2.1, wavegrid=None, resolution=None, save=False, libfile=None):
+
+    self.FindWorkingDirectory()
     
     #Make the class variables local
     Atmosphere = self.Atmosphere
@@ -338,6 +352,7 @@ class Modeler:
         infile.write(model_name + "\n")
         infile.close()
 
+    self.Cleanup()   #Un-lock the working directory
 
     if wavegrid != None:
       #Interpolate model to a constant wavelength grid
@@ -540,7 +555,7 @@ if __name__ == "__main__":
   highfreq = 1e7/lowwave
   modeler = Modeler()
   modeler.MakeModel(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, o2=o2, alt=2.1, save=True)
-  modeler.Cleanup()
+  #modeler.Cleanup()
   #Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, o2=o2, alt=2.1, save=True)
           
 

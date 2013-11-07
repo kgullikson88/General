@@ -192,12 +192,6 @@ class TelluricFitter:
 
 
   """
-    Just calls MakeModel.Cleanup(), which removes the lock from the modeling directory
-  """
-  def Cleanup(self):
-    self.Modeler.Cleanup()
-
-  """
     Edits the atmosphere profile for a given parameter. This is just a wrapper
       for the MakeModel.Modeler method.
   """
