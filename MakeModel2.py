@@ -253,7 +253,7 @@ class Modeler:
     TelluricModelingDir = self.TelluricModelingDir
     debug = self.debug
     lock = self.lock
-    layers = self.layers
+    layers = numpy.array(self.layers)
     ModelDir = self.ModelDir
     #nmolecules = self.nmolecules
 
@@ -275,15 +275,6 @@ class Modeler:
     scale_values[1] = (Atmosphere[upper][1]-Atmosphere[lower][1]) / (keys[upper]-keys[lower]) * (alt-keys[lower]) + Atmosphere[lower][1]
     for mol in range(len(scale_values[2])):
       scale_values[2][mol] = (Atmosphere[upper][2][mol]-Atmosphere[lower][2][mol]) / (keys[upper]-keys[lower]) * (alt-keys[lower]) + Atmosphere[lower][2][mol]
-
-
-      profile_fcn = scipy.interpolate.interp1d(profile_height, profile_value, kind='linear')
-    left = numpy.searchsorted(layers, profile_height[0])
-    right = numpy.searchsorted(layers, profile_height[-1]) - 1
-    newprofile = list(mipas)
-    newprofile[:left] -= (mipas[left] - profile_fcn(layers[left])) * numpy.exp(-(layers[left] - layers[:left]))
-    newprofile[right:] -= (mipas[right] - profile_fcn(layers[right])) * numpy.exp(-(layers[right:] - layers[right]))
-    newprofile[left:right] = profile_fcn(layers[left:right])
       
 
     #Do the actual scaling
@@ -291,11 +282,11 @@ class Modeler:
     #temperature_scalefactor = temperature/scale_values[1]
     pressure_scalefactor = (scale_values[0] - pressure) * numpy.exp(-(layers - alt)**2/5.0**2)
     temperature_scalefactor = (scale_values[1] - temperature) * numpy.exp(-(layers - alt)**2/5.0**2)
-    for layer in layers:
+    for i, layer in enumerate(layers):
       #Atmosphere[layer][0] *= pressure_scalefactor
       #Atmosphere[layer][1] *= temperature_scalefactor
-      Atmosphere[layer][0] -= pressure_scalefactor
-      Atmosphere[layer][1] -= temperature_scalefactor
+      Atmosphere[layer][0] -= pressure_scalefactor[i]
+      Atmosphere[layer][1] -= temperature_scalefactor[i]
       Atmosphere[layer][2][0] *= h2o/scale_values[2][0]
       Atmosphere[layer][2][1] *= co2/scale_values[2][1]
       Atmosphere[layer][2][2] *= o3/scale_values[2][2]
