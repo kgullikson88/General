@@ -15,6 +15,7 @@ import mlpy
 import matplotlib.pyplot as plt
 import functools
 import MakeModel
+import emcee
 
 
 #Define bounding functions:
@@ -346,44 +347,6 @@ def HighPassFilter(data, vel, width=5, linearize=False):
 
 
 
-"""
-  Function to remove some of the noise in a spectrum using a wavelet transform
-  data:      an xypoint structure containing the noisy data
-  snr:       The signal-to-noise ratio of the data
-  wavelet:   Either the name of the pywt wavelet to use, or an instance of it
-  reduction_factor:   The factor by which to reduce the noise. Do not increase this
-                      too much, or you will remove secondary star spectra!
-"""
-def Denoise(data, snr, wavelet='bior6.8', reduction_factor=0.1):
-  if data.size() % 2 != 0:
-    data = data[:-1]
-    print "trimming data to be even"
-  
-  WC = pywt.wavedec(data.y, wavelet)
-  sig = numpy.median(data.y)/snr*reduction_factor
-  threshold=sig*numpy.sqrt(2.0*numpy.log2(data.y.size))
-  print WC
-  print "threshold: ",threshold
-  NWC = map(lambda x: pywt.thresholding.soft(x, threshold), WC)
-  print NWC
-  data.y = pywt.waverec(NWC, wavelet)
-  return data
-
-
-
-def Denoise2(data, snr, reduction_factor=0.1):
-  y, boolarr = mlpy.wavelet.pad(data.y)
-  WC = mlpy.wavelet.uwt(y, 'd', 10, 0)
-
-  sig = numpy.median(data.y)/snr*reduction_factor
-  threshold=sig*numpy.sqrt(2.0*numpy.log2(data.y.size))
-  for i in range(len(WC)):
-    WC[i][numpy.abs(WC[i]) < threshold] = 0.0
-    WC[i][numpy.abs(WC[i]) >= threshold] -= threshold*numpy.sign(WC[i][numpy.abs(WC[i]) >= threshold])
-  y2 = mlpy.wavelet.iuwt(WC, 'd', 10)
-  data.y = y2[boolarr]
-  return data
-
 
 """
   This function implements the denoising given in the url below:
@@ -392,7 +355,7 @@ def Denoise2(data, snr, reduction_factor=0.1):
   with title "Astronomical Spectra Denoising Based on Simplifed SURE-LET Wavelet Thresholding"
 """
 
-def Denoise3(data, reduction_factor=0.1):
+def Denoise(data):
   y, boolarr = mlpy.wavelet.pad(data.y)
   WC = mlpy.wavelet.dwt(y, 'd', 10, 0)
   #Figure out the unknown parameter 'a'
@@ -421,6 +384,12 @@ def Denoise3(data, reduction_factor=0.1):
   y2 = mlpy.wavelet.idwt(WC, 'd', 10)
   data.y = y2[boolarr]
   return data
+
+
+
+#Kept for legacy support, since I was using Denoise3 in several codes in the past.
+def Denoise3(data):
+  return Denoise(data)
   
 
 
@@ -452,5 +421,80 @@ def FindLines(spectrum, tol=0.99, linespacing = 0.01, debug=False):
     plt.ylabel("Flux")
     plt.show()
   return numpy.array(lines)
+
+
+
+
+"""
+  This function will do a Bayesian fit to the model.
+
+  Parameter description:
+    data:         A DataStructures.xypoint instance containing the data
+    model_fcn:    A function that takes an x-array and parameters,
+                     and returns a y-array. The number of parameters
+                     should be the same as the length of the 'priors'
+                     parameter
+    priors:       Either a 2d numpy array or a list of lists. Each index
+                     should contain the expected value and the uncertainty
+                     in that value (assumes all Gaussian priors!).
+    limits:       If given, it should be a list of the same shape as
+                     'priors', giving the limits of each parameter
+    burn_in:      The burn-in period for the MCMC before you start counting
+    nwalkers:     The number of emcee 'walkers' to use.
+    nsamples:     The number of samples to use in the MCMC sampling. Note that
+                      the actual number of samples is nsamples * nwalkers
+    nthreads:     The number of processing threads to use (parallelization)
+                      This probably needs MPI installed to work. Not sure though...
+    full_ouput:   Return the full sample chain instead of just the mean and
+                      standard deviation of each parameter.
+    a:            See emcee.EnsembleSampler. Basically, it controls the step size
+"""
+def BayesFit(data, model_fcn, priors, limits=None, burn_in=100, nwalkers=100, nsamples=100, nthreads=1, full_output=False, a=2):
+
+  # Priors needs to be a numpy array later, so convert to that first
+  priors = numpy.array(priors)
+  
+  # Define the likelihood, prior, and posterior probability functions
+  likelihood = lambda pars, data, model_fcn: numpy.sum( -(data.y - model_fcn(data.x, pars))**2 / (2.0*data.err**2))
+  if limits == None:
+    prior = lambda pars, priors: numpy.sum( -(pars-priors[:,0])**2 / (2.0*priors[:,1]**2))
+    posterior = lambda pars, data, model_fcn, priors: likelihood(pars, data, model_fcn) + prior(pars, priors)
+  else:
+    limits = numpy.array(limits)
+    prior = lambda pars, priors, limits: -9e19 if any(numpy.logical_or(pars<limits[:,0], pars>limits[:,1])) else numpy.sum( -(pars-priors[:,0])**2 / (2.0*priors[:,1]**2))
+    posterior = lambda pars, data, model_fcn, priors, limits: likelihood(pars, data, model_fcn) + prior(pars, priors, limits)
+
+    
+  # Set up the MCMC sampler
+  ndim = priors.shape[0]
+  if limits == None:
+    p0 = [numpy.random.normal(loc=priors[:,0], scale=priors[:,1]) for i in range(nwalkers)]
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, posterior, threads=nthreads, args=(data, model_fcn, priors), a=4)
+  else:
+    ranges = numpy.array([l[1] - l[0] for l in limits])
+    p0 = [numpy.random.rand(ndim)*ranges+limits[:,0] for i in range(nwalkers)]
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, posterior, threads=nthreads, args=(data, model_fcn, priors, limits), a=a)
+
+  # Burn-in the sampler
+  pos, prob, state = sampler.run_mcmc(p0, burn_in)
+
+  # Reset the chain to remove the burn-in samples.
+  sampler.reset()
+
+  # Run the sampler
+  pos, prob, state = sampler.run_mcmc(pos, nsamples, rstate0=state)
+
+
+  print "Acceptance fraction = %f" %numpy.mean(sampler.acceptance_fraction)
+  maxprob_indice = numpy.argmax(prob)
+  priors[:,0] = pos[maxprob_indice]
+  #Get the parameter estimates
+  chain = sampler.flatchain
+  for i in range(ndim):
+    priors[i][1] = numpy.std(chain[:,i])
+
+  if full_output:
+    return priors, chain
+  return priors
 
 
