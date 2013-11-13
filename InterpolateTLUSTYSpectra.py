@@ -149,6 +149,11 @@ class Models:
         print "Returning the closest grid point instead, which has parameters:"
         print "\tT=%f\n\t[Fe/H]=%f\n\tlog(g)=%f\n\tvmicro=%f" %(T0, metal0, logg0, vmicro0)
         return self.GetSpectrum(T0, metal0, logg0, vmicro0)
+
+    
+    if logg0 < self.ggrid[T1][0]:
+      logg0 = self.ggrid[T1][0]
+      logg1 = logg0 + self.gstep if logg0 < logg else logg0 - self.gstep
       
     if self.model_dict[T0][metal1][logg0][vmicro0] == '':
       #metallicity point does not exist!

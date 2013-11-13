@@ -401,7 +401,6 @@ def Denoise3(data):
   linespacing:     The minimum spacing between two consecutive lines
 """
 def FindLines(spectrum, tol=0.99, linespacing = 0.01, debug=False):
-  distance = 0.01
   xspacing = float(max(spectrum.x) - min(spectrum.x))/float(spectrum.size())
   N = int( linespacing / xspacing + 0.5)
   lines = list(argrelmin(spectrum.y, order=N)[0])
