@@ -222,8 +222,8 @@ def readmultispec(fitsfile, reform=True, quiet=False):
         if w1[2] == -1:
             raise ValueError('Spectrum %d has no wavelength calibration (type=%d)' %
                     (i+1,w1[2]))
-        elif w1[6] != 0:
-            raise ValueError('Spectrum %d has non-zero redshift (z=%f)' % (i+1,w1[6]))
+        #elif w1[6] != 0:
+        #    raise ValueError('Spectrum %d has non-zero redshift (z=%f)' % (i+1,w1[6]))
 
     wavelen = np.zeros((nspec,nwave),dtype=float)
     wavefields = [None]*nspec
@@ -244,6 +244,8 @@ def readmultispec(fitsfile, reform=True, quiet=False):
             # non-linear wavelengths
             wavelen[i,:], wavefields[i] = nonlinearwave(nwave, specstr[i],
                 verbose=verbose)
+        wavelen *= 1.0 + wparms[i,6]
+        print "Correcting for redshift: z=%f" %wparms[i,6]
     if nspec == 1 and reform:
         # get rid of unity dimensions
         flux = np.squeeze(flux)
