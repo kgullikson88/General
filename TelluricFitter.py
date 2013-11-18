@@ -245,7 +245,9 @@ class TelluricFitter:
     #Read in line list (used only for wavelength calibration):
     linelist = numpy.loadtxt(self.LineListFile, usecols=(0,))
 
-    #Set up the fitting logfile
+    #Set up the fitting logfile and logging arrays
+    self.parvals = [[] for i in range(len(self.parnames))]
+    self.chisq_vals = []
     outfile = open("chisq_summary.dat", "a")
     outfile.write("\n\n\n\n")
     for i in range(len(self.parnames)):
@@ -270,7 +272,7 @@ class TelluricFitter:
   def FitErrorFunction(self, fitpars, linelist):
     model = self.GenerateModel(fitpars, linelist)
     outfile = open("chisq_summary.dat", 'a')
-    weights = 1.0/self.data.err
+    weights = 1.0/(self.data.err/self.data.cont)**2
     weights = weights/weights.sum()
     return_array = (self.data.y  - self.data.cont*model.y)**2*weights
     #Evaluate bound conditions
@@ -280,10 +282,12 @@ class TelluricFitter:
         if len(self.bounds[i]) == 2:
           return_array += FittingUtilities.bound(self.bounds[i], fitpars[fit_idx])
         outfile.write("%.5g\t" %fitpars[fit_idx])
+        self.parvals[i].append(fitpars[fit_idx])
         fit_idx += 1
       elif len(self.bounds[i]) == 2 and self.parnames[i] != "resolution":
         return_array += FittingUtilities.bound(self.bounds[i], self.const_pars[i])
-    outfile.write("%g\n" %(numpy.sum(return_array)/float(weights.size)))
+    outfile.write("%g\n" %(numpy.sum(return_array)))
+    self.chisq_vals.append(numpy.sum(return_array))
     print "X^2 = ", numpy.sum(return_array)/float(weights.size)
     outfile.close()
     return return_array
