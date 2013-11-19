@@ -37,7 +37,7 @@ import os
 import subprocess
 import scipy
 from scipy.interpolate import interp1d, UnivariateSpline
-from scipy.optimize import leastsq, brute, fmin
+from scipy.optimize import leastsq, brute, fmin, fmin_bfgs
 from scipy.linalg import svd, diagsvd
 from scipy import mat
 import MakeModel2 as MakeModel
@@ -75,6 +75,8 @@ class TelluricFitter:
     self.debug = debug
     self.debug_level = debug_level   #Number from 1-5, with 5 being the most verbose
     self.Modeler = MakeModel.Modeler(debug=self.debug)
+    self.parvals = [[] for i in range(len(self.parnames))]
+    self.chisq_vals = []
 
     #Just open and close chisq_summary, to clear anything already there
     outfile = open("chisq_summary.dat", "w")
@@ -259,8 +261,10 @@ class TelluricFitter:
 
     #Perform the fit
     self.first_iteration = True
-    fitout = leastsq(self.FitErrorFunction, fitpars, args=(linelist, ), full_output=True, epsfcn = 0.0005, maxfev=1000)
-    fitpars = fitout[0]
+    errfcn = lambda pars, linelist: numpy.sum(self.FitErrorFunction(pars, linelist))
+    fitpars = fmin_bfgs(errfcn, fitpars, args=(linelist, ), epsilon=numpy.array((1.0, 3e3)))
+    # fitout = leastsq(self.FitErrorFunction, fitpars, args=(linelist, ), full_output=True, epsfcn = 0.0005, maxfev=1000)
+    #fitpars = fitout[0]
         
     if self.fit_primary:
       return self.GenerateModel(fitpars, linelist, separate_primary=True)
