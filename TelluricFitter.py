@@ -37,7 +37,7 @@ import os
 import subprocess
 import scipy
 from scipy.interpolate import interp1d, UnivariateSpline
-from scipy.optimize import leastsq, brute, fmin, fmin_bfgs
+from scipy.optimize import leastsq, brute, fmin, fmin_bfgs, minimize, basinhopping
 from scipy.linalg import svd, diagsvd
 from scipy import mat
 import MakeModel2 as MakeModel
@@ -77,6 +77,7 @@ class TelluricFitter:
     self.Modeler = MakeModel.Modeler(debug=self.debug)
     self.parvals = [[] for i in range(len(self.parnames))]
     self.chisq_vals = []
+    self.ignore = []
 
     #Just open and close chisq_summary, to clear anything already there
     outfile = open("chisq_summary.dat", "w")
@@ -199,6 +200,27 @@ class TelluricFitter:
   """
   def EditAtmosphereProfile(self, profilename, profile_height, profile_value):
     self.Modeler.EditProfile(profilename, profile_height, profile_value)
+    
+  
+  """
+    Tells the fitter to ignore certain regions of the spectrum
+      in the chi-squared calculation. Useful for stellar lines.
+  """
+  def IgnoreRegions(self, region):
+    if not isinstance(region, list) or len(region) == 0:
+      raise TypeError("Must give a non-empty list to TelluricFitter.IgnoreRegions")
+    
+    if isinstance(region[0], list):
+      #The user gave a list of lists. Append each one to self.ignore
+      for r in region:
+        self.ignore.append(r)
+    elif isinstance(region[0], int):
+      #The user gave a single region. Append to self.ignore
+      self.ignore.append(region)
+    else:
+      raise TypeError("Unrecognized variable type for region given in TelluricFitter.IgnoreRegions")
+    
+    return
 
 
 
@@ -262,8 +284,12 @@ class TelluricFitter:
     #Perform the fit
     self.first_iteration = True
     errfcn = lambda pars, linelist: numpy.sum(self.FitErrorFunction(pars, linelist))
-    fitpars = fmin_bfgs(errfcn, fitpars, args=(linelist, ), epsilon=numpy.array((1.0, 3e3)))
-    # fitout = leastsq(self.FitErrorFunction, fitpars, args=(linelist, ), full_output=True, epsfcn = 0.0005, maxfev=1000)
+    bounds = [self.bounds[i] for i in range(len(self.parnames)) if self.fitting[i]]
+    optdict = {"rhobeg": 5.0}
+    #fitpars = fmin_bfgs(errfcn, fitpars, args=(linelist, ), epsilon=numpy.array((1.0, 3e3)))
+    fitpars = minimize(errfcn, fitpars, args=(linelist, ), method='COBYLA', bounds=bounds, options=optdict, tol=0.001).x
+    #fitpars = basinhopping(errfcn, fitpars, T=10.0, stepsize=5.0, minimizer_kwargs=optdict)
+    #fitout = leastsq(self.FitErrorFunction, fitpars, args=(linelist, ), full_output=True, epsfcn = 1.0e-2, maxfev=1000)
     #fitpars = fitout[0]
         
     if self.fit_primary:
@@ -278,7 +304,15 @@ class TelluricFitter:
     outfile = open("chisq_summary.dat", 'a')
     weights = 1.0/(self.data.err/self.data.cont)**2
     weights = weights/weights.sum()
-    return_array = (self.data.y  - self.data.cont*model.y)**2*weights
+    good = numpy.arange(self.data.x.size, dtype=numpy.int32)
+    for region in self.ignore:
+      x0 = min(region)
+      x1 = max(region)
+      tmp1 = [self.data.x[i] in self.data.x[good] for i in range(self.data.x.size)]
+      tmp2 = numpy.logical_or(self.data.x<x0, self.data.x>x1)
+      good = numpy.where(numpy.logical_and(tmp1, tmp2))[0]
+          
+    return_array = (self.data.y - self.data.cont*model.y)[good]**2 * weights[good]
     #Evaluate bound conditions
     fit_idx = 0
     for i in range(len(self.bounds)):
@@ -291,10 +325,11 @@ class TelluricFitter:
       elif len(self.bounds[i]) == 2 and self.parnames[i] != "resolution":
         return_array += FittingUtilities.bound(self.bounds[i], self.const_pars[i])
     outfile.write("%g\n" %(numpy.sum(return_array)))
-    self.chisq_vals.append(numpy.sum(return_array))
+    self.chisq_vals.append(numpy.sum(return_array)/float(weights.size))
     print "X^2 = ", numpy.sum(return_array)/float(weights.size)
     outfile.close()
     return return_array
+
 
 
 
@@ -495,8 +530,8 @@ class TelluricFitter:
         else:
           model, resolution = self.FitResolution(data.copy(), model_original.copy(), resolution)
         #Save resolution
-        idx = self.parnames.index("resolution")
-        self.const_pars[idx] = resolution
+        #idx = self.parnames.index("resolution")
+        #self.const_pars[idx] = resolution
       else:
         done = False
         print "Resolution fit mode set to an invalid value: %s" %self.resolution_fit_mode
@@ -787,6 +822,7 @@ class TelluricFitter:
     #print "Brute search best: %f" %(float(resolution))
     #resolution, success = leastsq(self.ResolutionFitError, resolution, args=(data, newmodel), epsfcn=.00001, ftol=0.05)
     
+    #resolution = minimize(ResolutionFitErrorBrute, resolution, args=(data, newmodel), method='COBYLA', bounds=self.resolution_bounds).x
     resolution = scipy.optimize.fminbound(ResolutionFitErrorBrute, self.resolution_bounds[0], self.resolution_bounds[1], xtol=1, args=(data,newmodel))
     
     print "Optimal resolution found at R = ", float(resolution)
