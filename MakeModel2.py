@@ -7,13 +7,10 @@ from scipy.signal import fftconvolve
 import os
 import DataStructures
 import MakeTape5
-#import Units
 from astropy import constants, units
 from collections import defaultdict
 import lockfile
 import struct
-#from pysynphot import observation
-#from pysynphot import spectrum
 from pysynphot.observation import Observation
 from pysynphot.spectrum import ArraySourceSpectrum, ArraySpectralElement
 
@@ -70,7 +67,7 @@ The pressure, temperature, etc... can be adjusted all the way
 on the bottom of this file.
 """
 class Modeler:
-  def __init__(self, debug=False, observatory="McDonald", NumRunDirs=4, TelluricModelingDirRoot="%s/School/Research/aerlbl_v12.2/" %(os.environ["HOME"]), nmolecules=12):
+  def __init__(self, debug=False, NumRunDirs=4, TelluricModelingDirRoot="%s/School/Research/aerlbl_v12.2/" %(os.environ["HOME"]), nmolecules=12):
 
     Atmosphere = defaultdict(list)
     indices = {}

@@ -3,6 +3,8 @@ from scipy.interpolate import UnivariateSpline
 import numpy
 import DataStructures
 from astropy import constants
+import warnings
+import sys
 
 #Provides relations temperature, luminosity, radius, and mass for varius spectral types
 #Data comes from Carroll and Ostlie book, or interpolated from it
@@ -598,8 +600,9 @@ class PreMainSequence:
         Teff = float(segments[5])  #Effective temperature
         logg = float(segments[6])   #gravity
         evol_stage = int(segments[-1])
+        
       
-        if evol_stage <= maximum_stage:      
+        if evol_stage <= maximum_stage:
           Tracks[age]["Initial Mass"].append(m_initial)
           Tracks[age]["Mass"].append(mass)
           Tracks[age]["Temperature"].append(Teff)
@@ -610,7 +613,30 @@ class PreMainSequence:
     self.Tracks = Tracks
         
         
+        
   def GetFromTemperature(self, age, temperature, key='Mass'):
+    #Check that the user gave a valid key
+    valid = ["Initial Mass", "Mass", "Luminosity", "Gravity", "Radius"]
+    if key not in valid:
+      print "Error! 'key' keyword must be one of the following"
+      for v in valid:
+        print "\t%s" %v
+      sys.exit()
+    elif key == "Radius":
+      #We need to get this from the luminosity and temperature
+      lum = self.GetFromTemperature(age, temperature, key="Luminosity")
+      return numpy.sqrt(lum) / (temperature/5780.0)**2
+      #G = constants.G.cgs.value
+      #Msun = constants.M_sun.cgs.value
+      #Rsun = constants.R_sun.cgs.value
+      #logg_sun = numpy.log10(G*Msun/Rsun**2)
+      
+      #logg = self.GetFromTemperature(age, temperature, key="Gravity")
+      #mass = self.GetFromTemperature(age, temperature, key="Mass")
+      #return numpy.sqrt( logg_sun/logg * mass )
+      
+      
+    #Otherwise, do all of this  
     Tracks = self.Tracks
     age = numpy.log10(age)
     temperature = numpy.log10(temperature)
@@ -619,15 +645,25 @@ class PreMainSequence:
     best_age, next_best_age = HelperFunctions.GetSurrounding(Tracks.keys(), age)
   
     #For each age, find the two closest temperatures to the one requested,
-    #  and linearly interpolate to find the corresponding mass
+    #  and linearly interpolate to find the corresponding mass (or key)
     T = Tracks[best_age]["Temperature"]
     M = Tracks[best_age][key]
+    #print "max T = ", max(T), len(T), len(M), age, best_age, temperature
+    #print T
+    #print M, '\n\n'
     tmp = zip(T,M)
     tmp.sort()
     T, M = zip(*tmp)
+    #print max(T)
     best_idx, next_best_idx = HelperFunctions.GetSurrounding(T, temperature, return_index=True)
     T1, T2 = T[best_idx], T[next_best_idx]
     m1, m2 = M[best_idx], M[next_best_idx]
+    if T1 < temperature and T1 == max(T):
+      warnings.warn("Requested temperature (%g) at this age (%g) is in post-main sequence evolution!" %(10**temperature, 10**age))
+      #print 10**T1, 10**temperature, max(T)
+      #print age, best_age
+      #print T, '\n'
+      #sys.exit()
     best_mass = m1 if T1 == T2 else (m2 - m1)/(T2-T1)*(temperature - T1) + m1
   
     T = Tracks[next_best_age]["Temperature"]
@@ -642,12 +678,101 @@ class PreMainSequence:
   
     #Finally, linearly interpolate the mass to get the requested age
     mass = (next_best_mass - best_mass)/(next_best_age - best_age) * (age - best_age) + best_mass
+    if key == "Luminosity":
+      mass = 10**mass
     return mass      
     
     
   def Interpolate(self, SpT, age, key="Mass"):
     Teff = self.MS.Interpolate(self.MS.Temperature, SpT)
     return self.GetFromTemperature(age, Teff, key)
+    
+    
+    
+  def GetTemperature(self, mass, age):
+    Tracks = self.Tracks
+    age = numpy.log10(age)
+  
+    #First, get the two closest ages to the one requested
+    best_age, next_best_age = HelperFunctions.GetSurrounding(Tracks.keys(), age)
+  
+    #For each age, find the two closest masses to the one requested,
+    #  and linearly interpolate to find the corresponding temperature
+    T = Tracks[best_age]["Temperature"]
+    M = Tracks[best_age]["Mass"]
+    tmp = zip(T,M)
+    tmp.sort()
+    T, M = zip(*tmp)
+    best_idx, next_best_idx = HelperFunctions.GetSurrounding(M, mass, return_index=True)
+    T1, T2 = T[best_idx], T[next_best_idx]
+    m1, m2 = M[best_idx], M[next_best_idx]
+    best_temperature = T1 if m1 == m2 else (T2 - T1)/(m2-m1)*(mass - m1) + T1
+  
+    T = Tracks[next_best_age]["Temperature"]
+    M = Tracks[next_best_age]["Mass"]
+    tmp = zip(T,M)
+    tmp.sort()
+    T, M = zip(*tmp)
+    best_idx, next_best_idx = HelperFunctions.GetSurrounding(M, mass, return_index=True)
+    T1, T2 = T[best_idx], T[next_best_idx]
+    m1, m2 = M[best_idx], M[next_best_idx]
+    next_best_temperature = T1 if m1 == m2 else (T2 - T1)/(m2-m1)*(mass - m1) + T1
+  
+    #Finally, linearly interpolate the mass to get the requested age
+    temperature = (next_best_temperature - best_temperature)/(next_best_age - best_age) * (age - best_age) + best_temperature
+    return 10**temperature
+    
+    
+    
+  def GetMainSequenceAge(self, mass):
+    Tracks = self.Tracks
+    ages = sorted(Tracks.keys())
+    
+    #Find the masses that are common to at least the first few ages
+    common_masses = list(Tracks[ages[0]]["Mass"])
+    tol = 0.001
+    for i in range(1,3):
+      age = ages[i]
+      masses = numpy.array(Tracks[age]["Mass"])
+      length = len(common_masses)
+      badindices = []
+      for j, m in enumerate(common_masses[::-1]):
+        if numpy.min(numpy.abs(m - masses)) > tol:
+          badindices.append(length - 1 - j)
+      for idx in badindices:
+        common_masses.pop(idx)
+    
+    
+    #Find the mass closest to the requested one.
+    m1, m2 = HelperFunctions.GetSurrounding(common_masses, mass)
+    if m1 < mass and m1 == common_masses[-1]:
+      warnings.warn("Requested mass ( %g ) is above the highest common mass in the evolutionary tracks ( %g )" %(mass, m1))
+    elif m1 > mass and m1 == common_masses[0]:
+      warnings.warn("Requested mass ( %g ) is below the lowest common mass in the evolutionary tracks ( %g )" %(mass, m1))
+    age1 = 0.0
+    age2 = 0.0
+    
+    done = False
+    i = 1
+    while not done and i < len(ages):
+      age = ages[i]
+      masses = numpy.array(Tracks[age]["Mass"])
+      done = True
+      if numpy.min(numpy.abs(m1 - masses)) <= tol:
+        age1 = age
+        done = False
+      if numpy.min(numpy.abs(m2 - masses)) <= tol:
+        age2 = age
+        done = False
+      i += 1
+        
+    return 10**((age1 - age2)/(m1 - m2)*(mass-m1) + age1)
+    
+    
+  def GetSpectralType(self, temperature, interpolate=False):
+    return self.MS.GetSpectralType(self, self.MS.Temperature, value, interpolate)
+    
+    
         
         
         

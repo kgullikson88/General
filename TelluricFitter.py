@@ -656,7 +656,7 @@ class TelluricFitter:
     old = []
     new = []
     linelist = FittingUtilities.FindLines(telluric, debug=self.debug, tol=0.995)
-    if len(linelist) < 1:
+    if len(linelist) < fitorder:
       fit = lambda x: x
       mean = 0.0
       return fit, mean
@@ -804,25 +804,9 @@ class TelluricFitter:
     #Subsample the model to speed this part up (it doesn't affect the accuracy much)
     xgrid = numpy.linspace(model.x[0], model.x[-1], model.size()/5)
     newmodel = MakeModel.RebinData(model, xgrid)
-    
-    #Interpolate to constant wavelength spacing
-    #xgrid = numpy.linspace(model.x[0], model.x[-1], model.x.size)
-    #newmodel = MakeModel.RebinData(model, xgrid)
 
     ResolutionFitErrorBrute = lambda resolution, data, model: numpy.sum(self.ResolutionFitError(resolution, data, model))
-    """
-    #Do a brute force grid search first, then refine with Levenberg-Marquardt
-    searchgrid = (self.resolution_bounds[0], self.resolution_bounds[1], dR)
-    resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel), finish=None)
-    searchgrid = (resolution-dR, resolution+dR+1, dR/10.0)
-    resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel), finish=None)
-    searchgrid = (resolution-dR/10.0, resolution+dR/10.0+1, dR/100.0)
-    resolution = brute(ResolutionFitErrorBrute,(searchgrid,), args=(data,newmodel), finish=None)
-    """
-    #print "Brute search best: %f" %(float(resolution))
-    #resolution, success = leastsq(self.ResolutionFitError, resolution, args=(data, newmodel), epsfcn=.00001, ftol=0.05)
     
-    #resolution = minimize(ResolutionFitErrorBrute, resolution, args=(data, newmodel), method='COBYLA', bounds=self.resolution_bounds).x
     resolution = scipy.optimize.fminbound(ResolutionFitErrorBrute, self.resolution_bounds[0], self.resolution_bounds[1], xtol=1, args=(data,newmodel))
     
     print "Optimal resolution found at R = ", float(resolution)
@@ -830,7 +814,7 @@ class TelluricFitter:
     return MakeModel.RebinData(newmodel, data.x), float(resolution)
   
 
-  #This function gets called by scipy.optimize.leastsq
+  #This function gets called by scipy.optimize.fminbound
   def ResolutionFitError(self, resolution, data, model):
     resolution = max(1000.0, float(int(float(resolution) + 0.5)))
     if self.debug and self.debug_level >= 5:

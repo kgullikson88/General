@@ -6,7 +6,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.interpolate import UnivariateSpline as smoother
 from scipy.linalg import solve_banded
 import scipy.stats
-from scipy.signal import argrelmin
+from scipy.signal import argrelmin, fftconvolve
 import DataStructures
 from astropy import units, constants
 import scipy.signal as sig
@@ -15,7 +15,19 @@ import mlpy
 import matplotlib.pyplot as plt
 import functools
 import MakeModel
-import emcee
+try:
+  import emcee
+except ImportError:
+  print "Warning! emcee module not loaded!"
+from pysynphot.observation import Observation
+from pysynphot.spectrum import ArraySourceSpectrum, ArraySpectralElement
+cimport numpy
+cimport cython
+from libc.math cimport exp, log, sqrt
+import sys
+
+DTYPE = numpy.float64
+ctypedef numpy.float64_t DTYPE_t
 
 
 #Define bounding functions:
@@ -495,5 +507,180 @@ def BayesFit(data, model_fcn, priors, limits=None, burn_in=100, nwalkers=100, ns
   if full_output:
     return priors, chain
   return priors
+  
+  
+  
+
+#This function rebins (x,y) data onto the grid given by the array xgrid
+#  It is designed to rebin to a courser wavelength grid, but can also
+#  interpolate to a finer grid
+def RebinData(data,xgrid, synphot=True):
+  if synphot:
+    newdata = DataStructures.xypoint(x=xgrid)
+    newdata.y = rebin_spec(data.x, data.y, xgrid)
+    newdata.cont = rebin_spec(data.x, data.cont, xgrid)
+    newdata.y[0] = data.y[0]
+    newdata.y[-1] = data.y[-1]
+    newdata.cont[0] = data.cont[0]
+    newdata.cont[-1] = data.cont[-1]
+    return newdata
+  else:
+    data_spacing = data.x[1] - data.x[0]
+    grid_spacing = xgrid[1] - xgrid[0]
+    newdata = DataStructures.xypoint(x=xgrid)
+    if grid_spacing < 2.0*data_spacing:
+      Model = scipy.interpolate.UnivariateSpline(data.x, data.y, s=0)
+      Continuum = scipy.interpolate.UnivariateSpline(data.x, data.cont, s=0)
+      newdata.y = Model(newdata.x)
+      newdata.cont = Continuum(newdata.x)
+
+    else:
+      left = numpy.searchsorted(data.x, (3*xgrid[0]-xgrid[1])/2.0)
+      for i in range(xgrid.size-1):
+        right = numpy.searchsorted(data.x, (xgrid[i]+xgrid[i+1])/2.0)
+        newdata.y[i] = numpy.mean(data.y[left:right])
+        newdata.cont[i] = numpy.mean(data.cont[left:right])
+        left = right
+      right = numpy.searchsorted(data.x, (3*xgrid[-1]-xgrid[-2])/2.0)
+      newdata.y[xgrid.size-1] = numpy.mean(data.y[left:right])
+  
+    return newdata
+
+
+
+def rebin_spec(wave, specin, wavnew):
+  
+  spec = ArraySourceSpectrum(wave=wave, flux=specin)
+  f = numpy.ones(len(wave))
+  filt = ArraySpectralElement(wave, f)
+  obs = Observation(spec, filt, binset=wavnew, force='taper')
+  
+  return obs.binflux
+
+
+#This function reduces the resolution by convolving with a gaussian kernel
+def ReduceResolution(data,resolution, cont_fcn=None, extend=True):
+  centralwavelength = (data.x[0] + data.x[-1])/2.0
+  xspacing = data.x[1] - data.x[0]   #NOTE: this assumes constant x spacing!
+  FWHM = centralwavelength/resolution;
+  sigma = FWHM/(2.0*numpy.sqrt(2.0*numpy.log(2.0)))
+  left = 0
+  right = numpy.searchsorted(data.x, 10*sigma)
+  x = numpy.arange(0,10*sigma, xspacing)
+  gaussian = numpy.exp(-(x-5*sigma)**2/(2*sigma**2))
+  if extend:
+    #Extend array to try to remove edge effects (do so circularly)
+    before = data.y[-gaussian.size/2+1:]
+    after = data.y[:gaussian.size/2]
+    #extended = numpy.append(numpy.append(before, data.y), after)
+    extended = numpy.r_[before, data.y, after]
+
+    first = data.x[0] - float(int(gaussian.size/2.0+0.5))*xspacing
+    last = data.x[-1] + float(int(gaussian.size/2.0+0.5))*xspacing
+    x2 = numpy.linspace(first, last, extended.size) 
+    
+    conv_mode = "valid"
+
+  else:
+    extended = data.y.copy()
+    x2 = data.x.copy()
+    conv_mode = "same"
+
+  newdata = data.copy()
+  if cont_fcn != None:
+    cont1 = cont_fcn(newdata.x)
+    cont2 = cont_fcn(x2)
+    cont1[cont1 < 0.01] = 1
+  
+    newdata.y = fftconvolve(extended*cont2, gaussian/gaussian.sum(), mode=conv_mode)/cont1
+
+  else:
+    newdata.y = fftconvolve(extended, gaussian/gaussian.sum(), mode=conv_mode)
+    
+  return newdata
+  
+  
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cdef numpy.ndarray[DTYPE_t, ndim=1] convolve(numpy.ndarray[DTYPE_t, ndim=1] x, 
+                                             numpy.ndarray[DTYPE_t, ndim=1] y,
+                                             numpy.ndarray[DTYPE_t, ndim=1] output,
+                                             
+                                             double R,
+                                             double nsig):
+  cdef int i, n, start, end, length
+  cdef double dx, sigma, total, conv, g, x0
+  cdef numpy.ndarray[DTYPE_t, ndim=1] sig
+  
+  dx = x[1] - x[0]    #Assumes constant x-spacing!
+  
+  #Determine the edges
+  sig = x/(2.0*R*sqrt(2.0*log(2.0)))
+  n1 = numpy.searchsorted((x-x[0])/sig, nsig)
+  n2 = numpy.searchsorted((x-x[x.size-1])/sig, -nsig)
+  
+  #The slow part is here! Not sure why, this is just a convolution code in pure c...
+  
+  #Convolution outer loop
+  for n in range(n1, n2):
+    sigma = sig[n]
+    length = int(sigma/dx * nsig + 0.5)
+    x0 = x[n]
+    total = 0.0
+    conv = 0.0
+    
+    #Inner loop
+    for i in range(-length, length+1):
+      g = exp(-(x[n+i]-x0)**2 / (2.0*sigma**2))
+      total += g
+      conv += g*y[n+i]
+    output[n] = conv/total
+  return output
+  
+  
+  
+def ReduceResolution2(data,resolution, extend=True, nsig=5):
+  sig1 = data.x[0]/(2.0*resolution*numpy.sqrt(2.0*numpy.log(2.0)))
+  sig2 = data.x[-1]/(2.0*resolution*numpy.sqrt(2.0*numpy.log(2.0)))
+  dx = data.x[1] - data.x[0]
+  n1 = int(sig1*(nsig+1)/dx + 0.5)
+  n2 = int(sig2*(nsig+1)/dx + 0.5)
+  
+  if extend:
+    #Extend array to try to remove edge effects (do so circularly)
+    before = data.y[-n1:]
+    after = data.y[:n2]
+    #extended = numpy.append(numpy.append(before, data.y), after)
+    extended = numpy.r_[before, data.y, after]
+
+    first = data.x[0] - n1*dx
+    last = data.x[-1] + n2*dx
+    x2 = numpy.linspace(first, last, extended.size)
+    convolved = numpy.ones(extended.size)
+    convolved = convolve(x2, extended, convolved, resolution, nsig)
+    convolved = convolved[n1:convolved.size-n2] 
+
+  else:
+    extended = data.y.copy()
+    x2 = data.x.copy()
+    convolved = numpy.ones(extended.size)
+    convolved = convolve(x2, extended, convolved, resolution, nsig)
+    
+
+  newdata = data.copy()
+  newdata.y = convolved
+  return newdata 
+  
+    
+  
+  
+  
+
+  
+
+#Just a convenince fcn which combines the above two
+def ReduceResolutionAndRebinData(data,resolution,xgrid):
+  data = ReduceResolution(data,resolution)
+  return RebinData(data,xgrid)
 
 

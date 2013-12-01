@@ -1,36 +1,6 @@
 import numpy
 import sys
 
-class GridSearchOut:
-  def __init__(self, size):
-    self.wave = numpy.zeros(size)
-    self.rect = numpy.zeros(size)
-    self.opt = numpy.zeros(size)
-    self.recterr = numpy.zeros(size)
-    self.opterr = numpy.zeros(size)
-    self.cont = numpy.zeros(size)
-  def copy(self):
-    copy = GridSearchOut(self.wave.size)
-    copy.wave = self.wave.copy()
-    copy.rect = self.rect.copy()
-    copy.opt = self.opt.copy()
-    copy.recterr = self.recterr.copy()
-    copy.opterr = self.opterr.copy()
-    copy.cont = self.cont.copy()
-    return copy
-  def size(self):
-    return self.wave.size
-  def ToXypoint(self):
-    output = xypoint(self.wave.size)
-    output.x = self.wave.copy()
-    output.y = self.opt.copy()
-    output.err = self.opterr.copy()
-    output.cont = self.cont.copy()
-    return output
-  def output(self, outfilename):
-    numpy.savetxt(outfilename, numpy.transpose((self.wave, self.rect, self.opt, self.recterr, self.opterr, self.cont)) )
-
-
 
 class xypoint:
   def __init__(self, size=100, x=None, y=None, cont=None, err=None):
@@ -71,25 +41,20 @@ class xypoint:
       return copy
   def size(self):
       return self.x.size
-  def ToGridSearchOut(self):
-    output = GridSearchOut(self.x.size)
-    output.wave = self.x.copy()
-    output.opt = self.y.copy()
-    output.opterr = self.err.copy()
-    output.cont = self.cont.copy()
-    return output
   def output(self, outfilename):
     numpy.savetxt(outfilename, numpy.transpose((self.x, self.y, self.cont, self.err)) )
   def __getitem__(self, index):
     if isinstance(index, slice):
+      start = max(0, index.start)
+      stop = min(index.stop, self.size())
       if index.step == None:
         step = 1
       else:
         step = index.step
-      x = numpy.array([self.x[i] for i in range(index.start, index.stop, step)])
-      y = numpy.array([self.y[i] for i in range(index.start, index.stop, step)])
-      cont = numpy.array([self.cont[i] for i in range(index.start, index.stop, step)])
-      err = numpy.array([self.err[i] for i in range(index.start, index.stop, step)])
+      x = numpy.array([self.x[i] for i in range(start, stop, step)])
+      y = numpy.array([self.y[i] for i in range(start, stop, step)])
+      cont = numpy.array([self.cont[i] for i in range(start, stop, step)])
+      err = numpy.array([self.err[i] for i in range(start, stop, step)])
       return xypoint(x=x, y=y, cont=cont, err=err)
     else:
       return [self.x[index], self.y[index], self.cont[index], self.err[index]]

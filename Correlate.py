@@ -14,38 +14,19 @@ import FittingUtilities
 import RotBroad_Fast as RotBroad
 import time
 import FittingUtilities
-
-class Resid:
-  def __init__(self, size):
-    wave = numpy.zeros(size)
-    rect = numpy.zeros(size)
-    opt = numpy.zeros(size)
-    recterr = numpy.zeros(size)
-    opterr = numpy.zeros(size)
-    cont = numpy.zeros(size)
-
-#Ensure a directory exists. Create it if not
-def ensure_dir(f):
-    d = os.path.dirname(f)
-    if not os.path.exists(d):
-        os.makedirs(d)
+import HelperFunctions
+from astropy import units, constants
 
 
 currentdir = os.getcwd() + "/"
 homedir = os.environ["HOME"]
-correlationdir = homedir + "/School/Research/Models/PlanetFinder/src/CRIRES/"
 outfiledir = currentdir + "Cross_correlations/"
 modeldir = homedir + "/School/Research/Models/Sorted/Stellar/Vband/"
-gridspacing = "2e-4"
 minvel = -1000  #Minimum velocity to output, in km/s
 maxvel = 1000  
 
-ensure_dir(outfiledir)
+HelperFunctions.ensure_dir(outfiledir)
 
-#star_list = ["M2", "M1", "M0", "K9", "K8", "K7", "K6", "K5", "K4", "K3", "K2", "K1","K0", "G9", "G8", "G7", "G6", "G5", "G4", "G3", "G2", "G1", "G0", "F9", "F8", "F7", "F6", "F5", "F4", "F3", "F2", "F1"]
-#temp_list = [3000, 3200, 3400, 3600, 3800, 4000, 4200, 4400, 4600, 4800, 5000, 5100, 5200, 5225, 5310, 5385, 5460, 5545, 5625, 5700, 5770, 5860, 5940, 6117, 6250, 6395, 6512, 6650, 6775, 6925, 7050, 7185]
-#temp_list = [3000, 3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 4200 ,4300, 4400, 4500, 4600, 4700, 4800, 4900, 5000, 5100, 5200, 5300, 5400, 5500, 5600, 5700, 5800, 5900, 6100, 6300, 6400, 6500, 6700, 6800, 6900, 7000, 7200]
-#star_list = [str(T) for T in temp_list]
 model_list = [modeldir + "lte30-4.00-0.0.AGS.Cond.PHOENIX-ACES-2009.HighRes.7.sorted",
               modeldir + "lte31-4.00-0.0.AGS.Cond.PHOENIX-ACES-2009.HighRes.7.sorted",
               modeldir + "lte32-4.00-0.0.AGS.Cond.PHOENIX-ACES-2009.HighRes.7.sorted",
@@ -98,39 +79,8 @@ for fname in model_list:
   gravity_list.append(gravity)
   metallicity_list.append(metallicity)
 
-
-def Corr(filename):
-  #Generate cross-correlator input
-  outlines = []
-  outlines.append("Telluric-Corrected Observation datafile:  =  " + currentdir + filename + "\n")
-  outlines.append("Wavelength grid spacing (nm)............  =  " + gridspacing + "\n")
-  outlines.append("Output File directory...................  =  " + outfiledir + "\n")
-  outlines.append("Number of atmosphere models to use......  =  " + str(len(star_list)) + "\n")
-  for i in range(len(star_list)):
-    line = "Atmosphere model #" + str(i+1) + "...................."
-    if len(line) == 39:
-      extn = ".  =  "
-    else:
-      extn = "  =  "
-    line = line + extn + model_list[i]
-    outlines.append(line + "\n")
-    outlines.append("Model #" + str(i+1) + " effective temperature (K)....." + extn + str(temp_list[i]) + "\n")
-    outlines.append("Model #" + str(i+1) + " scale factor.................." + extn + "1\n")
-    outlines.append("Model #" + str(i+1) + " Spectral Type................." + extn + star_list[i] + "\n")
-  
-  #Write cross-correlator input file
-  outfile = open(correlationdir + "DefaultInfo.StarSearch", "w")
-  for line in outlines:
-    outfile.write(line)
-  outfile.close()
-  
-  #Run cross-correlator
-  cmdstring = "cd " + correlationdir + ";./StarSearch"
-  subprocess.check_call(cmdstring, shell=True)
-  
-  return
     
-
+"""
 #This will do the correlation within python/numpy
 #The combine keyword decides whether to combine the chips into a master cross-correlation 
 #The normalize keyword decides whether to output as correlation power, or as significance
@@ -369,12 +319,13 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
       returnlist.append((vel, corr))
     time.sleep(pause)
   return returnlist
-
+"""
 
 """
-   Very similar to the above version, but takes in a list of xypoint chips (for echelles...)
+   Function to make a cross-correlation function out of echelle data.
+   Expects a list of xypoints as input, and various optional inputs.
 """
-def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temps=temp_list, models=model_list, model_fcns = None, gravities=gravity_list, metallicities=metallicity_list, corr_mode='valid', process_model=True, vsini=15*units.km.to(units.cm), resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, outfilebase="", debug=False):
+def PyCorr2(data, stars=star_list, temps=temp_list, models=model_list, model_fcns = None, gravities=gravity_list, metallicities=metallicity_list, corr_mode='valid', process_model=True, vsini=15*units.km.to(units.cm), resolution=100000, segments="all", save_output=True, outdir=outfiledir, outfilename=None, outfilebase="", debug=False):
 
   makefname = False
   if outfilename == None:
@@ -382,25 +333,21 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
 
   if model_fcns == None:
     model_fcns = [None for m in models]
-
+    
+  
+  #Re-sample all orders of the data to logspacing
   for i, order in enumerate(data):
-    #Sigma-clipping?
-    if sigmaclip:
-      done = False
-      wave = order.x.copy()
-      flux = order.y.copy()
-      while not done:
-        done = True
-        fit = numpy.poly1d(numpy.polyfit(wave, flux, clip_order))
-        residuals = flux - fit(wave)
-        mean = numpy.mean(residuals)
-        std = numpy.std(residuals)
-        badindices = numpy.where(numpy.abs(residuals - mean) > nsigma*std)[0]
-        flux[badindices] = fit(wave[badindices])
-        if badindices.size > 0:
-          done = False
-      order.y = flux.copy()
-      data[i] = order.copy()
+    start = numpy.log(order.x[0])
+    end = numpy.log(order.x[-1])
+    neworder = order.copy()
+    neworder.x = numpy.logspace(start, end, order.size(), base=numpy.e)
+    neworder = FittingUtilities.RebinData(order, neworder.x)
+    data[i] = neworder    
+    if debug:
+      plt.plot(neworder.x, neworder.y)
+      plt.plot(neworder.x, neworder.cont)
+      plt.show()
+
     
   #3: Begin loop over model spectra
   returnlist = []
@@ -474,7 +421,11 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
           print model.y
 
         #f: Rebin to the same spacing as the data
-        xgrid = numpy.arange(model2.x[0], model2.x[-1], order.x[1] - order.x[0])
+        logspacing = numpy.log(order.x[1]/order.x[0])
+        start = numpy.log(model2.x[0])
+        end = numpy.log(model2.x[-1])
+        xgrid = numpy.exp(numpy.arange(start, end+logspacing, logspacing))
+        #xgrid = numpy.arange(model2.x[0], model2.x[-1], order.x[1] - order.x[0])
         model2 = MakeModel.RebinData(model2.copy(), xgrid)
         if debug:
           print "After rebinning"
@@ -505,13 +456,16 @@ def PyCorr2(data, sigmaclip=False, nsigma=3, clip_order=3, stars=star_list, temp
         lags = xcorr - model2.x.size
       else:
         sys.exit("Sorry! corr_mode = %s not supported yet!" %corr_mode)
-      distancePerLag = model2.x[1] - model2.x[0]
+      #distancePerLag = model2.x[1] - model2.x[0]
+      #offsets = -lags*distancePerLag
+      #velocity = offsets*3e5 / numpy.median(order.x)   
+      distancePerLag = numpy.log(model2.x[1] / model2.x[0])
       offsets = -lags*distancePerLag
-      velocity = offsets*3e5 / numpy.median(order.x)   
+      velocity = offsets * constants.c.cgs.value * units.cm.to(units.km)
       corr = DataStructures.xypoint(velocity.size)
       corr.x = velocity[::-1]
       #corr.y = ycorr[::-1]/model_rms
-      corr.y = ycorr[::-1]/(data_rms*model_rms*float(reduceddata.size))
+      corr.y = ycorr[::-1]/(data_rms*model_rms*float(ycorr.size))
       if debug:
         if numpy.any(numpy.isnan([corr.y[i] for i in range(corr.size())])):
           print "NaN found in correlation!"

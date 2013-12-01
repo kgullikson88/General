@@ -229,7 +229,7 @@ def BinomialErrors(n, N, debug=False, tol=0.001):
 def GetSurrounding(full_list, value, return_index=False): 
   full_list = sorted(full_list)
   closest = numpy.argmin([abs(v - value) for v in full_list])
-  next_best = closest-1 if full_list[closest] > value else closest+1
+  next_best = closest-1 if full_list[closest] > value or closest == len(full_list)-1 else closest+1
   if return_index:
     return closest, next_best
   else:
