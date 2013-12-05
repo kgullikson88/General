@@ -27,6 +27,24 @@ Usage:
       data2 = fitter.data  
 
 
+      
+
+    This file is part of the TelluricFitter program.
+
+    TelluricFitter is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    TelluricFitter is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with TelluricFitter.  If not, see <http://www.gnu.org/licenses/>.
+
+
 """
 
 
@@ -65,7 +83,7 @@ class TelluricFitter:
     self.resolution_bounds = [10000.0, 100000.0]
 
     homedir = os.environ['HOME']
-    self.LineListFile = homedir + "/School/Research/Useful_Datafiles/Linelist2.dat"
+    #self.LineListFile = homedir + "/School/Research/Useful_Datafiles/Linelist2.dat"
     self.resolution_fit_mode="SVD"
     self.fit_primary = False
     self.adjust_wave = "data"
@@ -189,8 +207,8 @@ class TelluricFitter:
       the wavelength calibration of the data, so they should be strong, unblended lines.
       Wavelengths in nanometers
   """
-  def SetTelluricLineListFile(self, fname):
-    self.LineListFile = fname
+  #def SetTelluricLineListFile(self, fname):
+  #  self.LineListFile = fname
 
 
 
@@ -267,7 +285,7 @@ class TelluricFitter:
       return
     
     #Read in line list (used only for wavelength calibration):
-    linelist = numpy.loadtxt(self.LineListFile, usecols=(0,))
+    #linelist = numpy.loadtxt(self.LineListFile, usecols=(0,))
 
     #Set up the fitting logfile and logging arrays
     self.parvals = [[] for i in range(len(self.parnames))]
@@ -283,27 +301,34 @@ class TelluricFitter:
 
     #Perform the fit
     self.first_iteration = True
-    errfcn = lambda pars, linelist: numpy.sum(self.FitErrorFunction(pars, linelist))
+    #errfcn = lambda pars, linelist: numpy.sum(self.FitErrorFunction(pars, linelist))
+    errfcn = lambda pars: numpy.sum(self.FitErrorFunction(pars))
     bounds = [self.bounds[i] for i in range(len(self.parnames)) if self.fitting[i]]
     optdict = {"rhobeg": 5.0}
     #fitpars = fmin_bfgs(errfcn, fitpars, args=(linelist, ), epsilon=numpy.array((1.0, 3e3)))
-    fitpars = minimize(errfcn, fitpars, args=(linelist, ), method='COBYLA', bounds=bounds, options=optdict, tol=0.001).x
+    #fitpars = minimize(errfcn, fitpars, args=(linelist, ), method='COBYLA', bounds=bounds, options=optdict, tol=0.001).x
+    fitpars = minimize(errfcn, fitpars, method='COBYLA', bounds=bounds, options=optdict, tol=0.001).x
     #fitpars = basinhopping(errfcn, fitpars, T=10.0, stepsize=5.0, minimizer_kwargs=optdict)
     #fitout = leastsq(self.FitErrorFunction, fitpars, args=(linelist, ), full_output=True, epsfcn = 1.0e-2, maxfev=1000)
     #fitpars = fitout[0]
         
     if self.fit_primary:
-      return self.GenerateModel(fitpars, linelist, separate_primary=True)
+      #return self.GenerateModel(fitpars, linelist, separate_primary=True)
+      return self.GenerateModel(fitpars, separate_primary=True)
     else:
-      return self.GenerateModel(fitpars, linelist)
+      #return self.GenerateModel(fitpars, linelist)
+      return self.GenerateModel(fitpars)
     
 
 
-  def FitErrorFunction(self, fitpars, linelist):
-    model = self.GenerateModel(fitpars, linelist)
+  #def FitErrorFunction(self, fitpars, linelist):
+  def FitErrorFunction(self, fitpars):
+    #model = self.GenerateModel(fitpars, linelist)
+    model = self.GenerateModel(fitpars)
     outfile = open("chisq_summary.dat", 'a')
-    weights = 1.0/(self.data.err/self.data.cont)**2
-    weights = weights/weights.sum()
+    #weights = 1.0/(self.data.err/self.data.cont)**2
+    #weights = weights/weights.sum()
+    weights = 1.0 / self.data.err**2
     good = numpy.arange(self.data.x.size, dtype=numpy.int32)
     for region in self.ignore:
       x0 = min(region)
@@ -339,7 +364,8 @@ class TelluricFitter:
     wavelength, and fitting the detector resolution
 
   """
-  def GenerateModel(self, pars, linelist, nofit=False, separate_primary=False):
+  #def GenerateModel(self, pars, linelist, nofit=False, separate_primary=False):
+  def GenerateModel(self, pars, nofit=False, separate_primary=False):
     data = self.data
     #Update self.const_pars to include the new values in fitpars
     #  I know, it's confusing that const_pars holds some non-constant parameters...
@@ -474,10 +500,12 @@ class TelluricFitter:
 
     #Fine-tune the wavelength calibration by fitting the location of several telluric lines
     if self.fit_primary:
-      modelfcn, mean = self.FitWavelengthOld(data, model2.copy(), linelist, fitorder=self.wavelength_fit_order)
+      #modelfcn, mean = self.FitWavelengthOld(data, model2.copy(), linelist, fitorder=self.wavelength_fit_order)
+      modelfcn, mean = self.FitWavelengthOld(data, model2.copy(), fitorder=self.wavelength_fit_order)
       #modelfcn, mean = self.FitWavelength(data, model2.copy(), fitorder=self.wavelength_fit_order)
     else:
-      modelfcn, mean = self.FitWavelengthOld(data, model.copy(), linelist, fitorder=self.wavelength_fit_order)
+      #modelfcn, mean = self.FitWavelengthOld(data, model.copy(), linelist, fitorder=self.wavelength_fit_order)
+      modelfcn, mean = self.FitWavelengthOld(data, model.copy(), fitorder=self.wavelength_fit_order)
       #modelfcn, mean = self.FitWavelength(data, model.copy(), fitorder=self.wavelength_fit_order)
       
     if self.adjust_wave == "data":
@@ -580,7 +608,7 @@ class TelluricFitter:
   
   """
     Function to fine-tune the wavelength solution of a generated model
-      It does so looking for telluric lines given in linelist in both the
+      It does so looking for telluric lines in both the
       data and the telluric model. For each line, it finds the shift needed
       to make them line up, and then fits a function to that fit over the
       full wavelength range of the data.
@@ -651,7 +679,8 @@ class TelluricFitter:
 
 
   #FitWavelength function from a previous version. Left here in case I need it
-  def FitWavelengthOld(self, data_original, telluric, linelist, tol=0.05, oversampling=4, fitorder=3):
+  #def FitWavelengthOld(self, data_original, telluric, linelist, tol=0.05, oversampling=4, fitorder=3):
+  def FitWavelengthOld(self, data_original, telluric, tol=0.05, oversampling=4, fitorder=3):
     print "Fitting Wavelength"
     old = []
     new = []

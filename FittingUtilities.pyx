@@ -1,5 +1,22 @@
 """
-Just a set of useful functions that I use often while fitting
+    A set of useful functions that I use often while fitting
+
+
+    
+    This file is part of the TelluricFitter program.
+
+    TelluricFitter is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    TelluricFitter is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with TelluricFitter.  If not, see <http://www.gnu.org/licenses/>.
 """
 import numpy
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
@@ -10,11 +27,9 @@ from scipy.signal import argrelmin, fftconvolve
 import DataStructures
 from astropy import units, constants
 import scipy.signal as sig
-import pywt
 import mlpy
 import matplotlib.pyplot as plt
 import functools
-import MakeModel
 try:
   import emcee
 except ImportError:
@@ -98,14 +113,6 @@ def Continuum(x, y, fitorder=3, lowreject=2, highreject=4, numiter=10000, functi
 
 
 
-"""
-  General error function for leastsq
-"""
-def GeneralLSErrorFunction(data, model, normalize=True):
-  if normalize:
-    return (data.y/data.cont - model.y/model.cont)**2 / data.err**2
-  else:
-    return (data.y - model.y)**2 / data.err**2 
 
 
 
@@ -271,11 +278,6 @@ def IterativeLowPass(data, vel, numiter=100, lowreject=3, highreject=3, width=5,
     linear.y = datafcn(linear.x)
     linear.err = errorfcn(linear.x)
     linear.cont = contfcn(linear.x)
-    #import matplotlib.pyplot as plt
-    #plt.figure(10)
-    #plt.plot(datacopy.x, datacopy.y)
-    #plt.plot(linear.x, linear.y)
-    #plt.show()
     datacopy = linear.copy()
     
   done = False
@@ -618,8 +620,6 @@ cdef numpy.ndarray[DTYPE_t, ndim=1] convolve(numpy.ndarray[DTYPE_t, ndim=1] x,
   sig = x/(2.0*R*sqrt(2.0*log(2.0)))
   n1 = numpy.searchsorted((x-x[0])/sig, nsig)
   n2 = numpy.searchsorted((x-x[x.size-1])/sig, -nsig)
-  
-  #The slow part is here! Not sure why, this is just a convolution code in pure c...
   
   #Convolution outer loop
   for n in range(n1, n2):

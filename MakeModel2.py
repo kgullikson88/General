@@ -1,3 +1,32 @@
+"""
+
+    This file provides the MakeModel class. It is what directly interfaces
+      with LBLRTM to make the telluric model. You can call this function 
+      from the bash shell using the command 'python MakeModel2.py' to generate
+      a model transmission spectrum. The input settings for the model can be
+      adjusted at the bottom of this file (after the line that reads
+      'if __name__ == "__main__":')
+
+
+    This file is part of the TelluricFitter program.
+
+    TelluricFitter is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    TelluricFitter is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with TelluricFitter.  If not, see <http://www.gnu.org/licenses/>.
+
+
+"""
+
+
 import numpy
 import sys
 import subprocess
@@ -14,9 +43,6 @@ import struct
 from pysynphot.observation import Observation
 from pysynphot.spectrum import ArraySourceSpectrum, ArraySpectralElement
 
-homedir = os.environ['HOME']
-TelluricModelingDirRoot = "%s/School/Research/aerlbl_v12.2/" %homedir
-NumRunDirs = 4
 
 
 #Dectionary giving the number to molecule name for LBLRTM
@@ -67,14 +93,19 @@ The pressure, temperature, etc... can be adjusted all the way
 on the bottom of this file.
 """
 class Modeler:
-  def __init__(self, debug=False, NumRunDirs=4, TelluricModelingDirRoot="%s/School/Research/aerlbl_v12.2/" %(os.environ["HOME"]), nmolecules=12):
+  def __init__(self, debug=False, 
+                     NumRunDirs=4, 
+                     TelluricModelingDirRoot=os.environ["TELLURICMODELING"], 
+                     nmolecules=12):
 
     Atmosphere = defaultdict(list)
     indices = {}
     self.debug = debug
+    self.NumRunDirs = NumRunDirs
+    self.TelluricModelingDirRoot = TelluricModelingDirRoot
 
     #Determine working directories
-    self.FindWorkingDirectory(NumRunDirs = NumRunDirs, TelluricModelingDirRoot = TelluricModelingDirRoot)
+    self.FindWorkingDirectory()
     TelluricModelingDir = self.TelluricModelingDir
     ModelDir = self.ModelDir
 
@@ -216,8 +247,10 @@ class Modeler:
 
 
 
-  def FindWorkingDirectory(self, NumRunDirs=4, TelluricModelingDirRoot="%s/School/Research/aerlbl_v12.2/" %(os.environ["HOME"])):
+  def FindWorkingDirectory(self):
     #Determine output filename
+    TelluricModelingDirRoot = self.TelluricModelingDirRoot
+    NumRunDirs = self.NumRunDirs
     found = False
     for i in range(1,NumRunDirs+1):
       test = "%srundir%i/" %(TelluricModelingDirRoot, i)
@@ -252,7 +285,6 @@ class Modeler:
     lock = self.lock
     layers = numpy.array(self.layers)
     ModelDir = self.ModelDir
-    #nmolecules = self.nmolecules
 
     #Convert from relative humidity to concentration (ppm)
     #formulas and constants come from http://www.vaisala.com/Vaisala%20Documents/Application%20notes/Humidity_Conversion_Formulas_B210973EN-F.pdf
@@ -275,13 +307,9 @@ class Modeler:
       
 
     #Do the actual scaling
-    #pressure_scalefactor = pressure/scale_values[0]
-    #temperature_scalefactor = temperature/scale_values[1]
-    pressure_scalefactor = (scale_values[0] - pressure) * numpy.exp(-(layers - alt)**2/5.0**2)
-    temperature_scalefactor = (scale_values[1] - temperature) * numpy.exp(-(layers - alt)**2/5.0**2)
+    pressure_scalefactor = (scale_values[0] - pressure) * numpy.exp(-(layers - alt)**2/(2.0*10.0**2))
+    temperature_scalefactor = (scale_values[1] - temperature) * numpy.exp(-(layers - alt)**2/(2.0*10.0**2))
     for i, layer in enumerate(layers):
-      #Atmosphere[layer][0] *= pressure_scalefactor
-      #Atmosphere[layer][1] *= temperature_scalefactor
       Atmosphere[layer][0] -= pressure_scalefactor[i]
       Atmosphere[layer][1] -= temperature_scalefactor[i]
       Atmosphere[layer][2][0] *= h2o/scale_values[2][0]
@@ -547,7 +575,6 @@ if __name__ == "__main__":
   ch4 = 4.0
   co = 0.15
   o2 = 2.2e5
-  #o2 = 4.4e5
 
   lowwave = 445
   highwave = 446
@@ -557,7 +584,5 @@ if __name__ == "__main__":
   highfreq = 1e7/lowwave
   modeler = Modeler(debug=True)
   modeler.MakeModel(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, o2=o2, alt=2.1, save=True)
-  #modeler.Cleanup()
-  #Main(pressure=pressure, temperature=temperature, humidity=humidity, lowfreq=lowfreq, highfreq=highfreq, angle=angle, o2=o2, alt=2.1, save=True)
           
 

@@ -1,4 +1,27 @@
-#!/opt/local/bin/python
+"""
+    This file will convert the MIPAS atmosphere profile (which exists in each
+    run directory) into the format that LBLRTM expects for an atmosphere. You
+    should never need to call this directly!
+
+    
+    
+    This file is part of the TelluricFitter program.
+
+    TelluricFitter is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    TelluricFitter is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with TelluricFitter.  If not, see <http://www.gnu.org/licenses/>.
+
+"""
+
 
 def Main(lines):
   #ignore first 22 lines
