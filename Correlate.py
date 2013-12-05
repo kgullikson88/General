@@ -321,6 +321,10 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
   return returnlist
 """
 
+
+
+
+
 """
    Function to make a cross-correlation function out of echelle data.
    Expects a list of xypoints as input, and various optional inputs.
@@ -336,17 +340,17 @@ def PyCorr2(data, stars=star_list, temps=temp_list, models=model_list, model_fcn
     
   
   #Re-sample all orders of the data to logspacing
+  if debug:
+    print "Resampling data to log-spacing"
   for i, order in enumerate(data):
+    if debug:
+      print "Resampling order %i to log-spacing" %i
     start = numpy.log(order.x[0])
     end = numpy.log(order.x[-1])
     neworder = order.copy()
     neworder.x = numpy.logspace(start, end, order.size(), base=numpy.e)
     neworder = FittingUtilities.RebinData(order, neworder.x)
     data[i] = neworder    
-    if debug:
-      plt.plot(neworder.x, neworder.y)
-      plt.plot(neworder.x, neworder.cont)
-      plt.show()
 
     
   #3: Begin loop over model spectra
@@ -374,6 +378,8 @@ def PyCorr2(data, stars=star_list, temps=temp_list, models=model_list, model_fcn
       sys.exit("Model #%i of unkown type in Correlate.PyCorr2!" %i) 
 
     if process_model:
+      if debug:
+	print "Processing model..."
       left = numpy.searchsorted(model.x, data[0].x[0] - 10.0)
       right = numpy.searchsorted(model.x, data[-1].x[-1] + 10.0)
       if left > 0:
@@ -386,6 +392,8 @@ def PyCorr2(data, stars=star_list, temps=temp_list, models=model_list, model_fcn
           print "Interpolating model"
         MODEL = UnivariateSpline(x2,y2, s=0)
       else:
+	if debug:
+	  print "Model already interpolated. Thanks!"
         MODEL = model_fcns[i]
       #CONT = UnivariateSpline(x2, cont2, s=0)
       
@@ -412,13 +420,11 @@ def PyCorr2(data, stars=star_list, temps=temp_list, models=model_list, model_fcn
           model2 = RotBroad.Broaden(model2, vsini, linear=True)
           if debug:
             print "After rotational broadening"
-            print model2.y
       
         #e: Convolve to detector resolution
         model2 = MakeModel.ReduceResolution(model2.copy(), resolution, extend=False)
         if debug:
           print "After resolution decrease"
-          print model.y
 
         #f: Rebin to the same spacing as the data
         logspacing = numpy.log(order.x[1]/order.x[0])
@@ -429,7 +435,6 @@ def PyCorr2(data, stars=star_list, temps=temp_list, models=model_list, model_fcn
         model2 = MakeModel.RebinData(model2.copy(), xgrid)
         if debug:
           print "After rebinning"
-          print model.y
 
       #Now, do the actual cross-correlation
       reduceddata = order.y/order.cont
