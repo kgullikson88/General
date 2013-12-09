@@ -478,6 +478,12 @@ def PyCorr2(data, stars=star_list, temps=temp_list, models=model_list, model_fcn
           corr.output("badcorrelation.dat")
           print data_rms, model_rms, reduceddata.size
           sys.exit()
+      elif numpy.any(numpy.isnan([corr.y[i] for i in range(corr.size())])):
+        print "NaN found in correlation!"
+        #Output the inputs that are causing the issue
+        order.output("%s.badccf_data.order%i" %(outfilename, ordernum+1))
+        model2.output("%s.badccf_model.order%i" %(outfilename, ordernum+1))
+        
           
         
       #i: Only save part of the correlation
