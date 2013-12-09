@@ -433,6 +433,7 @@ def PyCorr2(data, stars=star_list, temps=temp_list, models=model_list, model_fcn
         xgrid = numpy.exp(numpy.arange(start, end+logspacing, logspacing))
         #xgrid = numpy.arange(model2.x[0], model2.x[-1], order.x[1] - order.x[0])
         model2 = MakeModel.RebinData(model2.copy(), xgrid)
+        model2.cont = FittingUtilities.Continuum(model2.x, model2.y, lowreject=1.5, highreject=5, fitorder=2)
         if debug:
           print "After rebinning"
 
