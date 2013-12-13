@@ -11,7 +11,7 @@ class stardata:
 
 
 def GetData(starname):
-  link = sim.buildLink(starname)
+  link = sim.buildLink(starname, cfa_mirror=True)
   star = sim.simbad(link)
   data = stardata()
   data.spectype = star.SpectralType()
