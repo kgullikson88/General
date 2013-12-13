@@ -9,7 +9,6 @@ import scipy.signal
 import DataStructures
 #import Units
 from astropy import units, constants
-import MakeModel
 import FittingUtilities
 import RotBroad_Fast as RotBroad
 import time
@@ -240,7 +239,7 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
         print model.y
 
       #e: Convolve to detector resolution
-      model = MakeModel.ReduceResolution(model.copy(), resolution, extend=False)
+      model = FittingUtilities.ReduceResolution(model.copy(), resolution, extend=False)
       if debug:
         print "After resolution decrease"
         print model.y
@@ -254,7 +253,7 @@ def PyCorr(filename, combine=True, normalize=False, sigmaclip=False, nsigma=3, c
 
       #g: Rebin to the same spacing as the data (but not the same pixels)
       xgrid = numpy.arange(model.x[0], model.x[-1], data.x[1] - data.x[0])
-      model = MakeModel.RebinData(model.copy(), xgrid)
+      model = FittingUtilities.RebinData(model.copy(), xgrid)
       if debug:
         print "After rebinning"
         print model.y
@@ -422,7 +421,7 @@ def PyCorr2(data, stars=star_list, temps=temp_list, models=model_list, model_fcn
             print "After rotational broadening"
       
         #e: Convolve to detector resolution
-        model2 = MakeModel.ReduceResolution(model2.copy(), resolution, extend=False)
+        model2 = FittingUtilities.ReduceResolution(model2.copy(), resolution, extend=False)
         if debug:
           print "After resolution decrease"
 
@@ -432,7 +431,7 @@ def PyCorr2(data, stars=star_list, temps=temp_list, models=model_list, model_fcn
         end = numpy.log(model2.x[-1])
         xgrid = numpy.exp(numpy.arange(start, end+logspacing, logspacing))
         #xgrid = numpy.arange(model2.x[0], model2.x[-1], order.x[1] - order.x[0])
-        model2 = MakeModel.RebinData(model2.copy(), xgrid)
+        model2 = FittingUtilities.RebinData(model2.copy(), xgrid)
         model2.cont = FittingUtilities.Continuum(model2.x, model2.y, lowreject=1.5, highreject=5, fitorder=2)
         if debug:
           print "After rebinning"
@@ -599,15 +598,15 @@ def AutoCorrelate(data, stars=star_list, temps=temp_list, models=model_list, gra
           print model2.y
       
         #e: Convolve to detector resolution
-        model2 = MakeModel.ReduceResolution(model2.copy(), resolution, extend=False)
+        model2 = FittingUtilities.ReduceResolution(model2.copy(), resolution, extend=False)
         if debug:
           print "After resolution decrease"
           print model.y
 
         #f: Rebin to the same spacing as the data
         xgrid = numpy.arange(model2.x[0], model2.x[-1], order.x[1] - order.x[0])
-        modellong = MakeModel.RebinData(model2.copy(), xgrid)
-        modelshort = MakeModel.RebinData(model2.copy(), order.x)
+        modellong = FittingUtilities.RebinData(model2.copy(), xgrid)
+        modelshort = FittingUtilities.RebinData(model2.copy(), order.x)
         if debug:
           print "After rebinning"
           print modelshort.y

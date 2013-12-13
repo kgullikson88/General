@@ -3,7 +3,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 cimport numpy
 cimport cython
 from libc.math cimport sqrt
-from MakeModel import RebinData
+from FittingUtilities import RebinData
 from astropy import constants, units
 import FittingUtilities
 
