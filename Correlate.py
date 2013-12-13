@@ -182,7 +182,7 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
             print "After rotational broadening"
       
         #e: Convolve to detector resolution
-        if resolution != None
+        if resolution != None:
           model2 = FittingUtilities.ReduceResolution(model2.copy(), resolution, extend=False)
         if debug:
           print "After resolution decrease"
