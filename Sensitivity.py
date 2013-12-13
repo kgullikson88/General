@@ -72,8 +72,8 @@ def Analyze(data,                         #A list of xypoint instances
     orders = []
     for i, order in enumerate(data):
       # rebin to match the data
-      left = numpy.searchsorted(model.x, order.x[0]-1)
-      right = numpy.searchsorted(model.x, order.x[-1]+1)
+      left = np.searchsorted(model.x, order.x[0]-1)
+      right = np.searchsorted(model.x, order.x[-1]+1)
       model2 = FittingUtilities.RebinData(model[left:right], order.x*(1.0+velocity/constants.c.cgs.value*units.cm.to(units.km)))
 
       # scale to be at the appropriate flux ratio
