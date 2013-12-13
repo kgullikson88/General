@@ -63,11 +63,8 @@ def Analyze(data,                         #A list of xypoint instances
     model = RotBroad.Broaden(model, vsini*units.km.to(units.cm))
   if resolution != None:
     model = FittingUtilites.ReduceResolution2(model, resolution)
-  #model_fcn = spline(model.x, model.y)
   model.cont = FittingUtilities.Continuum(model.x, model.y, fitorder=9, lowreject=1, highreject=10)
-  #plt.plot(model.x, model.y)
-  #plt.plot(model.x, model.cont)
-  #plt.show()
+  model_fcn = spline(model.x, model.y)
   
 
   #Now, start the loop over velocities
@@ -75,14 +72,20 @@ def Analyze(data,                         #A list of xypoint instances
   sig = []
   for velocity in vels:
     orders = []
+    if debug:
+      print "Adding model to data with an RV shift of %g km/s" %velocity
     for i, order in enumerate(data):
+      order = order.copy()
       #Re-fit the continuum in the data
       #order.cont = FittingUtilities.Continuum(order.x, order.y, fitorder=3, lowreject=1.5, highreject=7)
       
       # rebin to match the data
       left = np.searchsorted(model.x, order.x[0]-1)
       right = np.searchsorted(model.x, order.x[-1]+1)
-      model2 = FittingUtilities.RebinData(model[left:right], order.x*(1.0+velocity/constants.c.cgs.value*units.cm.to(units.km)))
+      model2 = DataStructures.xypoint(x=model.x[left:right])
+      model2.y = model_fcn(model2.x*(1.0+velocity/(constants.c.cgs.value*units.cm.to(units.km))))
+      model2 = FittingUtilities.RebinData(model2, order.x)
+      
 
       # scale to be at the appropriate flux ratio
       primary_flux = np.zeros(order.size())
