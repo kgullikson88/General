@@ -122,7 +122,11 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
     metallicity = metallicities[i]
 
     if makefname:
-      outfilename = "%s%s.%.0fkps_%sK%+.1f%+.1f" %(outdir, outfilebase, vsini*units.cm.to(units.km), star, gravity, metallicity)
+      try:
+        vsini_str = vsini*units.cm.to(units.km)
+      except TypeError:
+        vsini_str = 0.0
+      outfilename = "%s%s.%.0fkps_%sK%+.1f%+.1f" %(outdir, outfilebase, vsini_str, star, gravity, metallicity)
 
     #a: Read in file (or  rename if already read in: PREFERRABLE!)
     if isinstance(models[i], str):
@@ -277,8 +281,6 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
     master_corr.y = 1.0 - numpy.power(total.y, 1.0/float(len(corrlist)))
 
     #Finally, output
-    if makefname:
-      outfilename = "%s%s.%.0fkps_%sK%+.1f%+.1f" %(outdir, outfilebase, vsini*units.cm.to(units.km), star, gravity, metallicity)
     if save_output:
       print "Outputting to ", outfilename, "\n"
       numpy.savetxt(outfilename, numpy.transpose((master_corr.x, master_corr.y)), fmt="%.10g")

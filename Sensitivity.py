@@ -23,6 +23,8 @@ def Analyze(data,                         #A list of xypoint instances
             smoothing_windowsize=101,     #The window size for a savitzky-golay smoothing
             smoothing_order=5,            #The order of the SV smoothing function
             tolerance=10,                 #How far away the highest peak can be from correct to still count as being found (in km/s)
+            outdir="Sensitivity/",        #Output directory. Only used if debug == True
+            outfilebase="Output",         #Beginning of output filename. Only used for debug=True
             debug=False):                 #Debugging flag
 
   #Convert prim_temp to a list if it is not already
@@ -61,8 +63,11 @@ def Analyze(data,                         #A list of xypoint instances
     model = RotBroad.Broaden(model, vsini*units.km.to(units.cm))
   if resolution != None:
     model = FittingUtilites.ReduceResolution2(model, resolution)
-  model_fcn = spline(model.x, model.y)
-
+  #model_fcn = spline(model.x, model.y)
+  model.cont = FittingUtilities.Continuum(model.x, model.y, fitorder=9, lowreject=1, highreject=10)
+  #plt.plot(model.x, model.y)
+  #plt.plot(model.x, model.cont)
+  #plt.show()
   
 
   #Now, start the loop over velocities
@@ -71,6 +76,9 @@ def Analyze(data,                         #A list of xypoint instances
   for velocity in vels:
     orders = []
     for i, order in enumerate(data):
+      #Re-fit the continuum in the data
+      #order.cont = FittingUtilities.Continuum(order.x, order.y, fitorder=3, lowreject=1.5, highreject=7)
+      
       # rebin to match the data
       left = np.searchsorted(model.x, order.x[0]-1)
       right = np.searchsorted(model.x, order.x[-1]+1)
@@ -82,6 +90,8 @@ def Analyze(data,                         #A list of xypoint instances
         primary_flux += Planck(order.x*units.nm.to(units.cm), T) * R**2
       secondary_flux = Planck(order.x*units.nm.to(units.cm), sec_temp) * sec_radius**2
       scale = secondary_flux / primary_flux
+      if debug:
+        print "Scale for order %i is %.4g" %(i, np.mean(scale))
       model2.y = (model2.y/model2.cont - 1.0)*scale
       order.y += model2.y*order.cont
 
@@ -92,11 +102,11 @@ def Analyze(data,                         #A list of xypoint instances
       orders.append(order.copy())
 
     #Do the cross-correlation
-    corr = Correlate.PyCorr(orders, resolution=None, models=[model,], vsini=None, debug=debug, save_output=False)[0]
+    corr = Correlate.PyCorr(orders, resolution=None, models=[model,], vsini=None, debug=debug, save_output=False, outdir=outdir, outfilebase=outfilebase)[0]
 
     #output
     if debug:
-      outfilename = "%s%s_t%i_v%i" %(outdir, fname.split(".fits")[0], temp_list[j], vel)
+      outfilename = "%s%s_t%i_v%i" %(outdir, outfilebase, sec_temp, velocity)
       print "Outputting CCF to %s" %outfilename
       np.savetxt(outfilename, np.transpose((corr.x, corr.y)), fmt="%.10g")
 
@@ -108,7 +118,7 @@ def Analyze(data,                         #A list of xypoint instances
     mean = corr.y.mean()
     std = corr.y.std()
     significance = (corr.y[idx] - mean)/std
-    if np.abs(vmax - vel) <= tolerance:
+    if np.abs(vmax - velocity) <= tolerance:
       #Signal found!
       found.append(True)
       sig.append(significance)
