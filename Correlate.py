@@ -7,7 +7,6 @@ from collections import defaultdict
 from scipy.interpolate import UnivariateSpline
 import scipy.signal
 import DataStructures
-#import Units
 from astropy import units, constants
 import FittingUtilities
 import RotBroad_Fast as RotBroad
@@ -177,13 +176,14 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
         model2.cont[model2.cont < 1e-5] = 1e-5
 
         #d: Rotationally broaden
-        if vsini > 1.0*units.km.to(units.cm):
+        if vsini != None and vsini > 1.0*units.km.to(units.cm):
           model2 = RotBroad.Broaden(model2, vsini, linear=True)
           if debug:
             print "After rotational broadening"
       
         #e: Convolve to detector resolution
-        model2 = FittingUtilities.ReduceResolution(model2.copy(), resolution, extend=False)
+        if resolution != None
+          model2 = FittingUtilities.ReduceResolution(model2.copy(), resolution, extend=False)
         if debug:
           print "After resolution decrease"
 
@@ -361,7 +361,7 @@ def AutoCorrelate(data, stars=star_list, temps=temp_list, models=model_list, gra
       
         #e: Convolve to detector resolution
         if resolution != None:
-          model2 = MakeModel.ReduceResolution(model2.copy(), resolution, extend=False)
+          model2 = FittingUtilities.ReduceResolution(model2.copy(), resolution, extend=False)
         if debug:
           print "After resolution decrease"
           print model.y
