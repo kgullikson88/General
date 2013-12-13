@@ -626,14 +626,7 @@ class PreMainSequence:
       #We need to get this from the luminosity and temperature
       lum = self.GetFromTemperature(age, temperature, key="Luminosity")
       return numpy.sqrt(lum) / (temperature/5780.0)**2
-      #G = constants.G.cgs.value
-      #Msun = constants.M_sun.cgs.value
-      #Rsun = constants.R_sun.cgs.value
-      #logg_sun = numpy.log10(G*Msun/Rsun**2)
       
-      #logg = self.GetFromTemperature(age, temperature, key="Gravity")
-      #mass = self.GetFromTemperature(age, temperature, key="Mass")
-      #return numpy.sqrt( logg_sun/logg * mass )
       
       
     #Otherwise, do all of this  
