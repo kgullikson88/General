@@ -698,38 +698,6 @@ class PreMainSequence:
     return 10**float(val)
 
 
-    """
-    age = numpy.log10(age)
-  
-    #First, get the two closest ages to the one requested
-    best_age, next_best_age = HelperFunctions.GetSurrounding(Tracks.keys(), age)
-  
-    #For each age, find the two closest masses to the one requested,
-    #  and linearly interpolate to find the corresponding temperature
-    T = Tracks[best_age]["Temperature"]
-    M = Tracks[best_age]["Mass"]
-    tmp = zip(T,M)
-    tmp.sort()
-    T, M = zip(*tmp)
-    best_idx, next_best_idx = HelperFunctions.GetSurrounding(M, mass, return_index=True)
-    T1, T2 = T[best_idx], T[next_best_idx]
-    m1, m2 = M[best_idx], M[next_best_idx]
-    best_temperature = T1 if m1 == m2 else (T2 - T1)/(m2-m1)*(mass - m1) + T1
-  
-    T = Tracks[next_best_age]["Temperature"]
-    M = Tracks[next_best_age]["Mass"]
-    tmp = zip(T,M)
-    tmp.sort()
-    T, M = zip(*tmp)
-    best_idx, next_best_idx = HelperFunctions.GetSurrounding(M, mass, return_index=True)
-    T1, T2 = T[best_idx], T[next_best_idx]
-    m1, m2 = M[best_idx], M[next_best_idx]
-    next_best_temperature = T1 if m1 == m2 else (T2 - T1)/(m2-m1)*(mass - m1) + T1
-  
-    #Finally, linearly interpolate the mass to get the requested age
-    temperature = (next_best_temperature - best_temperature)/(next_best_age - best_age) * (age - best_age) + best_temperature
-    return 10**temperature
-    """
     
     
   def GetMainSequenceAge(self, mass, key='Mass'):
