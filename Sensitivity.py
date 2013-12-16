@@ -46,12 +46,11 @@ def Analyze(data,                         #A list of xypoint instances
     sec_radius = MS.Interpolate(MS.Radius, sec_spt)
     
   elif isinstance(age, float) or isinstance(age, int):
-    PMS = SpectralTypeRelations.MainSequence()
+    PMS = SpectralTypeRelations.PreMainSequence()
     for T in prim_temp:
       prim_radius.append(PMS.GetFromTemperature(age, T, key='Radius'))
     sec_radius = PMS.GetFromTemperature(age, sec_temp, key='Radius')
-    prim_temp = [prim_temp,]
-    prim_radius = [prim_radius,]
+    
 
   else:
     raise ValueError( "Unrecognized variable type given for age!" )

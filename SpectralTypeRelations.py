@@ -581,7 +581,7 @@ homedir = os.environ["HOME"] + "/"
 tracksfile = homedir + "Dropbox/School/Research/Stellar_Evolution/Padova_Tracks.dat"
 
 class PreMainSequence:
-  def __init__(self, pms_tracks_file=tracksfile, maximum_stage = 1):
+  def __init__(self, pms_tracks_file=tracksfile, minimum_stage=0, maximum_stage = 1):
     #We need an instance of MainSequence to get temperature from spectral type
     self.MS = MainSequence()
     
@@ -602,7 +602,7 @@ class PreMainSequence:
         evol_stage = int(segments[-1])
         
       
-        if evol_stage <= maximum_stage:
+        if evol_stage >= minimum_stage and evol_stage <= maximum_stage:
           Tracks[age]["Initial Mass"].append(m_initial)
           Tracks[age]["Mass"].append(mass)
           Tracks[age]["Temperature"].append(Teff)
@@ -611,6 +611,27 @@ class PreMainSequence:
           
           
     self.Tracks = Tracks
+
+
+
+  def GetEvolution(self, mass, key='Temperature'):
+    #Need to find the first and last ages that have the requested mass
+    first_age = 9e9
+    last_age = 0.0
+    Tracks = self.Tracks
+    ages = sorted(Tracks.keys())
+    ret_ages = []
+    ret_value = []
+    for age in ages:
+      if min(Tracks[age]["Mass"]) < mass and max(Tracks[age]["Mass"]) > mass:
+        T = self.GetTemperature(mass, 10**age)
+        if key == "Temperature":
+          ret_value.append(T)
+        else:
+          ret_value.append(self.GetFromTemperature(10**age, T, key=key))
+        ret_ages.append(10**age)
+    return ret_ages, ret_value
+
         
         
         
@@ -717,7 +738,7 @@ class PreMainSequence:
     
     
     
-  def GetMainSequenceAge(self, mass):
+  def GetMainSequenceAge(self, mass, key='Mass'):
     Tracks = self.Tracks
     ages = sorted(Tracks.keys())
     
