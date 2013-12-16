@@ -1,5 +1,5 @@
 from collections import defaultdict
-from scipy.interpolate import UnivariateSpline
+from scipy.interpolate import UnivariateSpline, griddata
 import numpy
 import DataStructures
 from astropy import constants
@@ -636,7 +636,7 @@ class PreMainSequence:
         
         
   def GetFromTemperature(self, age, temperature, key='Mass'):
-    #Check that the user gave a valid key
+    # Check that the user gave a valid key
     valid = ["Initial Mass", "Mass", "Luminosity", "Gravity", "Radius"]
     if key not in valid:
       print "Error! 'key' keyword must be one of the following"
@@ -647,55 +647,29 @@ class PreMainSequence:
       #We need to get this from the luminosity and temperature
       lum = self.GetFromTemperature(age, temperature, key="Luminosity")
       return numpy.sqrt(lum) / (temperature/5780.0)**2
-      
-      
-      
-    #Otherwise, do all of this  
-    Tracks = self.Tracks
-    age = numpy.log10(age)
-    temperature = numpy.log10(temperature)
-  
-    #First, get the two closest ages to the one requested
-    best_age, next_best_age = HelperFunctions.GetSurrounding(Tracks.keys(), age)
-  
-    #For each age, find the two closest temperatures to the one requested,
-    #  and linearly interpolate to find the corresponding mass (or key)
-    T = Tracks[best_age]["Temperature"]
-    M = Tracks[best_age][key]
-    #print "max T = ", max(T), len(T), len(M), age, best_age, temperature
-    #print T
-    #print M, '\n\n'
-    tmp = zip(T,M)
-    tmp.sort()
-    T, M = zip(*tmp)
-    #print max(T)
-    best_idx, next_best_idx = HelperFunctions.GetSurrounding(T, temperature, return_index=True)
-    T1, T2 = T[best_idx], T[next_best_idx]
-    m1, m2 = M[best_idx], M[next_best_idx]
-    if T1 < temperature and T1 == max(T):
-      warnings.warn("Requested temperature (%g) at this age (%g) is in post-main sequence evolution!" %(10**temperature, 10**age))
-      #print 10**T1, 10**temperature, max(T)
-      #print age, best_age
-      #print T, '\n'
-      #sys.exit()
-    best_mass = m1 if T1 == T2 else (m2 - m1)/(T2-T1)*(temperature - T1) + m1
-  
-    T = Tracks[next_best_age]["Temperature"]
-    M = Tracks[next_best_age][key]
-    tmp = zip(T,M)
-    tmp.sort()
-    T, M = zip(*tmp)
-    best_idx, next_best_idx = HelperFunctions.GetSurrounding(T, temperature, return_index=True)
-    T1, T2 = T[best_idx], T[next_best_idx]
-    m1, m2 = M[best_idx], M[next_best_idx]
-    next_best_mass = m1 if T1 == T2 else (m2 - m1)/(T2-T1)*(temperature - T1) + m1
-  
-    #Finally, linearly interpolate the mass to get the requested age
-    mass = (next_best_mass - best_mass)/(next_best_age - best_age) * (age - best_age) + best_mass
-    if key == "Luminosity":
-      mass = 10**mass
-    return mass      
+
     
+    # Otherwise, interpolate
+    Tracks = self.Tracks
+    ages = sorted([t for t in Tracks.keys() if 10**t >= 0.5*age and 10**t <= 2.0*age])
+    points = []
+    values = []
+    for t in ages:
+      temps = sorted(Tracks[t]['Temperature'])
+      val = sorted(Tracks[t][key])
+      for T, V in zip(temps, val):
+        points.append((t, T))
+        values.append(V)
+    xi = numpy.array([[numpy.log10(age), numpy.log10(temperature)],])
+    points = numpy.array(points)
+    values = numpy.array(values)
+    val = griddata(points, values, xi, method='linear')
+    if numpy.isnan(val):
+      warnings.warn("Requested temperature (%g) at this age (%g) is outside of grid!" %(temperature, age))
+      val = griddata(points, values, xi, method='nearest')
+    return float(val)
+    
+      
     
   def Interpolate(self, SpT, age, key="Mass"):
     Teff = self.MS.Interpolate(self.MS.Temperature, SpT)
@@ -705,6 +679,26 @@ class PreMainSequence:
     
   def GetTemperature(self, mass, age):
     Tracks = self.Tracks
+    ages = sorted([t for t in Tracks.keys() if 10**t >= 0.5*age and 10**t <= 2.0*age])
+    points = []
+    values = []
+    for t in ages:
+      temps = sorted(Tracks[t]['Temperature'])
+      masses = sorted(Tracks[t]['Mass'])
+      for T, M in zip(temps, masses):
+        points.append((t, M))
+        values.append(T)
+    xi = numpy.array([[numpy.log10(age), mass],])
+    points = numpy.array(points)
+    values = numpy.array(values)
+    val = griddata(points, values, xi, method='linear')
+    if numpy.isnan(val):
+      warnings.warn("Requested temperature (%g) at this age (%g) is outside of grid!" %(temperature, age))
+      val = griddata(points, values, xi, method='nearest')
+    return 10**float(val)
+
+
+    """
     age = numpy.log10(age)
   
     #First, get the two closest ages to the one requested
@@ -735,7 +729,7 @@ class PreMainSequence:
     #Finally, linearly interpolate the mass to get the requested age
     temperature = (next_best_temperature - best_temperature)/(next_best_age - best_age) * (age - best_age) + best_temperature
     return 10**temperature
-    
+    """
     
     
   def GetMainSequenceAge(self, mass, key='Mass'):
