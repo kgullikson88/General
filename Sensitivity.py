@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from astropy import units, constants
+import warnings
 
 
 
@@ -37,19 +38,21 @@ def Analyze(data,                         #A list of xypoint instances
   
   #First, we want to get the radius of the primary and secondary stars, 
   #  for use in determining the flux ratio
+  MS = SpectralTypeRelations.MainSequence()
+  for T in prim_temp:
+    prim_spt = MS.GetSpectralType(MS.Temperature, T, interpolate=True)
+    prim_radius.append(MS.Interpolate(MS.Radius, prim_spt))
   if age == 'MS':
-    MS = SpectralTypeRelations.MainSequence()
-    for T in prim_temp:
-      prim_spt = MS.GetSpectralType(MS.Temperature, T, interpolate=True)
-      prim_radius.append(MS.Interpolate(MS.Radius, prim_spt))
     sec_spt = MS.GetSpectralType(MS.Temperature, sec_temp, interpolate=True)
     sec_radius = MS.Interpolate(MS.Radius, sec_spt)
     
   elif isinstance(age, float) or isinstance(age, int):
-    PMS = SpectralTypeRelations.PreMainSequence()
-    for T in prim_temp:
-      prim_radius.append(PMS.GetFromTemperature(age, T, key='Radius'))
+    PMS = SpectralTypeRelations.PreMainSequence(ms_tracks_file="/Users/kgulliks/Dropbox/School/Research/Stellar_Evolution/Baraffe_Tracks.dat", track_source="Baraffe")
     sec_radius = PMS.GetFromTemperature(age, sec_temp, key='Radius')
+    f = PMS.GetFactor(sec_temp, key='Radius')
+    if f > 1.5:
+      warnings.warn("Radius scaling factor to force agreement with MS relations is large (%f)" %f)
+    sec_radius *= f
     
 
   else:
