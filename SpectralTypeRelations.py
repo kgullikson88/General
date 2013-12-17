@@ -32,58 +32,65 @@ class MainSequence:
     self.VmH = defaultdict(float)   #V-H color
     self.VmK = defaultdict(float)   #V-K color
     self.AbsMag = defaultdict(float)  #Absolute Magnitude in V band
-    self.Temperature['O5'] = 42000
-    self.Temperature['O6'] = 39500
-    self.Temperature['O7'] = 35800
-    self.Temperature['O8'] = 35800
-    self.Temperature['B0'] = 30000
-    self.Temperature['B1'] = 25400
-    self.Temperature['B2'] = 20900
-    self.Temperature['B3'] = 18800
-    self.Temperature['B5'] = 15200
-    self.Temperature['B6'] = 13700
-    self.Temperature['B7'] = 12500
-    self.Temperature['B8'] = 11400
-    self.Temperature['B9'] = 10500
-    self.Temperature['A0'] = 9800
-    self.Temperature['A1'] = 9400
-    self.Temperature['A2'] = 9020
-    self.Temperature['A5'] = 8190
-    self.Temperature['A8'] = 7600
-    self.Temperature['F0'] = 7300
-    self.Temperature['F2'] = 7050
-    self.Temperature['F5'] = 6650
-    self.Temperature['F8'] = 6250
-    self.Temperature['G0'] = 5940
-    self.Temperature['G2'] = 5790
-    self.Temperature['G8'] = 5310
-    self.Temperature['K0'] = 5150
-    self.Temperature['K1'] = 4990
-    self.Temperature['K3'] = 4690
-    self.Temperature['K4'] = 4540
-    self.Temperature['K5'] = 4410
-    self.Temperature['K7'] = 4150
-    self.Temperature['M0'] = 3840
-    self.Temperature['M1'] = 3660
-    self.Temperature['M2'] = 3520
-    self.Temperature['M3'] = 3400
-    self.Temperature['M4'] = 3290
-    self.Temperature['M5'] = 3170
-    self.Temperature['M6'] = 3030
-    self.Temperature['M7'] = 2860
+
+    #From Allen's astrophysical quantities or Caroll and Ostlie (marked CO)
+    self.Temperature['O5'] = 42000      #CO
+    self.Temperature['O6'] = 39500      #CO
+    #self.Temperature['O7'] = 35800      #CO
+    self.Temperature['O9'] = 35900
+    self.Temperature['B0'] = 31500
+    self.Temperature['B1'] = 25600
+    self.Temperature['B2'] = 23200
+    self.Temperature['B3'] = 19000
+    self.Temperature['B4'] = 17200
+    self.Temperature['B5'] = 15400
+    self.Temperature['B6'] = 14100
+    self.Temperature['B7'] = 13000
+    self.Temperature['B8'] = 11800
+    self.Temperature['B9'] = 10700
+    self.Temperature['A0'] = 9480
+    #self.Temperature['A1'] = 9400      #CO
+    self.Temperature['A2'] = 8810
+    self.Temperature['A5'] = 8160
+    self.Temperature['A8'] = 7600      #CO
+    self.Temperature['F0'] = 7020
+    self.Temperature['F2'] = 6750
+    self.Temperature['F5'] = 6530
+    self.Temperature['F7'] = 6240
+    #self.Temperature['F8'] = 6250      #CO
+    self.Temperature['G0'] = 5930
+    self.Temperature['G2'] = 5830
+    self.Temperature['G4'] = 5740
+    self.Temperature['G6'] = 5620
+    #self.Temperature['G8'] = 5310      #CO
+    self.Temperature['K0'] = 5240
+    #self.Temperature['K1'] = 4990      #CO
+    self.Temperature['K2'] = 5010
+    #self.Temperature['K3'] = 4690
+    self.Temperature['K4'] = 4560
+    self.Temperature['K5'] = 4340
+    self.Temperature['K7'] = 4040
+    self.Temperature['M0'] = 3800
+    self.Temperature['M1'] = 3680
+    self.Temperature['M2'] = 3530
+    self.Temperature['M3'] = 3380
+    self.Temperature['M4'] = 3180
+    self.Temperature['M5'] = 3030
+    self.Temperature['M6'] = 2850
 
     self.Radius['O5'] = 13.4
     self.Radius['O6'] = 12.2
     self.Radius['O7'] = 11.0
     self.Radius['O8'] = 10.0
     self.Radius['B0'] = 6.7
-    self.Radius['B1'] = 5.2
-    self.Radius['B2'] = 4.1
-    self.Radius['B3'] = 3.8
-    self.Radius['B5'] = 3.2
-    self.Radius['B6'] = 2.9
-    self.Radius['B7'] = 2.7
-    self.Radius['B8'] = 2.5
+    self.Radius['B1'] = 5.4   #Malkov et al. 2007
+    self.Radius['B2'] = 4.9   #Malkov et al. 2007
+    self.Radius['B3'] = 3.9   #Malkov et al. 2007
+    self.Radius['B4'] = 3.6   #Malkov et al. 2007
+    self.Radius['B5'] = 3.3   #Malkov et al. 2007
+    self.Radius['B6'] = 3.1   #Malkov et al. 2007
+    self.Radius['B7'] = 2.85   #Malkov et al. 2007
+    self.Radius['B8'] = 2.57   #Malkov et al. 2007
     self.Radius['B9'] = 2.3
     self.Radius['A0'] = 2.2
     self.Radius['A1'] = 2.1
@@ -117,9 +124,14 @@ class MainSequence:
     self.Mass['O6'] = 37
     self.Mass['O8'] = 23
     self.Mass['B0'] = 17.5
-    self.Mass['B5'] = 7.6
-    self.Mass['B6'] = 5.9
-    self.Mass['B8'] = 3.8
+    self.Mass['B1'] = 10.5   #Malkov et al. 2007
+    self.Mass['B2'] = 8.9   #Malkov et al. 2007
+    self.Mass['B3'] = 6.4   #Malkov et al. 2007
+    self.Mass['B4'] = 5.4   #Malkov et al. 2007
+    self.Mass['B5'] = 4.5   #Malkov et al. 2007
+    self.Mass['B6'] = 4.0   #Malkov et al. 2007
+    self.Mass['B7'] = 3.5   #Malkov et al. 2007
+    self.Mass['B8'] = 3.2   #Malkov et al. 2007
     self.Mass['A0'] = 2.9
     self.Mass['A5'] = 2.0
     self.Mass['F0'] = 1.6
@@ -514,6 +526,9 @@ class MainSequence:
       #Convert key to a number
       xpoints.append(self.SpT_To_Number(key))
       ypoints.append(dictionary[key])
+
+    plt.plot(xpoints, ypoints, 'ro')
+    plt.show()
       
     sorting_indices = [i[0] for i in sorted(enumerate(xpoints), key=lambda x:x[1])]
     for index in range(len(dictionary)):
