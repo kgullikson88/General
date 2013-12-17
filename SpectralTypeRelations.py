@@ -5,6 +5,7 @@ import DataStructures
 from astropy import constants
 import warnings
 import sys
+import matplotlib.pyplot as plt
 
 #Provides relations temperature, luminosity, radius, and mass for varius spectral types
 #Data comes from Carroll and Ostlie book, or interpolated from it
@@ -581,11 +582,18 @@ homedir = os.environ["HOME"] + "/"
 tracksfile = homedir + "Dropbox/School/Research/Stellar_Evolution/Padova_Tracks.dat"
 
 class PreMainSequence:
-  def __init__(self, pms_tracks_file=tracksfile, minimum_stage=0, maximum_stage = 1):
+  def __init__(self, pms_tracks_file=tracksfile, track_source="Padova", minimum_stage=0, maximum_stage = 1):
     #We need an instance of MainSequence to get temperature from spectral type
     self.MS = MainSequence()
-    
+
     #Now, read in the evolutionary tracks
+    if track_source.lower() == "padova":
+      self.Tracks = self.ReadPadovaTracks(pms_tracks_file, minimum_stage=minimum_stage, maximum_stage=maximum_stage)
+    elif track_source.lower() == "baraffe":
+      self.Tracks = self.ReadBaraffeTracks(pms_tracks_file)
+
+
+  def ReadPadovaTracks(self, pms_tracks_file, minimum_stage, maximum_stage):
     infile = open(pms_tracks_file)
     lines = infile.readlines()
     infile.close()
@@ -609,8 +617,31 @@ class PreMainSequence:
           Tracks[age]["Luminosity"].append(Lum)
           Tracks[age]["Gravity"].append(logg)
           
-          
-    self.Tracks = Tracks
+    return Tracks
+
+
+  def ReadBaraffeTracks(self, pms_tracks_file):
+    infile = open(pms_tracks_file)
+    lines = infile.readlines()
+    infile.close()
+    Tracks = defaultdict( lambda : defaultdict(list))
+    for i, line in enumerate(lines):
+      if "log t (yr)" in line:
+        age = float(line.split()[-1])
+        j = i+4
+        while "----" not in lines[j] and lines[j].strip() != "":
+          segments = lines[j].split()
+          mass = float(segments[0])
+          Teff = float(segments[1])
+          logg = float(segments[2])
+          Lum = float(segments[3])
+          Tracks[age]["Mass"].append(mass)
+          Tracks[age]["Temperature"].append(numpy.log10(Teff))
+          Tracks[age]["Luminosity"].append(Lum)
+          Tracks[age]["Gravity"].append(logg)
+          j += 1
+     
+    return Tracks
 
 
 
@@ -663,10 +694,14 @@ class PreMainSequence:
     xi = numpy.array([[numpy.log10(age), numpy.log10(temperature)],])
     points = numpy.array(points)
     values = numpy.array(values)
+    
     val = griddata(points, values, xi, method='linear')
     if numpy.isnan(val):
       warnings.warn("Requested temperature (%g) at this age (%g) is outside of grid!" %(temperature, age))
       val = griddata(points, values, xi, method='nearest')
+
+    if key == "Luminosity" or key == "Temperature":
+      val = 10**val
     return float(val)
     
       
@@ -703,6 +738,16 @@ class PreMainSequence:
   def GetMainSequenceAge(self, mass, key='Mass'):
     Tracks = self.Tracks
     ages = sorted(Tracks.keys())
+    if key.lower() == "temperature":
+      age = 100e6
+      old_age = 0
+      while abs(age - old_age)/age > 0.05:
+        old_age = age
+        m = self.GetFromTemperature(old_age, mass, key="Mass")
+        age = self.GetMainSequenceAge(m) * 0.2
+      return age
+    elif key.lower() != 'mass':
+      raise ValueError("Error! key = %s not supported in GetMainSequenceAge!" %key)
     
     #Find the masses that are common to at least the first few ages
     common_masses = list(Tracks[ages[0]]["Mass"])
@@ -747,9 +792,24 @@ class PreMainSequence:
     
   def GetSpectralType(self, temperature, interpolate=False):
     return self.MS.GetSpectralType(self, self.MS.Temperature, value, interpolate)
+
+  
+  #Get the factor you would need to multiply these tracks by to make the given star agree with MS relations
+  def GetFactor(self, temperature, key='Mass'):
+    MS_age = self.GetMainSequenceAge(temperature, key="Temperature")
+    tracks_value = self.GetFromTemperature(MS_age, temperature, key=key)
+
+    #Get the value from main sequence relations. The call signature is different, so need if statements
+    spt = self.MS.GetSpectralType(self.MS.Temperature, temperature)
+    if key.lower() == "mass":
+      msr_value = self.MS.Interpolate(self.MS.Mass, spt)
+    elif key.lower() == "radius":
+      msr_value = self.MS.Interpolate(self.MS.Radius, spt)
+    else:
+      raise ValueError("Error! Key %s not allowed!" %key)
     
+    return msr_value / tracks_value
     
-        
         
         
     
