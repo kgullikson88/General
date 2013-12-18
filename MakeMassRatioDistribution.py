@@ -29,49 +29,49 @@ from astropy import units, constants
 NewDetections = {#"HIP 67782": [3900,],
                  "HIP 77336": [6500,],
                  #"HIP 85379": [6700,],
-                 #		 "HIP 72154": [3500,5700],
+                 #               "HIP 72154": [3500,5700],
                  #"HIP 72515": [5700,],
                  "HIP 93393": [3800,],
 #"HIP 92312": [5000,],
 #"HIP 96840": [3500,5200],
 #"HIP 100069": [3200,],
-                 #		 "HIP 8704": [3500,],
+                 #               "HIP 8704": [3500,],
                  #"HIP 105972": [7600,],
-                 #		 "HIP 116582": [3200,6700],    THIS MIGHT BE A FOREGROUND BINARY!
+                 #               "HIP 116582": [3200,6700],    THIS MIGHT BE A FOREGROUND BINARY!
                  "HIP 2548": [6500,],
-                 #		 "HIP 17527": [3500,],
-                 #		 "HIP 97870": [3300,],
+                 #               "HIP 17527": [3500,],
+                 #               "HIP 97870": [3300,],
                  #"HIP 13165": [3500,],
                  #"HIP 14143": [3500,],#7300],
                  #"HIP 20430": [5800,],
-                 #		 "HIP 105282": [3700,3700],
+                 #               "HIP 105282": [3700,3700],
                  #"HIP 105282": [3700,],
-                 #		 "HIP 8016": [3500,3500],
+                 #               "HIP 8016": [3500,3500],
                  "HIP 14043": [6200,],
-                 #		 "HIP 58590": [3800,],
+                 #               "HIP 58590": [3800,],
                  "HIP 82673": [6000,],
-                 #		 "HIP 87108": [3500,4400],
-                 #		 "HIP 104139": [5000,],
-                 		 "HIP 95241": [4100,],
-                 #		 "HIP 116247": [3400,],
-                 #		 "HIP 117452": [4700,],
-                 #		 "HIP 60009": [3300,5500],
+                 #               "HIP 87108": [3500,4400],
+                 #               "HIP 104139": [5000,],
+                                 "HIP 95241": [4100,],
+                 #               "HIP 116247": [3400,],
+                 #               "HIP 117452": [4700,],
+                 #               "HIP 60009": [3300,5500],
                  "HIP 60009": [5500,],
-                 #		 "HIP 63724": [3400,],
-                 #		 "HIP 79404": [3800,6000],
-                 #		 "HIP 92855": [4000,5800],
+                 #               "HIP 63724": [3400,],
+                 #               "HIP 79404": [3800,6000],
+                 #               "HIP 92855": [4000,5800],
                  "HIP 112029": [6300,],
-                 #		 "HIP 76600": [5600,],
-                 #		 "HIP 77516": [3500,],
-                 #		 "HIP 78820": [4000,],
+                 #               "HIP 76600": [5600,],
+                 #               "HIP 77516": [3500,],
+                 #               "HIP 78820": [4000,],
                  "HIP 88816": [6400,],
-                 #		 "HIP 80883": [3700,],
-                 #		 "HIP 78554": [3400,],
+                 #               "HIP 80883": [3700,],
+                 #               "HIP 78554": [3400,],
                  "HIP 15444": [6100,],
                  "HIP 20789": [5400,],
                  "HR 545":    [5000,],
                  "HIP 5132":  [3700,],
-		 }
+                 }
 
 #Do the same thing for known binaries not in WDS or SB9
 KnownBinaries = {"HIP 76267": [5800,]
@@ -161,7 +161,7 @@ def GetCHIRONdist(datadir="CHIRON_data/", MS=None):
           print "\tq = %g" %(comp[1]/(primary_mass))
           mass_ratios.append(comp[1]/primary_mass)
       if code == 1:
-	sb = True
+        sb = True
         multiple = True
         q = value
         wds = False
@@ -183,18 +183,18 @@ def GetCHIRONdist(datadir="CHIRON_data/", MS=None):
 
       #Now, put in my data
       if starname in NewDetections:
-	for T in NewDetections[starname]:
-	  spt = MS.GetSpectralType(MS.Temperature, T)
-	  mass = MS.Interpolate(MS.Mass, spt)
-	  new_q = mass/primary_mass
-	  previously_known = False
-	  for comp in known_companions:
-	    if abs(new_q - comp[1]) < 0.1 and comp[0] < 4.0:
-	      previously_known = True
-	  if sb and abs(new_q - q) < 0.1:
-	    previously_known = True
-	if not previously_known:
-	  new_massratios.append(new_q)
+        for T in NewDetections[starname]:
+          spt = MS.GetSpectralType(MS.Temperature, T)
+          mass = MS.Interpolate(MS.Mass, spt)
+          new_q = mass/primary_mass
+          previously_known = False
+          for comp in known_companions:
+            if abs(new_q - comp[1]) < 0.1 and comp[0] < 4.0:
+              previously_known = True
+          if sb and abs(new_q - q) < 0.1:
+            previously_known = True
+        if not previously_known:
+          new_massratios.append(new_q)
           multiple = True
 
       #Keep track of total binary fraction
@@ -244,7 +244,7 @@ def GetHETdist(datadir="HET_data/", MS=None):
           print "\tq = %g" %(comp[1]/(primary_mass))
           mass_ratios.append(comp[1]/primary_mass)
       if code == 1:
-	sb = True
+        sb = True
         multiple = True
         q = value
         wds = False
@@ -266,18 +266,18 @@ def GetHETdist(datadir="HET_data/", MS=None):
 
       #Now, put in my data
       if starname in NewDetections:
-	for T in NewDetections[starname]:
-	  spt = MS.GetSpectralType(MS.Temperature, T)
-	  mass = MS.Interpolate(MS.Mass, spt)
-	  new_q = mass/primary_mass
-	  previously_known = False
-	  for comp in known_companions:
-	    if abs(new_q - comp[1]) < 0.1 and comp[0] < 4.0:
-	      previously_known = True
-	  if sb and abs(new_q - q) < 0.1:
-	    previously_known = True
-	if not previously_known:
-	  new_massratios.append(new_q)
+        for T in NewDetections[starname]:
+          spt = MS.GetSpectralType(MS.Temperature, T)
+          mass = MS.Interpolate(MS.Mass, spt)
+          new_q = mass/primary_mass
+          previously_known = False
+          for comp in known_companions:
+            if abs(new_q - comp[1]) < 0.1 and comp[0] < 4.0:
+              previously_known = True
+          if sb and abs(new_q - q) < 0.1:
+            previously_known = True
+        if not previously_known:
+          new_massratios.append(new_q)
           multiple = True
 
       #Keep track of total binary fraction
@@ -329,7 +329,7 @@ def GetTS23dist(datadir="McDonaldData/", MS=None):
           print "\tq = %g" %(comp[1]/(primary_mass))
           mass_ratios.append(comp[1]/primary_mass)
       if code == 1:
-	sb = True
+        sb = True
         multiple = True
         q = value
         wds = False
@@ -355,7 +355,7 @@ def GetTS23dist(datadir="McDonaldData/", MS=None):
           spt = MS.GetSpectralType(MS.Temperature, T)
           mass = MS.Interpolate(MS.Mass, spt)
           new_q = mass/primary_mass
-	previously_known = False
+        previously_known = False
         for comp in known_companions:
           if abs(new_q - comp[1]) < 0.1 and comp[0] < 4.0:
             previously_known = True

@@ -143,7 +143,7 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
 
     if process_model:
       if debug:
-	print "Processing model..."
+        print "Processing model..."
       left = numpy.searchsorted(model.x, data[0].x[0] - 10.0)
       right = numpy.searchsorted(model.x, data[-1].x[-1] + 10.0)
       if left > 0:
@@ -156,8 +156,8 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
           print "Interpolating model"
         MODEL = UnivariateSpline(x2,y2, s=0)
       else:
-	if debug:
-	  print "Model already interpolated. Thanks!"
+        if debug:
+          print "Model already interpolated. Thanks!"
         MODEL = model_fcns[i]
       #CONT = UnivariateSpline(x2, cont2, s=0)
       

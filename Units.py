@@ -3,7 +3,7 @@
 """
  module to easily manage units in Python
  To convert units (e.g. cm to km), just multiply the
- 	number by km/cm
+        number by km/cm
 """
 from math import pi, tan
 
