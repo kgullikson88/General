@@ -26,6 +26,8 @@ except ImportError:
 from pysynphot.observation import Observation
 from pysynphot.spectrum import ArraySourceSpectrum, ArraySpectralElement
 import FittingUtilities
+import mlpy
+
 
 #Ensure a directory exists. Create it if not
 def ensure_dir(f):
