@@ -15,8 +15,11 @@ from scipy.optimize import fminbound, fmin, brent, golden, minimize_scalar
 from scipy.linalg import solve_banded
 from scipy.stats import scoreatpercentile
 from scipy.signal import kaiserord, firwin, lfilter
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from astropy import units, constants
 import mlpy
+import readmultispec as multispec
+from FittingUtilities import Continuum
 try:
   import emcee
 except ImportError:
@@ -329,7 +332,7 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
           errors = int(raw_input("Enter the band number (in C-numbering) of the error/sigma band: "))
         flux = retdict['flux'][0][i]
         err = retdict['flux'][errors][i]
-      cont = FindContinuum.Continuum(wave, flux, lowreject=2, highreject=4)
+      cont = Continuum(wave, flux, lowreject=2, highreject=4)
       orders.append(DataStructures.xypoint(x=wave, y=flux, err=err , cont=cont))
   return orders
 
