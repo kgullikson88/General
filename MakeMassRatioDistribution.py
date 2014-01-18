@@ -442,6 +442,14 @@ if __name__ == "__main__":
     mass_ratios = [mass_ratios, new_massratios]
   else:
     mass_ratios = [mass_ratios, []]
+  
+  print "\n*** Mass Ratios found: ***"
+  for idx in [0,1]:
+    for q in mass_ratios[idx]:
+      print q
+  print "\n"
+
+  
   if color:
     plt.hist(mass_ratios, bins=bins, color=['chocolate','deepskyblue'], histtype='barstacked', label=["Known companions", "Candidate companions"], rwidth=1)
   else:
