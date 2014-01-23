@@ -1,0 +1,5 @@
+*.pyc
+*.swp
+RotBroad2.c
+RotBroad_Fast.so
+build*
