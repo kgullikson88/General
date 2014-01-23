@@ -41,6 +41,8 @@ from scipy.signal import fftconvolve
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import sys
 from astropy import units, constants
+from multiprocessing import Pool
+from functools import partial
 import DataStructures
 import FittingUtilities
 import RotBroad_Fast as RotBroad
@@ -125,31 +127,47 @@ def GetSamples(data, model_file, Nboot, vsini=10.0, resolution=50000):
   #Now, begin the bootstrap loop
   print "\n"
   output = numpy.zeros(Nboot)
+  pool = Pool(processes=4)
+  fcn = partial(GetCCFHeight, data, model_orders)
+  output = pool.map(fcn, range(Nboot))
+  #output = result.get(timeout=3600)
+  print output
+  return output
+  
+  """
   for i in range(Nboot):
     sys.stdout.write("\rBootstrap model %i of %i" %(i+1, Nboot))
     sys.stdout.flush()
-    #Copy the original data. We will overwrite this in a minute
-    newdata = [order.copy() for order in data]
-    
-    #Randomly sample from each order with replacement to make fake data
-    for j in range(len(newdata)):
-      order = newdata[j]
-      index = numpy.random.randint(0, order.size(), order.size())
-      order.y = (order.y/order.cont)[index]
-      
-      #Resample to log-spacing
-      start = numpy.log(order.x[0])
-      end = numpy.log(order.x[-1])
-      xgrid = numpy.logspace(start, end, order.size(), base=numpy.e)
-      newdata[j] = FittingUtilities.RebinData(order, xgrid)
-    
-    
-    #Now, cross-correlate the new data against the model
-    corr = Correlate(newdata, model_orders)
-    output[i] = numpy.max(corr.y)
-  
-  
+    output[i] = GetCCFHeight(data, model_orders)
+    print "   ", output[i]
   return output
+  """  
+    
+  
+def GetCCFHeight(data, model_orders, *args):
+  #for i in range(Nboot):
+  #  sys.stdout.write("\rBootstrap model %i of %i" %(i+1, Nboot))
+  #  sys.stdout.flush()
+  #Copy the original data. We will overwrite this in a minute
+  newdata = [order.copy() for order in data]
+    
+  #Randomly sample from each order with replacement to make fake data
+  for j in range(len(newdata)):
+    order = newdata[j]
+    index = numpy.random.randint(0, order.size(), order.size())
+    order.y = (order.y/order.cont)[index]
+      
+    #Resample to log-spacing
+    start = numpy.log(order.x[0])
+    end = numpy.log(order.x[-1])
+    xgrid = numpy.logspace(start, end, order.size(), base=numpy.e)
+    newdata[j] = FittingUtilities.RebinData(order, xgrid)
+    
+    
+  #Now, cross-correlate the new data against the model
+  corr = Correlate(newdata, model_orders)
+  return numpy.max(corr.y)
+  
     
     
     
