@@ -214,9 +214,9 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
         order.output("Corr_inputdata.dat")
         model2.output("Corr_inputmodel.dat")
     
-      #ycorr = scipy.signal.fftconvolve((reduceddata - meandata), (reducedmodel - meanmodel)[::-1], mode=corr_mode)
+      ycorr = scipy.signal.fftconvolve((reduceddata - meandata), (reducedmodel - meanmodel)[::-1], mode=corr_mode)
       
-      ycorr = numpy.correlate(reduceddata - meandata, reducedmodel - meanmodel, mode=corr_mode)
+      #ycorr = numpy.correlate(reduceddata - meandata, reducedmodel - meanmodel, mode=corr_mode)
       xcorr = numpy.arange(ycorr.size)
       if corr_mode == 'valid':
         lags = xcorr - (model2.x.size + order.x.size + delta - 1.0)/2.0
