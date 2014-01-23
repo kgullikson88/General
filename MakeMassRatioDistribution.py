@@ -437,17 +437,20 @@ if __name__ == "__main__":
 
   print "Multiplicity fraction = %g" %(num_multiple/numstars)
   bins = numpy.arange(0.0, 1.1, 0.1)
-  plt.figure(1)
   if len(new_massratios) > 0:
     mass_ratios = [mass_ratios, new_massratios]
   else:
     mass_ratios = [mass_ratios, []]
   
-  print "\n*** Mass Ratios found: ***"
-  for idx in [0,1]:
+  print "\n\n***  All mass ratios  ***"
+  for idx in range(2):
     for q in mass_ratios[idx]:
       print q
+
   print "\n"
+  
+  #Plot
+  plt.figure(1)
 
   
   if color:

@@ -14,6 +14,7 @@ from scipy.misc import factorial
 from scipy.optimize import fminbound, fmin, brent, golden, minimize_scalar
 from scipy.linalg import solve_banded
 from scipy.stats import scoreatpercentile
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.signal import kaiserord, firwin, lfilter
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from astropy import units, constants
