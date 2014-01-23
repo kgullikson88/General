@@ -125,23 +125,12 @@ def GetSamples(data, model_file, Nboot, vsini=10.0, resolution=50000):
   
   
   #Now, begin the bootstrap loop
-  print "\n"
   output = numpy.zeros(Nboot)
   pool = Pool(processes=4)
   fcn = partial(GetCCFHeight, data, model_orders)
   output = pool.map(fcn, range(Nboot))
-  #output = result.get(timeout=3600)
-  print output
   return output
   
-  """
-  for i in range(Nboot):
-    sys.stdout.write("\rBootstrap model %i of %i" %(i+1, Nboot))
-    sys.stdout.flush()
-    output[i] = GetCCFHeight(data, model_orders)
-    print "   ", output[i]
-  return output
-  """  
     
   
 def GetCCFHeight(data, model_orders, *args):
