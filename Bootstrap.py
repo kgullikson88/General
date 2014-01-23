@@ -134,9 +134,6 @@ def GetSamples(data, model_file, Nboot, vsini=10.0, resolution=50000):
     
   
 def GetCCFHeight(data, model_orders, *args):
-  #for i in range(Nboot):
-  #  sys.stdout.write("\rBootstrap model %i of %i" %(i+1, Nboot))
-  #  sys.stdout.flush()
   #Copy the original data. We will overwrite this in a minute
   newdata = [order.copy() for order in data]
     
@@ -198,6 +195,7 @@ def Correlate(data, model_orders):
     corr = corr[left:right]
 
     normalization += float(order.size())
+    
     # Save correlation
     corrlist.append(corr.copy())
 
