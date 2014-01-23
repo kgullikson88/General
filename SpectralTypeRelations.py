@@ -527,8 +527,6 @@ class MainSequence:
       xpoints.append(self.SpT_To_Number(key))
       ypoints.append(dictionary[key])
 
-    plt.plot(xpoints, ypoints, 'ro')
-    plt.show()
       
     sorting_indices = [i[0] for i in sorted(enumerate(xpoints), key=lambda x:x[1])]
     for index in range(len(dictionary)):

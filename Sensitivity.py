@@ -10,7 +10,10 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from astropy import units, constants
 import warnings
+import os
 
+
+home = os.environ['HOME']
 
 
 def Analyze(data,                         #A list of xypoint instances
@@ -47,7 +50,7 @@ def Analyze(data,                         #A list of xypoint instances
     sec_radius = MS.Interpolate(MS.Radius, sec_spt)
     
   elif isinstance(age, float) or isinstance(age, int):
-    PMS = SpectralTypeRelations.PreMainSequence(ms_tracks_file="/Users/kgulliks/Dropbox/School/Research/Stellar_Evolution/Baraffe_Tracks.dat", track_source="Baraffe")
+    PMS = SpectralTypeRelations.PreMainSequence(pms_tracks_file="%s/Dropbox/School/Research/Stellar_Evolution/Baraffe_Tracks.dat" %home, track_source="Baraffe")
     sec_radius = PMS.GetFromTemperature(age, sec_temp, key='Radius')
     f = PMS.GetFactor(sec_temp, key='Radius')
     if f > 1.5:
@@ -58,6 +61,12 @@ def Analyze(data,                         #A list of xypoint instances
   else:
     raise ValueError( "Unrecognized variable type given for age!" )
 
+  #print "\n****** Age = %g" %age
+  #print "PMS radius = %g" %sec_radius
+  #sec_spt = MS.GetSpectralType(MS.Temperature, sec_temp, interpolate=True)
+  #sec_radius = MS.Interpolate(MS.Radius, sec_spt)
+  #print "MS radius = %g" %sec_radius
+  #sys.exit()
 
   
   #Do some initial processing on the model
@@ -79,7 +88,7 @@ def Analyze(data,                         #A list of xypoint instances
     for i, order in enumerate(data):
       order = order.copy()
       #Re-fit the continuum in the data
-      #order.cont = FittingUtilities.Continuum(order.x, order.y, fitorder=3, lowreject=1.5, highreject=7)
+      order.cont = FittingUtilities.Continuum(order.x, order.y, fitorder=3, lowreject=1.5, highreject=7)
       
       # rebin to match the data
       left = np.searchsorted(model.x, order.x[0]-1)
@@ -87,7 +96,7 @@ def Analyze(data,                         #A list of xypoint instances
       model2 = DataStructures.xypoint(x=model.x[left:right])
       model2.y = model_fcn(model2.x*(1.0+velocity/(constants.c.cgs.value*units.cm.to(units.km))))
       model2 = FittingUtilities.RebinData(model2, order.x)
-      
+      model2.cont = FittingUtilities.Continuum(model2.x, model2.y, fitorder=3, lowreject=1.5, highreject=10) 
 
       # scale to be at the appropriate flux ratio
       primary_flux = np.zeros(order.size())
