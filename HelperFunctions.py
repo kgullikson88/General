@@ -16,14 +16,19 @@ from scipy.linalg import solve_banded
 from scipy.stats import scoreatpercentile
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.signal import kaiserord, firwin, lfilter
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from astropy import units, constants
-import mlpy
+import readmultispec as multispec
+
 try:
   import emcee
 except ImportError:
   print "Warning! emcee module not loaded! BayesFit Module will not be available!"
 from pysynphot.observation import Observation
 from pysynphot.spectrum import ArraySourceSpectrum, ArraySpectralElement
+import FittingUtilities
+import mlpy
+
 
 #Ensure a directory exists. Create it if not
 def ensure_dir(f):
@@ -330,7 +335,7 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
           errors = int(raw_input("Enter the band number (in C-numbering) of the error/sigma band: "))
         flux = retdict['flux'][0][i]
         err = retdict['flux'][errors][i]
-      cont = FindContinuum.Continuum(wave, flux, lowreject=2, highreject=4)
+      cont = FittingUtilities.Continuum(wave, flux, lowreject=2, highreject=4)
       orders.append(DataStructures.xypoint(x=wave, y=flux, err=err , cont=cont))
   return orders
 
@@ -469,7 +474,7 @@ def IterativeLowPass(data, vel, numiter=100, lowreject=3, highreject=3, width=5,
     
   done = False
   iter = 0
-  datacopy.cont = Continuum(datacopy.x, datacopy.y, fitorder=9, lowreject=2.5, highreject=5)
+  datacopy.cont = FittingUtilities.Continuum(datacopy.x, datacopy.y, fitorder=9, lowreject=2.5, highreject=5)
   while not done and iter<numiter:
     done = True
     iter += 1

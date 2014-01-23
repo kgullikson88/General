@@ -451,6 +451,8 @@ if __name__ == "__main__":
   
   #Plot
   plt.figure(1)
+
+  
   if color:
     plt.hist(mass_ratios, bins=bins, color=['chocolate','deepskyblue'], histtype='barstacked', label=["Known companions", "Candidate companions"], rwidth=1)
   else:
