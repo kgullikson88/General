@@ -11,9 +11,7 @@ from astropy import units, constants
 import FittingUtilities
 import RotBroad_Fast as RotBroad
 import time
-import FittingUtilities
 import HelperFunctions
-from astropy import units, constants
 
 
 currentdir = os.getcwd() + "/"
