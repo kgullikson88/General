@@ -5,6 +5,7 @@ import os
 import numpy
 from collections import defaultdict
 from scipy.interpolate import UnivariateSpline
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import scipy.signal
 import DataStructures
 from astropy import units, constants
@@ -74,6 +75,170 @@ for fname in model_list:
   temp_list.append(temp)
   gravity_list.append(gravity)
   metallicity_list.append(metallicity)
+  
+  
+
+"""
+  This function just processes the model to prepare for cross-correlation
+"""
+def Process(model, data, vsini, resolution, debug=False):
+  
+  # Read in the model if necessary
+  if isinstance(model, str):
+    if debug:
+      print "Reading in the input model from %s" %filename
+    x, y = numpy.loadtxt(model, usecols=(0,1), unpack=True)
+    x = x*units.angstrom.to(units.nm)
+    y = 10**y
+    left = numpy.searchsorted(x, data[0].x[0]-10)
+    right = numpy.searchsorted(x, data[-1].x[-1]+10)
+    model = DataStructures.xypoint(x=x[left:right], y=y[left:right])
+  elif not isinstance(model, DataStructures.xypoint):
+    raise TypeError("Input model is of an unknown type! Must be a DataStructures.xypoint or a string with the filename.")
+  
+  
+  #Linearize the x-axis of the model
+  if debug:
+    print "Linearizing model"
+  xgrid = numpy.linspace(model.x[0], model.x[-1], model.size())
+  model = FittingUtilities.RebinData(model, xgrid)
+  
+  
+  #Broaden
+  if debug:
+    print "Rotationally broadening model to vsini = %g km/s" %(vsini*units.cm.to(units.km))
+  if vsini > 1.0*units.km.to(units.cm):
+    model = RotBroad.Broaden(model, vsini, linear=True)
+    
+    
+  #Reduce resolution
+  if debug:
+    print "Convolving to the detector resolution of %g" %resolution
+  model = FittingUtilities.ReduceResolution(model, resolution) 
+  
+  
+  # Rebin subsets of the model to the same spacing as the data
+  model_orders = []
+  for i, order in enumerate(data):
+    if debug:
+      sys.stdout.write("\rGenerating model subset for order %i in the input data" %(i+1))
+      sys.stdout.flush()
+    # Find how much to extend the model so that we can get maxvel range.
+    dlambda = order.x[order.size()/2] * maxvel*1.5/3e5
+    left = numpy.searchsorted(model.x, order.x[0] - dlambda)
+    right = numpy.searchsorted(model.x, order.x[-1] + dlambda)
+    
+    # Figure out the log-spacing of the data
+    start = numpy.log(order.x[0])
+    end = numpy.log(order.x[-1])
+    xgrid = numpy.logspace(start, end, order.size(), base=numpy.e)
+    logspacing = numpy.log(xgrid[1]/xgrid[0])
+    
+    # Finally, space the model segment with the same log-spacing
+    start = numpy.log(model.x[left])
+    end = numpy.log(model.x[right])
+    xgrid = numpy.exp(numpy.arange(start, end+logspacing, logspacing))
+      
+    segment = FittingUtilities.RebinData(model.copy(), xgrid)
+    segment.cont = FittingUtilities.Continuum(segment.x, segment.y, lowreject=1.5, highreject=5, fitorder=2)
+    model_orders.append(segment)
+   
+  
+  return model_orders  
+  
+  
+  
+"""
+  This is the main function. CALL THIS ONE!
+"""
+def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_data=True, debug=False):
+  
+  # Process the model if necessary
+  if process_model:
+    model_orders = Process(model, data, vsini*units.km.to(units.cm), resolution, debug=debug)
+  elif isinstance(model, list) and isinstance(model[0], DataStructures.xypoint):
+    model_orders = model
+  else:
+    raise TypeError("model must be a list of DataStructures.xypoints if process=False!")
+  
+  
+  # Re-sample all orders of the data to logspacing, if necessary
+  if rebin_data:
+    if debug:
+      print "Resampling data to log-spacing"
+    for i, order in enumerate(data):
+      if debug:
+        print "Resampling order %i to log-spacing" %i
+      start = numpy.log(order.x[0])
+      end = numpy.log(order.x[-1])
+      neworder = order.copy()
+      neworder.x = numpy.logspace(start, end, order.size(), base=numpy.e)
+      neworder = FittingUtilities.RebinData(order, neworder.x)
+      data[i] = neworder  
+    
+    
+  # Now, cross-correlate the new data against the model
+  corr = Correlate(data, model_orders)
+  
+  retdict = {"CCF": corr,
+             "model": model_orders,
+             "data": data}
+  return retdict
+  
+  
+  
+"""
+  This function does the actual correlation.
+"""    
+def Correlate(data, model_orders):
+  corrlist = []
+  normalization = 0.0
+  for ordernum, order in enumerate(data):
+    #print "Cross-correlating order %i" %(ordernum+1)
+    model = model_orders[ordernum]
+    reduceddata = order.y
+    reducedmodel = model.y/model.cont
+    meandata = reduceddata.mean()
+    meanmodel = reducedmodel.mean()
+    data_rms = numpy.std(reduceddata)
+    model_rms = numpy.std(reducedmodel)
+    left = numpy.searchsorted(model.x, order.x[0])
+    right = model.x.size - numpy.searchsorted(model.x, order.x[-1])
+    delta = left - right
+    
+    #ycorr = numpy.correlate(reduceddata - meandata, reducedmodel - meanmodel, mode='valid')
+    ycorr = scipy.signal.fftconvolve((reduceddata - meandata), (reducedmodel - meanmodel)[::-1], mode='valid')
+    xcorr = numpy.arange(ycorr.size)
+    lags = xcorr - right
+    distancePerLag = numpy.log(model.x[1] / model.x[0])
+    offsets = -lags*distancePerLag
+    velocity = offsets * constants.c.cgs.value * units.cm.to(units.km)
+    corr = DataStructures.xypoint(velocity.size)
+    corr.x = velocity[::-1]
+    corr.y = ycorr[::-1]/(data_rms*model_rms*float(ycorr.size))
+        
+    # Only save part of the correlation
+    left = numpy.searchsorted(corr.x, minvel)
+    right = numpy.searchsorted(corr.x, maxvel)
+    corr = corr[left:right]
+
+    normalization += float(order.size())
+    
+    # Save correlation
+    corrlist.append(corr.copy())
+
+    
+  # Add up the individual CCFs (use the Maximum Likelihood method from Zucker 2003, MNRAS, 342, 1291)
+  total = corrlist[0].copy()
+  total.y = numpy.ones(total.size())
+  for i, corr in enumerate(corrlist):
+    correlation = spline(corr.x, corr.y, k=1)
+    N = data[i].size()
+    total.y *= numpy.power(1.0 - correlation(total.x)**2, float(N)/normalization)
+  master_corr = total.copy()
+  master_corr.y = 1.0 - numpy.power(total.y, 1.0/float(len(corrlist)))
+  
+  return master_corr
 
 
 
@@ -137,7 +302,7 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
     elif isinstance(models[i], DataStructures.xypoint):
       model = models[i].copy()
     else:
-      sys.exit("Model #%i of unkown type in Correlate.PyCorr2!" %i) 
+      sys.exit("Model #%i of unkown type in Correlate.PyCorr!" %i) 
 
     if process_model:
       if debug:

@@ -40,6 +40,7 @@ import numpy
 from scipy.signal import fftconvolve
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import sys
+import time
 from astropy import units, constants
 from multiprocessing import Pool
 from functools import partial
@@ -125,10 +126,28 @@ def GetSamples(data, model_file, Nboot, vsini=10.0, resolution=50000):
   
   
   #Now, begin the bootstrap loop
+  print "\n\nStarting loop over bootstrap trials. This could take a while..."
   output = numpy.zeros(Nboot)
   pool = Pool(processes=4)
   fcn = partial(GetCCFHeight, data, model_orders)
-  output = pool.map(fcn, range(Nboot))
+  #output = pool.map(fcn, range(Nboot), chunksize=Nboot/4)
+  
+  result = pool.imap_unordered(fcn, xrange(Nboot))
+  #result = pool.map_async(fcn, xrange(Nboot))
+  pool.close()
+  
+  
+  while True:
+    completed = result._index
+    #completed = Nboot - result._number_left
+    if (completed == Nboot): break
+    #if result.ready(): break
+    sys.stdout.write("\rExecution is %.2f%% done" %(100.0*completed/float(Nboot)))
+    sys.stdout.flush()
+    time.sleep(2)
+  
+  output = [r for r in result]
+  #print output
   return output
   
     
