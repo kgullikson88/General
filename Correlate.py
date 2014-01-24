@@ -123,6 +123,7 @@ def Process(model, data, vsini, resolution, debug=False):
     if debug:
       sys.stdout.write("\rGenerating model subset for order %i in the input data" %(i+1))
       sys.stdout.flush()
+      print "\n"
     # Find how much to extend the model so that we can get maxvel range.
     dlambda = order.x[order.size()/2] * maxvel*1.5/3e5
     left = numpy.searchsorted(model.x, order.x[0] - dlambda)
