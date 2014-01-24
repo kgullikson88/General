@@ -86,7 +86,7 @@ def Process(model, data, vsini, resolution, debug=False):
   # Read in the model if necessary
   if isinstance(model, str):
     if debug:
-      print "Reading in the input model from %s" %filename
+      print "Reading in the input model from %s" %model
     x, y = numpy.loadtxt(model, usecols=(0,1), unpack=True)
     x = x*units.angstrom.to(units.nm)
     y = 10**y
@@ -114,20 +114,23 @@ def Process(model, data, vsini, resolution, debug=False):
   #Reduce resolution
   if debug:
     print "Convolving to the detector resolution of %g" %resolution
-  model = FittingUtilities.ReduceResolution(model, resolution) 
+  if resolution > 5000:
+    model = FittingUtilities.ReduceResolution(model, resolution) 
   
   
   # Rebin subsets of the model to the same spacing as the data
   model_orders = []
+  model.output("Test_model.dat")
+  
   for i, order in enumerate(data):
     if debug:
       sys.stdout.write("\rGenerating model subset for order %i in the input data" %(i+1))
       sys.stdout.flush()
-      print "\n"
     # Find how much to extend the model so that we can get maxvel range.
     dlambda = order.x[order.size()/2] * maxvel*1.5/3e5
     left = numpy.searchsorted(model.x, order.x[0] - dlambda)
     right = numpy.searchsorted(model.x, order.x[-1] + dlambda)
+    right = max(right, model.size()-2)
     
     # Figure out the log-spacing of the data
     start = numpy.log(order.x[0])
@@ -140,11 +143,11 @@ def Process(model, data, vsini, resolution, debug=False):
     end = numpy.log(model.x[right])
     xgrid = numpy.exp(numpy.arange(start, end+logspacing, logspacing))
       
-    segment = FittingUtilities.RebinData(model.copy(), xgrid)
+    segment = FittingUtilities.RebinData(model[left-1:right+1].copy(), xgrid)
     segment.cont = FittingUtilities.Continuum(segment.x, segment.y, lowreject=1.5, highreject=5, fitorder=2)
     model_orders.append(segment)
    
-  
+  print "\n"
   return model_orders  
   
   

@@ -29,6 +29,7 @@ def Analyze(data,                         #A list of xypoint instances
             tolerance=10,                 #How far away the highest peak can be from correct to still count as being found (in km/s)
             outdir="Sensitivity/",        #Output directory. Only used if debug == True
             outfilebase="Output",         #Beginning of output filename. Only used for debug=True
+            process_model=True,
             debug=False):                 #Debugging flag
 
   #Convert prim_temp to a list if it is not already
@@ -60,13 +61,6 @@ def Analyze(data,                         #A list of xypoint instances
 
   else:
     raise ValueError( "Unrecognized variable type given for age!" )
-
-  #print "\n****** Age = %g" %age
-  #print "PMS radius = %g" %sec_radius
-  #sec_spt = MS.GetSpectralType(MS.Temperature, sec_temp, interpolate=True)
-  #sec_radius = MS.Interpolate(MS.Radius, sec_spt)
-  #print "MS radius = %g" %sec_radius
-  #sys.exit()
 
   
   #Do some initial processing on the model
@@ -116,7 +110,12 @@ def Analyze(data,                         #A list of xypoint instances
       orders.append(order.copy())
 
     #Do the cross-correlation
-    corr = Correlate.PyCorr(orders, resolution=None, models=[model,], vsini=None, debug=debug, save_output=False, outdir=outdir, outfilebase=outfilebase)[0]
+    #corr = Correlate.PyCorr(orders, resolution=None, models=[model,], vsini=None, debug=debug, save_output=False, outdir=outdir, outfilebase=outfilebase)[0]
+    if process_model:
+      result = Correlate.GetCCF(orders, model, vsini=0.0, resolution=0.0, process_model=True, debug=debug)
+    else:
+      result = Correlate.GetCCF(orders, model, vsini=0.0, resolution=0.0, process_model=False, debug=debug)
+    corr = result["CCF"]
 
     #output
     if debug:
