@@ -30,6 +30,7 @@ def Analyze(data,                         #A list of xypoint instances
             outdir="Sensitivity/",        #Output directory. Only used if debug == True
             outfilebase="Output",         #Beginning of output filename. Only used for debug=True
             process_model=True,
+            model_orders=None,
             debug=False):                 #Debugging flag
 
   #Convert prim_temp to a list if it is not already
@@ -113,8 +114,10 @@ def Analyze(data,                         #A list of xypoint instances
     #corr = Correlate.PyCorr(orders, resolution=None, models=[model,], vsini=None, debug=debug, save_output=False, outdir=outdir, outfilebase=outfilebase)[0]
     if process_model:
       result = Correlate.GetCCF(orders, model, vsini=0.0, resolution=0.0, process_model=True, debug=debug)
+    elif model_orders != None:
+      result = Correlate.GetCCF(orders, model_orders, vsini=0.0, resolution=0.0, process_model=False, debug=debug)
     else:
-      result = Correlate.GetCCF(orders, model, vsini=0.0, resolution=0.0, process_model=False, debug=debug)
+      raise ValueError("Must give model_orders if process_model is False!")
     corr = result["CCF"]
 
     #output
