@@ -199,16 +199,23 @@ def BinomialErrors(n, N, debug=False, tol=0.001):
   N = int(N)
   p0 = float(n)/float(N)  #Observed probability
   guess_errors = numpy.sqrt(n*p0*(1.0-p0)/float(N))
+  if debug:
+    print "n = %i\nN = %i" %(n,N)
+    print "Guess P = %g +/- %g" %(p0, guess_errors)
   
-  func = lambda x: numpy.sum([factorial(N+1)/(factorial(i)*factorial(N+1-i)) * x**i * (1.0-x)**(N+1-i) for i in range(0, n+1)])
+  func = lambda x: numpy.sum([numpy.product(range(N+2-j, N+2))/(factorial(j)) * x**j * (1.0-x)**(N+1-j) for j in range(0, n+1)])
   lower_errfcn = lambda x: numpy.abs(func(x) - 0.84)
   upper_errfcn = lambda x: numpy.abs(func(x) - 0.16)
+  if debug:
+    print func(max(0.0, p0-guess_errors)), func(p0+guess_errors)
 
   #Find the best fit. Need to do various tests for convergence
   converged = False
   methods = ['Bounded', 'Brent', 'Golden']
   i = 0
   while not converged and i < len(methods):
+    if debug:
+      print "Trying with lower bound with method %s", methods[i]
     result = minimize_scalar(lower_errfcn, bracket=(0.0, p0), bounds=(0.0, p0), method=methods[i])
     if result.fun < tol and result.x > 0.0 and result.x < p0:
       converged = True
@@ -218,10 +225,14 @@ def BinomialErrors(n, N, debug=False, tol=0.001):
     print "BinomialErrors Warning! Fit did not succeed for lower bound. Using Gaussian approximation"
     lower = p0 - max(0.0, p0-guess_errors)
 
+    
+
   #Now, do the same thing for the upper interval
   i = 0
   converged = False
   while not converged and i < len(methods):
+    if debug:
+      print "Trying to fit upper limit with method %s" %(methods[i])
     result = minimize_scalar(upper_errfcn, bracket=(p0, 1.0), bounds=(p0, 1.0), method=methods[i])
     if result.fun < tol and result.x > p0 and result.x < 1.0:
       converged = True

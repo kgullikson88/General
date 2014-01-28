@@ -26,56 +26,20 @@ from astropy import units, constants
     star lines in known SB1s.
   The key is the star name, and the value is the estimated temperature
 """
-NewDetections = {#"HIP 67782": [3900,],
-                 "HIP 77336": [6500,],
-                 #"HIP 85379": [6700,],
-                 #               "HIP 72154": [3500,5700],
-                 #"HIP 72515": [5700,],
-                 "HIP 93393": [3800,],
-#"HIP 92312": [5000,],
-#"HIP 96840": [3500,5200],
-#"HIP 100069": [3200,],
-                 #               "HIP 8704": [3500,],
-                 #"HIP 105972": [7600,],
-                 #               "HIP 116582": [3200,6700],    THIS MIGHT BE A FOREGROUND BINARY!
-                 "HIP 2548": [6500,],
-                 #               "HIP 17527": [3500,],
-                 #               "HIP 97870": [3300,],
-                 #"HIP 13165": [3500,],
-                 #"HIP 14143": [3500,],#7300],
-                 #"HIP 20430": [5800,],
-                 #               "HIP 105282": [3700,3700],
-                 #"HIP 105282": [3700,],
-                 #               "HIP 8016": [3500,3500],
-                 "HIP 14043": [6200,],
-                 #               "HIP 58590": [3800,],
+NewDetections = {"HIP 60009": [5500,],
                  "HIP 82673": [6000,],
-                 #               "HIP 87108": [3500,4400],
-                 #               "HIP 104139": [5000,],
-                                 "HIP 95241": [4100,],
-                 #               "HIP 116247": [3400,],
-                 #               "HIP 117452": [4700,],
-                 #               "HIP 60009": [3300,5500],
-                 "HIP 60009": [5500,],
-                 #               "HIP 63724": [3400,],
-                 #               "HIP 79404": [3800,6000],
-                 #               "HIP 92855": [4000,5800],
-                 "HIP 112029": [6300,],
-                 #               "HIP 76600": [5600,],
-                 #               "HIP 77516": [3500,],
-                 #               "HIP 78820": [4000,],
-                 "HIP 88816": [6400,],
-                 #               "HIP 80883": [3700,],
-                 #               "HIP 78554": [3400,],
-                 "HIP 15444": [6100,],
-                 "HIP 20789": [5400,],
-                 "HR 545":    [5000,],
-                 "HIP 5132":  [3700,],
+                 "HIP 88116": [6000,],
+                 "HIP 110838": [4400,],
+                 "HIP 93393": [3800,],
+                 "HR 545": [5000,],
+                 "HIP 22958": [6200,]
                  }
 
 #Do the same thing for known binaries not in WDS or SB9
-KnownBinaries = {"HIP 76267": [5800,]
-                 }
+KnownBinaries = {}
+
+
+
 
 
 """
@@ -180,6 +144,16 @@ def GetCHIRONdist(datadir="CHIRON_data/", MS=None):
         print "Single-lined spectroscopic companion to %s found! Double-lined in my data?" %starname
         multiple = True
 
+      #Put in known binaries that aren't in WDS or SB9
+      if starname in KnownBinaries:
+        for T in KnownBinaries[starname]:
+          spt = MS.GetSpectralType(MS.Temperature, T)
+          mass = MS.Interpolate(MS.Mass, spt)
+          new_q = mass/primary_mass
+          massratios.append(new_q)
+          multiple = True
+          
+          
 
       #Now, put in my data
       if starname in NewDetections:
@@ -263,6 +237,14 @@ def GetHETdist(datadir="HET_data/", MS=None):
         print "Single-lined spectroscopic companion to %s found! Double-lined in my data?" %starname
         multiple = True
 
+      #Put in known binaries that aren't in WDS or SB9
+      if starname in KnownBinaries:
+        for T in KnownBinaries[starname]:
+          spt = MS.GetSpectralType(MS.Temperature, T)
+          mass = MS.Interpolate(MS.Mass, spt)
+          new_q = mass/primary_mass
+          massratios.append(new_q)
+          multiple = True
 
       #Now, put in my data
       if starname in NewDetections:
@@ -315,7 +297,6 @@ def GetTS23dist(datadir="McDonaldData/", MS=None):
       multiple = False
       sb = False
       header = pyfits.getheader("%s/%s" %(directory, star))
-      print star
       starname = header['OBJECT']
       print starname
       stardata = StarData.GetData(starname)
@@ -348,6 +329,14 @@ def GetTS23dist(datadir="McDonaldData/", MS=None):
         print "Single-lined spectroscopic companion to %s found! Double-lined in my data?" %starname
         multiple = True
 
+      #Put in known binaries that aren't in WDS or SB9
+      if starname in KnownBinaries:
+        for T in KnownBinaries[starname]:
+          spt = MS.GetSpectralType(MS.Temperature, T)
+          mass = MS.Interpolate(MS.Mass, spt)
+          new_q = mass/primary_mass
+          massratios.append(new_q)
+          multiple = True
 
       #Now, put in my data
       if starname in NewDetections:
@@ -446,6 +435,7 @@ if __name__ == "__main__":
   for idx in range(2):
     for q in mass_ratios[idx]:
       print q
+    print "\n\n\n\n#New detections:"
 
   print "\n"
   
