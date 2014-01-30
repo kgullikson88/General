@@ -12,6 +12,9 @@ determine the CCF significance of a peak.
   -model_file: The filename of the model to cross-correlate against.
                  The model will be read in and processed once before 
                  doing the bootstrap analysis.
+  -vsini:      The rotational velocity by which you want the model
+                 broadened.
+  -resolution: The detector resolution R=lambda/delta-lambda
   
   
   What it does:

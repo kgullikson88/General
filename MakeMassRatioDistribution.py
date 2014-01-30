@@ -105,6 +105,7 @@ def GetCHIRONdist(datadir="CHIRON_data/", MS=None):
   numstars = 0.0
   mass_ratios = []
   new_massratios = []
+  stars = []
   for directory in dirlist:
     starlist = [f for f in os.listdir(directory) if f.startswith("H") and f.endswith("-0.fits")]
     for star in starlist:
@@ -174,12 +175,13 @@ def GetCHIRONdist(datadir="CHIRON_data/", MS=None):
       #Keep track of total binary fraction
       if multiple:
         multiplicity += 1
+        stars.append(starname)
       numstars += 1.0
 
 
   #Return mass_ratio lists
   mass_ratios = [min(q, 1.0) for q in mass_ratios]
-  return mass_ratios, new_massratios, multiplicity, numstars
+  return mass_ratios, new_massratios, multiplicity, numstars, stars
 
 
 
@@ -198,6 +200,7 @@ def GetHETdist(datadir="HET_data/", MS=None):
   numstars = 0.0
   mass_ratios = []
   new_massratios = []
+  stars = []
   for directory in dirlist:
     starlist = [f for f in os.listdir(directory) if ((f.startswith("HR") and not f.startswith("HRS")) or f.startswith("HIP")) and f.endswith("-0.fits")]
     for star in starlist:
@@ -265,12 +268,13 @@ def GetHETdist(datadir="HET_data/", MS=None):
       #Keep track of total binary fraction
       if multiple:
         multiplicity += 1
+        stars.append(starname)
       numstars += 1.0
 
 
   #Make some plots
   mass_ratios = [min(q, 1.0) for q in mass_ratios]
-  return mass_ratios, new_massratios, multiplicity, numstars
+  return mass_ratios, new_massratios, multiplicity, numstars, stars
 
 
 
@@ -290,6 +294,7 @@ def GetTS23dist(datadir="McDonaldData/", MS=None):
   numstars = 0.0
   mass_ratios = []
   new_massratios = []
+  stars = []
   for directory in dirlist:
     starlist = [f for f in os.listdir(directory) if (f.startswith("HR") or f.startswith("HIP")) and f.endswith("-0.fits")]
     for star in starlist:
@@ -357,12 +362,13 @@ def GetTS23dist(datadir="McDonaldData/", MS=None):
       #Keep track of total binary fraction
       if multiple:
         multiplicity += 1
+        stars.append(starname)
       numstars += 1.0
 
 
   #Make some plots
   mass_ratios = [min(q, 1.0) for q in mass_ratios]
-  return mass_ratios, new_massratios, multiplicity, numstars
+  return mass_ratios, new_massratios, multiplicity, numstars, stars
 
 
 
@@ -389,9 +395,9 @@ if __name__ == "__main__":
   MS = SpectralTypeRelations.MainSequence()
 
   #Get data
-  ch_mass_ratios, ch_new_massratios, ch_num_multiple, ch_numstars = GetCHIRONdist(MS=MS)
-  het_mass_ratios, het_new_massratios, het_num_multiple, het_numstars = GetHETdist(MS=MS)
-  ts_mass_ratios, ts_new_massratios, ts_num_multiple, ts_numstars = GetTS23dist(MS=MS)
+  ch_mass_ratios, ch_new_massratios, ch_num_multiple, ch_numstars, ch_stars = GetCHIRONdist(MS=MS)
+  het_mass_ratios, het_new_massratios, het_num_multiple, het_numstars, het_stars = GetHETdist(MS=MS)
+  ts_mass_ratios, ts_new_massratios, ts_num_multiple, ts_numstars, ts_stars = GetTS23dist(MS=MS)
   if het_only:
     mass_ratios = het_mass_ratios
     new_massratios = het_new_massratios
@@ -412,14 +418,27 @@ if __name__ == "__main__":
     new_massratios = het_new_massratios
     num_multiple = het_num_multiple
     numstars = het_numstars
-    for q in ch_mass_ratios:
-      mass_ratios.append(q)
-    for q in ts_mass_ratios:
-      mass_ratios.append(q)
-    for q in ch_new_massratios:
-      new_massratios.append(q)
-    for q in ts_new_massratios:
-      new_massratios.append(q)
+    stars = het_stars
+    for i, q in enumerate(ch_mass_ratios):
+      if ch_stars[i] not in stars:
+        mass_ratios.append(q)
+      else:
+        print "Duplicate star found: %s" %ch_stars[i]
+    for i, q in enumerate(ts_mass_ratios):
+      if ts_stars[i] not in stars:
+        mass_ratios.append(q)
+      else:
+        print "Duplicate star found: %s" %ts_stars[i]
+    for i, q in enumerate(ch_new_massratios):
+      if ch_stars[i] not in stars:
+        new_massratios.append(q)
+      else:
+        print "Duplicate star found: %s" %ch_stars[i]
+    for i, q in enumerate(ts_new_massratios):
+      if ts_stars[i] not in stars:
+        new_massratios.append(q)
+      else:
+        print "Duplicate star found: %s" %ts_stars[i]
     num_multiple += ch_num_multiple + ts_num_multiple
     numstars += ch_numstars + ts_numstars
   
@@ -444,10 +463,10 @@ if __name__ == "__main__":
 
   
   if color:
-    plt.hist(mass_ratios, bins=bins, color=['chocolate','deepskyblue'], histtype='barstacked', label=["Known companions", "Candidate companions"], rwidth=1)
+    plt.hist(mass_ratios, bins=bins, color=['chocolate','deepskyblue'], histtype='barstacked', label=["Known companions", "New companions"], rwidth=1)
   else:
-    plt.hist(mass_ratios, bins=bins, color=['0.25','0.5'], histtype='barstacked', label=["Known companions", "Candidate companions"], rwidth=1)
-  plt.legend(loc='best')
+    plt.hist(mass_ratios, bins=bins, color=['0.25','0.5'], histtype='barstacked', label=["Known companions", "New companions"], rwidth=1)
+  plt.legend(loc='best', fancybox=True)
   #Make error bars
   nums = numpy.zeros(bins.size-1)
   for i in range(len(mass_ratios)):
@@ -455,7 +474,7 @@ if __name__ == "__main__":
   lower = []
   upper = []
   for n in nums:
-    pl, pu = HelperFunctions.BinomialErrors(n, numstars, debug=True)
+    pl, pu = HelperFunctions.BinomialErrors(n, numstars, debug=False)
     lower.append(pl*numpy.sqrt(numstars))
     upper.append(pu*numpy.sqrt(numstars))
   #p = nums/nums.sum()
@@ -469,9 +488,9 @@ if __name__ == "__main__":
     plt.bar(bins[:-1], y, bottom=numpy.array(height), color='green', align='edge')
     #plt.hist(new_massratios, bins=bins, bottom=height, color='green')
   """
-  plt.xlabel(r"$\rm M_s/M_p$", fontsize=20)
-  plt.ylabel("Number", fontsize=20)
-  plt.title("Mass Ratio Distribution for Companions within 200 AU", fontsize=30)
+  plt.xlabel(r"$\rm M_s/M_p$", fontsize=17)
+  plt.ylabel("Number", fontsize=17)
+  plt.title("Mass Ratio Distribution for Companions within 200 AU", fontsize=20)
   
   #plt.figure(2)
   #plt.hist(mass_ratios, bins=bins, color=['gray','green'], cumulative=True, normed=True, histtype='step', linewidth=2, stacked=True)
