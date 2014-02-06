@@ -120,7 +120,8 @@ def Process(model, data, vsini, resolution, debug=False):
   
   # Rebin subsets of the model to the same spacing as the data
   model_orders = []
-  model.output("Test_model.dat")
+  if debug:
+    model.output("Test_model.dat")
   
   for i, order in enumerate(data):
     if debug:
@@ -130,7 +131,7 @@ def Process(model, data, vsini, resolution, debug=False):
     dlambda = order.x[order.size()/2] * maxvel*1.5/3e5
     left = numpy.searchsorted(model.x, order.x[0] - dlambda)
     right = numpy.searchsorted(model.x, order.x[-1] + dlambda)
-    right = max(right, model.size()-2)
+    right = min(right, model.size()-2)
     
     # Figure out the log-spacing of the data
     start = numpy.log(order.x[0])
@@ -143,7 +144,7 @@ def Process(model, data, vsini, resolution, debug=False):
     end = numpy.log(model.x[right])
     xgrid = numpy.exp(numpy.arange(start, end+logspacing, logspacing))
       
-    segment = FittingUtilities.RebinData(model[left-1:right+1].copy(), xgrid)
+    segment = FittingUtilities.RebinData(model[left:right+1].copy(), xgrid)
     segment.cont = FittingUtilities.Continuum(segment.x, segment.y, lowreject=1.5, highreject=5, fitorder=2)
     model_orders.append(segment)
    
@@ -171,8 +172,7 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
     if debug:
       print "Resampling data to log-spacing"
     for i, order in enumerate(data):
-      if debug:
-        print "Resampling order %i to log-spacing" %i
+      
       start = numpy.log(order.x[0])
       end = numpy.log(order.x[-1])
       neworder = order.copy()
@@ -182,7 +182,7 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
     
     
   # Now, cross-correlate the new data against the model
-  corr = Correlate(data, model_orders)
+  corr = Correlate(data, model_orders, debug=debug)
   
   retdict = {"CCF": corr,
              "model": model_orders,
@@ -194,7 +194,7 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
 """
   This function does the actual correlation.
 """    
-def Correlate(data, model_orders):
+def Correlate(data, model_orders, debug=False):
   corrlist = []
   normalization = 0.0
   for ordernum, order in enumerate(data):
@@ -227,6 +227,15 @@ def Correlate(data, model_orders):
     corr = corr[left:right]
 
     normalization += float(order.size())
+    if debug:
+      outfilename = "Cross_correlations/CCF_order%i.dat" %(ordernum+1)
+      print "Saving ccf for order %i to %s" %(ordernum+1, outfilename)
+      corr.output(outfilename)
+      print "Saving ccf inputs to CCF_Inputs/order%i_data.dat and CCF_Inputs/order%i_model.dat\n" %(ordernum+1, ordernum+1)
+      HelperFunctions.ensure_dir("CCF_Inputs/")
+      order.output("CCF_Inputs/order%i_data.dat" %(ordernum+1))
+      model.output("CCF_Inputs/order%i_model.dat" %(ordernum+1))
+      
     
     # Save correlation
     corrlist.append(corr.copy())
