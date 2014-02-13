@@ -498,6 +498,9 @@ class MainSequence:
       num -= 10
       tens_index += 1
     tens_index = tens_index - 1
+    if num == 0:
+      tens_index += 1
+      number = 10*tens_index
     if tens_index == 0:
       spt_class = "O"
     elif tens_index == 1:

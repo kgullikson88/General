@@ -689,3 +689,6 @@ def BayesFit(data, model_fcn, priors, limits=None, burn_in=100, nwalkers=100, ns
   
 
   
+def Gauss(x, mu, sigma, amp=1):
+  return amp*numpy.exp( -(x-mu)**2 / (2*sigma**2) )
+  
