@@ -23,16 +23,23 @@ import scipy
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.interpolate import interp1d
 import DataStructures
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 import os
+from os.path import isfile
 import warnings
 import subprocess
 import time
 import FittingUtilities
 import Correlate
 import SpectralTypeRelations
-import RotBroad
+import RotBroad_Fast as RotBroad
 from astropy import units, constants
+from astropy.io import fits
+import astrolib   #Ian Crossfield's script for rv correction
+
+
+# Define a structure to store my parameter information and associate chi-squared values
+ParameterValues = namedtuple("ParameterValues", "Teff, logg, Q, beta, He, Si, vmacro, chisq")
 
 
 class Analyse():
@@ -74,6 +81,7 @@ class Analyse():
                     'SiIII4567', 'SiIII4574', 'SiIII4716', 'SiIII4813', 'SiIII4819', 
                     'SiIII4829', 'SiIII5739', 'SiIV4089', 'SiIV4116', 'SiIV4212',
                     'SiIV4950', 'SiIV6667', 'SiIV6701']
+    self.visible_species = {}
 
     # Get spectral type if the user didn't enter it
     if SpT == None:
@@ -113,7 +121,7 @@ class Analyse():
 
 
                 
-  def GetModel(self, Teff, logg, Q, beta, helium, silicon, species, vmacro):
+  def GetModel(self, Teff, logg, Q, beta, helium, silicon, species, vmacro, xspacing=None):
     """
       This method takes the following values, and finds the closest match
         in the grid. It will warn the user if the values are not actual
@@ -145,6 +153,9 @@ class Analyse():
                       
       species:        The name of the spectral line you want
                       Options: Many. Just check the model grid.
+
+      xspacing:       An optional argument. If provided, we will resample the line
+                      to have the given x-axis spacing.
     """
 
     # Check to see if the input is in the grid
@@ -192,6 +203,9 @@ class Analyse():
     windstr = self.windval2str[Q]
     abstr = "He%iSi%i" %(helium*100, -silicon*100)
     fname = "%s/T%i/g%i/%s%.2i/%s/OUT.%s_VT%.3i.gz" %(self.gridlocation, Teff, logg*10, windstr, beta*10, abstr, species, vmacro)
+    if not isfile(fname):
+      warnings.warn("File %s not found! Skipping. This could cause errors later!" %fname)
+      return DataStructures.xypoint(x=numpy.arange(300, 1000, 10))
 
     # Gunzip that file to a temporary one.
     tmpfile = "tmp%f" %time.time()
@@ -199,7 +213,9 @@ class Analyse():
     output = open(tmpfile, "w")
     output.writelines(lines)
     output.close()
-    x, y = numpy.genfromtxt(tmpfile, invalid_raise=False, usecols=(2,4), unpack=True)
+    with warnings.catch_warnings():
+      warnings.simplefilter("ignore")
+      x, y = numpy.genfromtxt(tmpfile, invalid_raise=False, usecols=(2,4), unpack=True)
 
     #Removes NaNs from random extra lines in the files...
     while numpy.any(numpy.isnan(y)):
@@ -217,17 +233,35 @@ class Analyse():
 
     # delete the temporary file
     subprocess.check_call(['rm', tmpfile])
+
+    if xspacing != None:
+      modelfcn = spline(x, y, k=1)
+      x = numpy.arange(x[0], x[-1]+xspacing, xspacing)
+      y = modelfcn(x)
     return DataStructures.xypoint(x=x, y=y)
+      
+      
 
 
   
-  def InputData(self, fname):
+  def InputData(self, fname, resample=True):
     """
-      This takes a fits file, and reads it as a bunch of echelle orders
+      This takes a fits file, and reads it as a bunch of echelle orders.
+      It also saves the header for later use.
+      If resample==True, it will resample the x-axis to a constant spacing
     """
     orders = HelperFunctions.ReadFits(fname, extensions=True, x="wavelength", y="flux", cont="continuum", errors="error")
+    for i, order in enumerate(orders):
+      orders[i].err = numpy.sqrt(order.y)
     self.data = orders
+    if resample:
+      for i, order in enumerate(self.data):
+        self.data[i] = self._resample(order)
     self.fname = fname.split("/")[-1]
+    hdulist = fits.open(fname)
+    self.headers = []
+    for i in range(len(hdulist)):
+      self.headers.append(hdulist[i].header)
     return
 
 
@@ -307,9 +341,301 @@ class Analyse():
     return
 
 
+  def CorrectVelocity(self, rvstar=0.0, bary=True, resample=True):
+    """
+      This function corrects for the radial velocity of the star.
+      - rvstar: the radial velocity of the star, in heliocentric velocity km/s
+      - bary: a bool variable to decide whether the barycentric velocity
+              should be corrected. If true, it uses the header from the 
+              data most recently read in.
+      - resample: a bool variable to decide whether to resample
+                  the data into a constant wavelength spacing
+                  after doing the correction
+    """
+    # First, check to make sure the user entered a datafile
+    if self.data == None:
+      fname = raw_input("Enter filename for the data: ")
+      self.InputData(fname)
+    
+    rv = rvstar
+    if bary:
+      header = self.headers[0]
+      jd = header['jd']
+      observatory = header['observat']
+      if "MCDONALD" in observatory:
+        latitude = 30.6714
+        longitude = 104.0225
+        altitude = 2070.0
+      elif "CTIO" in observatory:
+        latitude = -30.1697
+        longitude = 70.8065
+        altitude = 2200.0
+      ra = header['ra']
+      dec = header['dec']
+      ra_seg = ra.split(":")
+      dec_seg = dec.split(":")
+      ra = float(ra_seg[0]) + float(ra_seg[1])/60.0 + float(ra_seg[2])/3600.0
+      dec = float(dec_seg[0]) + float(dec_seg[1])/60.0 + float(dec_seg[2])/3600.0
+      rv += astrolib.helcorr(longitude, latitude, altitude, ra, dec, jd, debug=self.debug)[0]
+    c = constants.c.cgs.value * units.cm.to(units.km)
+    for i, order in enumerate(self.data):
+      order.x *= (1.0+rv/c)
+      if resample:
+        self.data[i] = self._resample(order)
+      else:
+        self.data[i] = order
+    return
+
+
+
+
+  def GridSearch(self, windguess=None, betaguess=None):
+    """
+      This method will do the actual search through the grid, tallying the chi-squared
+    value for each set of parameters. The guess parameters are determined from the 
+    spectral type given in the __init__ call to this class. 
+
+      It does the grid search in a few steps. First, it determines the best Teff
+    and logg for the given wind and metallicity guesses (which default to solar
+    metallicity and no wind). Then, it searches the subgrid near the best Teff/logg
+    to nail down the best metallicity, silicon value, and macroturbelent velocity
+
+     - windguess is the guess value for the wind. If not given, it defaults to no wind
+     - betaguess is the guess value for the wind velocity parameter 'beta'. Ignored
+                 if windguess is None; otherwise it MUST be given!
+    
+
+      It will return the best-fit parameters, as well as the list of 
+    parameters tested and their associated chi-squared values
+    """
+
+    # First, check to make sure the user entered a datafile
+    if self.data == None:
+      fname = raw_input("Enter filename for the data: ")
+      self.InputData(fname)
+      
+    #Now, find the spectral lines that are visible in this data.
+    self._ConnectLineToOrder()
+    
+    # Find the best Teff and log(g)
+    if windguess == None:
+      Teff, logg, parlist = self._FindBestTemperature(self.Teff_guess, self.logg_guess, -14.3, 0.9, 0.1, -4.49, 10.0)
+    else:
+      Teff, logg, parlist = self._FindBestTemperature(self.Teff_guess, self.logg_guess, windguess, betaguess, 0.1, -4.49, 10.0)
+    print Teff, logg
+    print parlist
+    self.parlist = parlist   #TEMPORARY! REMOVE WHEN I AM DONE WITH THIS FUNCTION!
+    
+    #For Teff and logg close to the best ones, find the best other parameters (search them all?)
+    tidx = numpy.argmin(abs(numpy.array(self.Teffs) - Teff))
+    for i in range(max(0, tidx-1), min(len(self.Teffs), tidx+2)):
+      T = self.Teffs[i]
+      loggs = numpy.array([round(g, 2) for g in numpy.arange(4.5, 4*numpy.log10(T) - 15.02, -0.1)])
+      gidx = numpy.argmin(abs(loggs - logg))
+      for j in range(max(0, gidx-1), min(len(loggs), gidx+2)):
+        pars = self._FitParameters(T, loggs[j], parlist)
+    self.parlist = parlist   #TEMPORARY! REMOVE WHEN I AM DONE WITH THIS FUNCTION!
+
+
+
+  def _ConnectLineToOrder(self, force=False):
+    """
+      This private method is to determine which lines exist in the data,
+    and in what spectral order they are. It is called right before starting
+    the parameter search, in order to minimize the number of models we need
+    to read in.
+      If force==True, then we will do this whether or not it was already done
+    """
+    # Don't need to do this if we already have
+    if len(self.visible_species.keys()) > 0 and not force:
+      print "Already connected lines to spectral orders. Not repeating..."
+      return
+    
+    species = {}
+    
+    Teff = self.Teffs[4]
+    logg = [round(g, 2) for g in numpy.arange(4.5, 4*numpy.log10(Teff) - 15.02, -0.1)][0]
+    for spec in self.species:
+      print "\nGetting model for %s" %spec
+      model = self.GetModel(Teff,
+                            logg,
+                            -14.3,
+                            0.9,
+                            0.1,
+                            -4.49,
+                            spec,
+                            10)
+      # Find the appropriate order
+      w0 = (model.x[0] + model.x[-1])/2.0
+      idx = -1
+      diff = 9e9
+      for i, order in enumerate(self.data):
+        x0 = (order.x[0] + order.x[-1])/2.0
+        if abs(x0-w0) < diff and w0 > order.x[0] and w0 < order.x[-1]:
+          diff = abs(x0-w0)
+          idx = i
+      if idx < 0 or (idx == i and diff > 10.0):
+        continue
+      species[spec] = idx
+
+    self.visible_species = species
+    return
+    
+
+
+
+  def _FindBestLogg(self, Teff, logg_values, wind, beta, He, Si, vmacro):
+    """
+      This semi-private method finds the best log(g) value for specific values of
+    the other parameters. It does so by fitting the H-gamma and H-delta line wings
+    """
+    pars = []
+    for logg in logg_values:
+      if self.debug:
+        print "\tlogg = %g" %logg
+      chisq = 0.0
+      normalization = 0.0
+      for spec in self.visible_species.keys():
+        #if self.debug:
+        #  print "\t\t", spec
+        order = self.data[self.visible_species[spec]]
+        model = self.GetModel(Teff,
+                             logg,
+                             -14.3,
+                             0.9,
+                             0.1,
+                             -4.49,
+                             spec,
+                             10, 
+                             xspacing=order.x[1] - order.x[0])
+        model = RotBroad.Broaden(model, self.vsini*units.km.to(units.cm))
+        model = FittingUtilities.ReduceResolution(model, 60000.0)
+        model = FittingUtilities.RebinData(model, order.x)
+        chisq += numpy.sum((order.y - model.y*order.cont)**2 / order.err**2)
+        normalization += float(order.size())
+      p = ParameterValues(Teff, logg, wind, beta, He, Si, vmacro, chisq/normalization)
+      pars.append(p)
+    return pars
+        
+
+
+  def _FindBestTemperature(self, Teff_guess, logg_guess, wind, beta, He, Si, vmacro):
+    """
+      This semi-private method determines the best temperature and log(g) values,
+    given specific values for the wind, metallicity, and macroturbulent velocity
+    parameters.
+    """
+    
+    # Keep a list of the parameters and associated chi-squared values
+    pars = []
+
+    # Set the range in temperature and log(g) to search
+    dT = 2000
+    dlogg = 1.5
+
+    # Determine range of temperatures to search
+    Teff_low = HelperFunctions.GetSurrounding(self.Teffs, Teff_guess-dT)[0]
+    Teff_high = HelperFunctions.GetSurrounding(self.Teffs, Teff_guess+dT)[0]
+    first = self.Teffs.index(Teff_low)
+    last = self.Teffs.index(Teff_high)
+    if last < len(self.Teffs) - 1:
+      last += 1
+
+    # Begin loop over temperatures
+    for Teff in self.Teffs[first:last]:
+      if self.debug:
+        print "T = %g" %Teff
+      loggs = [round(g, 2) for g in numpy.arange(4.5, 4*numpy.log10(Teff) - 15.02, -0.1)][::-1]
+      logg_low = HelperFunctions.GetSurrounding(loggs, self.logg_guess-dlogg)[0]
+      logg_high = HelperFunctions.GetSurrounding(loggs, self.logg_guess+dlogg)[0]
+      first2 = loggs.index(logg_low)
+      last2 = loggs.index(logg_high)
+      if last2 < len(loggs) - 1:
+        last2 += 1
+
+      # Do the search over log(g) for this temperature
+      pars_temp = self._FindBestLogg(Teff, loggs[first2:last2], wind, beta, He, Si, vmacro)
+      for p in pars_temp:
+        pars.append(p)
+    
+    # Now, find the best temperature and log(g)
+    bestpars = sorted(pars, key=lambda p: p.chisq)[0]
+    
+    return bestpars.Teff, bestpars.logg, pars      
+    
+
+
+
+
+  def _FitParameters(self, Teff, logg, parlist):
+    """
+      This method takes a specific value of Teff and logg, and 
+    searches through the wind parameters, the metallicities, and 
+    the macroturbulent velocities.
+      -Teff: the effective temperature to search within
+      -logg: the log(g) to search within
+      -parlist: the list of parameters already searched. It will not
+                duplicate already searched parameters
+    """
+    if Teff < 20000:
+      vmacros = (3,6,10,12,15)
+    else:
+      vmacros = (6,10,12,15,20)
+    for He in self.Heliums:
+      if self.debug:
+        print "Helium fraction = %g" %He
+      for Si in self.Silicons:
+        if self.debug:
+          print "Log(Silicon abundance) = %g" %Si
+        for Q in self.logQ[:4]:
+          if self.debug:
+            print "Wind speed parameter = %g" %Q
+          print "test"
+          for beta in self.betas[:4]:
+            if self.debug:
+              print "Wind velocity scale parameter (beta) = %g" %beta
+            for vmacro in vmacros:
+              if self.debug:
+                print "Macroturbulent velocity = %g" %vmacro
+              # Check if this is already in the parameter list
+              done = False
+              for p in parlist:
+                if p.Teff == Teff and p.logg == logg and p.He == He and p.Si == Si and p.Q == Q and p.beta == beta and p.vmacro == vmacro:
+                  done = True
+              if done:
+                continue
+              
+              chisq = 0.0
+              normalization = 0.0
+              for spec in self.visible_species.keys():
+                print "\t\t", spec
+                order = self.data[self.visible_species[spec]]
+                model = self.GetModel(Teff,
+                                      logg,
+                                      -14.3,
+                                      0.9,
+                                      0.1,
+                                      -4.49,
+                                      spec,
+                                      10, 
+                                      xspacing=order.x[1] - order.x[0])
+                model = RotBroad.Broaden(model, self.vsini*units.km.to(units.cm))
+                model = FittingUtilities.ReduceResolution(model, 60000.0)
+                model = FittingUtilities.RebinData(model, order.x)
+                chisq += numpy.sum((order.y - model.y*order.cont)**2 / order.err**2)
+                normalization += float(order.size())
+              p = ParameterValues(Teff, logg, Q, beta, He, Si, vmacro, chisq/(normalization-7.0))
+              parlist.append(p)
+
+    return parlist
+              
+
 
   def GetRadialVelocity(self):
     """
+      DO NOT USE THIS! IT DOESN'T WORK VERY WELL, AND THE 'CorrectVelocity' 
+      METHOD SHOULD WORK WELL ENOUGH FOR WHAT I NEED!
+      
       This function will get the radial velocity by cross-correlating a model
     of the star against all orders of the data. The maximum of the CCF will 
     likely be broad due to rotational broadening, but will still encode the
@@ -350,7 +676,6 @@ class Analyse():
         continue
       order = self.data[idx]
       
-      #model.x *= (1+19.6/3e5)
 
       # Make sure the model is bigger than this order
       if model.x[0] > order.x[0]-5.0:
@@ -549,3 +874,12 @@ class Analyse():
     
     
     
+
+
+
+  def _resample(self, order):
+    """
+      Semi-private method to resample an order to a constant wavelength spacing
+    """
+    xgrid = numpy.linspace(order.x[0], order.x[-1], order.size())
+    return FittingUtilities.RebinData(order, xgrid)
