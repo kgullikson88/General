@@ -3,7 +3,6 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 cimport numpy
 cimport cython
 from libc.math cimport sqrt
-from FittingUtilities import RebinData
 from astropy import constants, units
 import FittingUtilities
 
@@ -85,7 +84,7 @@ def Broaden(model, vsini, epsilon=0.5, linear=False, findcont=False):
 
   if not linear:
     x = numpy.linspace(model.x[0], model.x[-1], model.size())
-    model = RebinData(model, x)
+    model = FittingUtilities.RebinData(model, x)
     if not findcont:
       model.cont = cont_fcn(model.x)
     else:

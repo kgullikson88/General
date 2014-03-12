@@ -23,7 +23,7 @@ import scipy
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.interpolate import interp1d
 import DataStructures
-from collections import defaultdict, namedtuple
+from collections import defaultdict, namedtuple, deque
 import os
 from os.path import isfile
 import warnings
@@ -32,7 +32,7 @@ import time
 import FittingUtilities
 import Correlate
 import SpectralTypeRelations
-import RotBroad_Fast as RotBroad
+import Broaden
 from astropy import units, constants
 from astropy.io import fits
 import astrolib   #Ian Crossfield's script for rv correction
@@ -43,7 +43,7 @@ ParameterValues = namedtuple("ParameterValues", "Teff, logg, Q, beta, He, Si, vm
 
 
 class Analyse():
-  def __init__(self, gridlocation="/Volumes/DATADRIVE/Stellar_Models/BSTAR06", SpT=None, debug=False, fname=None, Teff=None, logg=None):
+  def __init__(self, gridlocation="/Volumes/DATADRIVE/Stellar_Models/BSTAR06", SpT=None, debug=False, fname=None, Teff=None, logg=None, resolution=60000.0):
     # Just define some class variables
     self.gridlocation = gridlocation
     self.debug = debug
@@ -103,6 +103,7 @@ class Analyse():
     self.Teff_guess = Teff
     self.logg_guess = logg
     self.vsini = 300
+    self.resolution = resolution
     
 
     # Read the filename if it is given
@@ -228,7 +229,7 @@ class Analyse():
     x = x[goodindices]
     y = y[goodindices]
 
-    #Convert from angrstrom to nm, and switch to air wavelengths
+    #Convert from angstrom to nm, and switch to air wavelengths
     x = x*units.angstrom.to(units.nm) / 1.00026
 
     # delete the temporary file
@@ -389,7 +390,7 @@ class Analyse():
 
 
 
-  def GridSearch(self, windguess=None, betaguess=None):
+  def GridSearch(self, windguess=-14.3, betaguess=0.9):
     """
       This method will do the actual search through the grid, tallying the chi-squared
     value for each set of parameters. The guess parameters are determined from the 
@@ -416,7 +417,17 @@ class Analyse():
       
     #Now, find the spectral lines that are visible in this data.
     self._ConnectLineToOrder()
+
+    # Find the best log(g) for the guess temperature
+    bestlogg, dlogg, seplogg = self._FindBestLogg(self.Teff_guess, self.logg_guess, windguess, betaguess, 0.1, -4.49, 10.0)
     
+
+    """
+      Start loop for determination of Teff, Si-abundance, and microturbulence
+    """
+
+
+
     # Find the best Teff and log(g)
     if windguess == None:
       Teff, logg, parlist = self._FindBestTemperature(self.Teff_guess, self.logg_guess, -14.3, 0.9, 0.1, -4.49, 10.0)
@@ -484,40 +495,186 @@ class Analyse():
 
 
 
-  def _FindBestLogg(self, Teff, logg_values, wind, beta, He, Si, vmacro):
+  def _FindBestLogg(self, Teff, logg_values, wind, beta, He, Si, vmacro, vmicro):
     """
       This semi-private method finds the best log(g) value for specific values of
-    the other parameters. It does so by fitting the H-gamma and H-delta line wings
+    the other parameters. It does so by fitting the Balmer line wings
     """
-    pars = []
-    for logg in logg_values:
-      if self.debug:
-        print "\tlogg = %g" %logg
-      chisq = 0.0
-      normalization = 0.0
-      for spec in self.visible_species.keys():
-        #if self.debug:
-        #  print "\t\t", spec
-        order = self.data[self.visible_species[spec]]
+
+    xlims = {"HGAMMA": [430.0, 434.047, 438.0],
+             "HDELTA": [406.0, 410.174, 414.0],
+             "HBETA": [480.0, 486.133, 492.0]}
+
+    species = ["HGAMMA", "HDELTA"]
+    if wind < -13.8:
+      species.append("HBETA")
+
+    # Begin chi-squared loop
+    chisquared = [[] for i in range(len(species))]
+    loggs_tested = [[] for i in range(len(species))]
+    for i, spec in enumerate(species):
+      if spec not in self.visible_species.keys():
+        continue
+      order = self.data[self.visible_species[spec]]
+      xlow, lambda0, xhigh = xlims[spec]
+        
+      #We don't want to include the inner region in the fit. 
+      delta = self._GetDelta(order, lambda0, Teff, self.vsini, vmacro, vmicro)
+      goodindices = numpy.where(numpy.logical_or(order.x < lambda0-delta,
+                                                   order.x > lambda0+delta))[0]
+      waveobs = order.x[goodindices]
+      fluxobs = (order.y/order.cont)[goodindices]
+      errorobs = (order.err/order.cont)[goodindices]
+
+      # Further reduce the region to search so that it is between xlow and xhigh
+      goodindices = numpy.where(numpy.logical_and(waveobs > xlow,
+                                                    waveobs < xhigh))[0]
+      waveobs = waveobs[goodindices]
+      fluxobs = fluxobs[goodindices]
+      errorobs = errorbs[goodindices]
+
+
+      # Loop over logg values
+      lineprofiles = []
+      for logg in logg_values:
         model = self.GetModel(Teff,
                              logg,
-                             -14.3,
-                             0.9,
-                             0.1,
-                             -4.49,
+                             wind,
+                             beta,
+                             He,
+                             Si,
                              spec,
-                             10, 
+                             vmicro, 
                              xspacing=order.x[1] - order.x[0])
-        model = RotBroad.Broaden(model, self.vsini*units.km.to(units.cm))
-        model = FittingUtilities.ReduceResolution(model, 60000.0)
-        model = FittingUtilities.RebinData(model, order.x)
-        chisq += numpy.sum((order.y - model.y*order.cont)**2 / order.err**2)
-        normalization += float(order.size())
-      p = ParameterValues(Teff, logg, wind, beta, He, Si, vmacro, chisq/normalization)
-      pars.append(p)
-    return pars
+        model = Broaden.RotBroad(model, vsini*units.km.to(units.cm))
+        model = Broaden.MacroBroad(model, vmacro)
+        model = Broaden.ReduceResolution(model, self.resolution)
+        model = FittingUtilities.RebinData(model, waveobs)
+        lineprofiles.append(model)
+
+
+        # Get the chi-squared for this data
+        chi2 = self._GetChiSquared(waveobs, fluxobs, errorobs, model)
+        chisquared[i].append(chi2)
+        loggs_tested[i].append(logg)
+
+
+      # Find the best chi-squared, summed over the lines considered, and the best individual one
+      chisquared = numpy.array(chisquared)
+      bestlogg = logg_values[numpy.argmin(chisquared[i])]
+      separate_best = numpy.argmin(chisquared[i])
+      separate_bestlogg[i] = logg_values[separate_best]
+
+      # Find where there are large deviations (other lines)
+      modelflux = lineprofiles[separate_best]
+      sigma = numpy.std(modelflux - fluxobs)
+      good = numpy.where(abs(modelflux - fluxobs) < 3.0*sigma)
+      waveobs = waveobs[good]
+      fluxobs = fluxobs[good]
+      errorobs = errorobs[good]
+
+      j = 0
+      for logg, profile in zip(logg_values, lineprofiles):
+        chi2 = self._GetChiSquared(waveobs, fluxobs, errorobs, profile)
+        chisquared[i][j] = chi2
+        j += 1
+
+      bestlogg = logg_values[numpy.argmin(chisquared[i])]
+      separate_best = numpy.argmin(chisquared[i])
+      separate_bestlogg[i] = logg_values[separate_best]
+    
+    total = numpy.sum(chisquared, index=0)
+    separate_bestlogg = numpy.array(separate_bestlogg)
+
+    # Find the best logg over all lines considered
+    best = numpy.argmin(total)
+    bestgrav = logg_values[best]
+    loggmin = min(separate_bestlogg)
+    loggmax = max(separate_bestlogg)
+
+    # Determine the error the the logg-determination as the 
+    # maximal deviation between the separately determined
+    # loggs and the general best matching one
+    deltalogg_minus = numpy.sqrt((bestgrav - loggmin)**2 + sigma**2)
+    deltalogg_plus = numpy.sqrt((bestgrav - loggmax)**2 + sigma**2)
+    deltalogg = max(0.5, deltalogg_minus, deltalogg_plus)
+
+    return [bestgrav, deltalogg, separate_bestlogg]
+    
+    
         
 
+
+
+  def _GetChiSquared(self, waveobs, fluxobs, errorobs, model):
+    """
+      This private method determines the log-likelihood of the data
+    given the model.
+    """
+    # Make sure the observation and model overlap
+    goodindices = numpy.where(numpy.logical_and(waveobs > model.x[0], waveobs < model.x[-1]))[0]
+    wavecompare = waveobs[goodindices]
+    fluxcompare = fluxobs[goodindices]
+    errorcompare = errorobs[goodindices]
+
+    # Interpolate model onto the same wavelength grid as the data
+    model = FittingUtilities.RebinData(model, wavecompare)
+
+    # Let the x-axis shift by +/- 5 pixels
+    chisq = []
+    for shift in range(-5, 6):
+      flux = self._shift(fluxcompare, shift)
+      error = self._shift(errorcompare, shift)
+      chisq.append(((flux - model.y)/error)**2)
+    return min(chisq)
+
+      
+
+
+  def _shift(self, array, amount):
+    """
+      Shifts array by amount indices. Uses collections.deque objects to do so efficiently
+    """
+    array = deque(array)
+    return list(array.rotate(amount))
+      
+    
+
+
+  def _GetDelta(self, order, lambda0, Teff, vsini, vmacro, vmicro):
+    """
+      This private method finds the inner region of a line to ignore
+      in the logg fit to the line wings
+    """
+    # FHWM
+    idx = numpy.argmin(abs(order.x - lambda0))
+    flux0 = order.y[idx]/order.cont[idx]
+    fluxhalf = 0.5(1.0 + flux0)
+
+    idx = max(numpy.where(numpy.logical_and(order.x/order.y > fluxhalf, order.x < lambda0))[0])
+    waveblue = order.x[idx]
+
+    idx = min(numpy.where(numpy.logical_and(order.x/order.y > fluxhalf, order.x > lambda0))[0])
+    wavered = order.x[idx]
+
+    delta1 = min(lambda0-waveblue, wavered-lambda0)
+
+    # vsini and macroturbulent velocity
+    c = constants.c.cgs.value * units.cm.to(units.km)
+    delta2 = (vsini + vmacro)/(2.0 *  c) * lambda0
+
+
+    # thermal velocity
+    mp = constants.m_p.cgs.value
+    kB = constants.k_B.cgs.value
+    vth_square = 2*kB*Teff/mp
+    vmic = vmicro*10**5
+    vtherm = numpy.sqrt(vth_square + vmic**2)
+    delta3 = 3*vtherm*10**-5 / c * lambda0
+
+    return min(delta1, delta2, delta3)
+    
+    
 
   def _FindBestTemperature(self, Teff_guess, logg_guess, wind, beta, He, Si, vmacro):
     """
@@ -619,8 +776,8 @@ class Analyse():
                                       spec,
                                       10, 
                                       xspacing=order.x[1] - order.x[0])
-                model = RotBroad.Broaden(model, self.vsini*units.km.to(units.cm))
-                model = FittingUtilities.ReduceResolution(model, 60000.0)
+                model = Broaden.RotBroad(model, self.vsini*units.km.to(units.cm))
+                model = Broaden.ReduceResolution(model, 60000.0)
                 model = FittingUtilities.RebinData(model, order.x)
                 chisq += numpy.sum((order.y - model.y*order.cont)**2 / order.err**2)
                 normalization += float(order.size())
@@ -689,7 +846,7 @@ class Analyse():
       # Rotationally broaden model
       xgrid = numpy.arange(model.x[0], model.x[-1], 0.001)
       model = FittingUtilities.RebinData(model, xgrid)
-      model = RotBroad.Broaden(model, self.vsini*units.km.to(units.cm))
+      model = Broaden.RotBroad(model, self.vsini*units.km.to(units.cm))
 
       # Find low point:
       idx = numpy.argmin(model.y)

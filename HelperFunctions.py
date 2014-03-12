@@ -565,14 +565,15 @@ def HighPassFilter(data, vel, width=5, linearize=False):
 
 
 
-"""
+
+
+def Denoise(data):
+  """
   This function implements the denoising given in the url below:
   http://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=4607982&tag=1
 
   with title "Astronomical Spectra Denoising Based on Simplifed SURE-LET Wavelet Thresholding"
-"""
-
-def Denoise(data):
+  """
   y, boolarr = mlpy.wavelet.pad(data.y)
   WC = mlpy.wavelet.dwt(y, 'd', 10, 0)
   #Figure out the unknown parameter 'a'
