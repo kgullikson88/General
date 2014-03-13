@@ -19,7 +19,6 @@ from scipy.signal import kaiserord, firwin, lfilter
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from astropy import units, constants
 import readmultispec as multispec
-
 try:
   import emcee
 except ImportError:
@@ -30,24 +29,31 @@ import FittingUtilities
 import mlpy
 
 
-#Ensure a directory exists. Create it if not
 def ensure_dir(f):
+  """
+    Ensure that a directory exists. Create if it doesn't
+  """
   d = os.path.dirname(f)
   if not os.path.exists(d):
     os.makedirs(d)
     
     
-#Get star data from SIMBAD
 def GetStarData(starname):
+  """
+    Return a dictionary with the SimBad data for a given star.
+  """
   link = sim.buildLink(starname)
   star = sim.simbad(link)
   return star
 
 
-#Check to see if the given star is a binary in the WDS catalog
-#if so, return the most recent separation and magnitude of all components
 WDS_location = "%s/Dropbox/School/Research/AstarStuff/TargetLists/WDS_MagLimited.csv" %(os.environ["HOME"])
 def CheckMultiplicityWDS(starname):
+  """
+    Check to see if the given star is a binary in the WDS catalog
+    If so, return the most recent separation and magnitude of all 
+    components.
+  """
   if type(starname) == str:
     star = GetStarData(starname)
   elif isinstance(starname, sim.simbad):
@@ -99,10 +105,13 @@ def CheckMultiplicityWDS(starname):
 
 
 
-#Check to see if the given star is a binary in the SB9 catalog
-#if so, return some orbital information about all the components
+
 SB9_location = "%s/Dropbox/School/Research/AstarStuff/TargetLists/SB9public" %(os.environ["HOME"])
 def CheckMultiplicitySB9(starname):
+  """
+    Check to see if the given star is a binary in the SB9 catalog
+    Ef so, return some orbital information about all the components
+  """
   #First, find the record number in SB9
   infile = open("%s/Alias.dta" %SB9_location)
   lines = infile.readlines()
@@ -187,14 +196,15 @@ def CheckMultiplicitySB9(starname):
 
 
 
-"""
+
+def BinomialErrors(n, N, debug=False, tol=0.001):
+  """
   A function to determine the error bars from binomial statistics.
   Follows Burgasser et al 2003, ApJ 586, 512
   
   n is the number observed
   N is the sample size
-"""
-def BinomialErrors(n, N, debug=False, tol=0.001):
+  """
   n = int(n)
   N = int(N)
   p0 = float(n)/float(N)  #Observed probability
@@ -249,11 +259,14 @@ def BinomialErrors(n, N, debug=False, tol=0.001):
 
 
 
-"""
+
+def GetSurrounding(full_list, value, return_index=False): 
+  """
   Takes a list and a value, and returns the two list elements
     closest to the value
-"""
-def GetSurrounding(full_list, value, return_index=False): 
+  If return_index is True, it will return the index of the surrounding 
+    elements rather than the elements themselves
+  """
   full_list = sorted(full_list)
   closest = numpy.argmin([abs(v - value) for v in full_list])
   next_best = closest-1 if full_list[closest] > value or closest == len(full_list)-1 else closest+1
@@ -265,12 +278,28 @@ def GetSurrounding(full_list, value, return_index=False):
 
 
 
+def ReadExtensionFits(datafile):
+  """
+    A convenience function for reading in fits extensions without needing to
+    give the name of the standard field names that I use.
+  """
+  return ReadFits(datafile, 
+                  extensions=True, 
+                  x="wavelength", 
+                  y="flux", 
+                  cont="continuum", 
+                  errors="error")
 
-"""
-  The following series of functions will read in a fits file
-  I think this works for all instruments, though maybe just HET...
-"""
+
+
 def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None, debug=False):
+  """
+  Read a fits file. If extensions=False, it assumes IRAF's multispec format.
+  Otherwise, it assumes the file consists of several fits extensions with
+  binary tables, with the table names given by the x,y,cont, and errors keywords.
+
+  See ReadExtensionFits for a convenience function that assumes my standard names
+  """
   if debug:
     print "Reading in file %s: " %datafile
 
@@ -353,7 +382,9 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
 
 
 
-"""
+
+def OutputFitsFileExtensions(column_dicts, template, outfilename, mode="append", headers_info=[]):
+  """
   Function to output a fits file
   column_dict is a dictionary where the key is the name of the column
      and the value is a numpy array with the data. Example of a column
@@ -364,8 +395,8 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
      a fits extension to the existing file (and then save it as outfilename)
      "new" mode will create a new fits file. 
      header_info takes a list of lists. Each sub-list should have size 2 where the first element is the name of the new keyword, and the second element is the corresponding value. A 3rd element may be added as a comment
-"""
-def OutputFitsFileExtensions(column_dicts, template, outfilename, mode="append", headers_info=[]):
+  """
+
   #Get header from template. Use this in the new file
   if mode == "new":
     header = pyfits.getheader(template)
@@ -413,13 +444,15 @@ def OutputFitsFileExtensions(column_dicts, template, outfilename, mode="append",
 
 
 
-"""
+
+def LowPassFilter(data, vel, width=5, linearize=False):
+  """
   Function to apply a low-pass filter to data.
     Data must be in an xypoint container, and have linear wavelength spacing
     vel is the width of the features you want to remove, in velocity space (in cm/s)
     width is how long it takes the filter to cut off, in units of wavenumber
-"""
-def LowPassFilter(data, vel, width=5, linearize=False):
+  """
+
   if linearize:
     data = data.copy()
     datafcn = spline(data.x, data.y, k=1)
@@ -471,6 +504,11 @@ def LowPassFilter(data, vel, width=5, linearize=False):
 
 
 def IterativeLowPass(data, vel, numiter=100, lowreject=3, highreject=3, width=5, linearize=False):
+  """
+  An iterative version of LowPassFilter. 
+  It will ignore outliers in the low pass filter
+  """
+
   datacopy = data.copy()
   if linearize:
     datafcn = spline(datacopy.x, datacopy.y, k=3)
@@ -505,13 +543,15 @@ def IterativeLowPass(data, vel, numiter=100, lowreject=3, highreject=3, width=5,
 
 
 
-"""
+
+def HighPassFilter(data, vel, width=5, linearize=False):
+  """
   Function to apply a high-pass filter to data.
     Data must be in an xypoint container, and have linear wavelength spacing
     vel is the width of the features you want to remove, in velocity space (in cm/s)
     width is how long it takes the filter to cut off, in units of wavenumber
-"""
-def HighPassFilter(data, vel, width=5, linearize=False):
+  """
+
   if linearize:
     data = data.copy()
     datafcn = spline(data.x, data.y, k=3)
@@ -615,7 +655,9 @@ def Denoise3(data):
 
 
 
-"""
+
+def BayesFit(data, model_fcn, priors, limits=None, burn_in=100, nwalkers=100, nsamples=100, nthreads=1, full_output=False, a=2):
+  """
   This function will do a Bayesian fit to the model.
 
   Parameter description:
@@ -638,8 +680,7 @@ def Denoise3(data):
     full_ouput:   Return the full sample chain instead of just the mean and
                       standard deviation of each parameter.
     a:            See emcee.EnsembleSampler. Basically, it controls the step size
-"""
-def BayesFit(data, model_fcn, priors, limits=None, burn_in=100, nwalkers=100, nsamples=100, nthreads=1, full_output=False, a=2):
+  """
 
   # Priors needs to be a numpy array later, so convert to that first
   priors = numpy.array(priors)
@@ -692,4 +733,43 @@ def BayesFit(data, model_fcn, priors, limits=None, burn_in=100, nwalkers=100, ns
   
 def Gauss(x, mu, sigma, amp=1):
   return amp*numpy.exp( -(x-mu)**2 / (2*sigma**2) )
+
+
+
+def FindOutliers(data, numsiglow=6, numsighigh=3, numiters=10, expand=0):
+  """
+  Find outliers in the data. Outliers are defined as 
+  points that are more than numsiglow standard deviations
+  below the mean, or numsighigh standard deviations above
+  the mean. Returns the index of the outliers in the data.
+
+  Data should be an xypoint instance
+  The expand keyword will expand the rejected points some number
+    from every rejected point. 
+  """
+
+  done = False
+  i = 0
+  good = numpy.arange(data.size()).astype(int)
+
+  while not done and i < numiters:
+    sig = numpy.std(data.y[good]/data.cont[good])
+    outliers = numpy.where(numpy.logical_or(data.y/data.cont - 1.0 > numsighigh*sig,
+                                            data.y/data.cont - 1.0 < -numsiglow*sig))[0]
+    good = numpy.where(numpy.logical_and(data.y/data.cont - 1.0 <= numsighigh*sig,
+                                         data.y/data.cont - 1.0 >= -numsiglow*sig))[0]
+    i += 1
+    if outliers.size < 1:
+      break
+
+  # Now, expand the outliers by 'expand' pixels on either 
+  exclude  = []
+  for outlier in outliers:
+    for i in range(max(0, outlier - expand), min(outlier+expand+1, data.size())):
+      exclude.append(i)
+
+  #Remove duplicates from 'exclude'
+  temp = []
+  [temp.append(i) for i in exclude if not i in temp]
+  return numpy.array(temp)
   
