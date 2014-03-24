@@ -429,9 +429,9 @@ def OutputFitsFileExtensions(column_dicts, template, outfilename, mode="append",
     for i in range(num_keywords):
       info = header_info[i]
       if len(info) > 2:
-        header.update(info[0], info[1], info[2])
+        header.set(info[0], info[1], info[2])
       elif len(info) == 2:
-        header.update(info[0], info[1])
+        header.set(info[0], info[1])
 
     hdulist.append(tablehdu)
 

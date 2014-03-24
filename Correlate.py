@@ -9,6 +9,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import scipy.signal
 import DataStructures
 from astropy import units, constants
+import warnings
 import FittingUtilities
 import RotBroad_Fast as RotBroad
 import time
@@ -156,7 +157,7 @@ def Process(model, data, vsini, resolution, debug=False):
 """
   This is the main function. CALL THIS ONE!
 """
-def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_data=True, debug=False):
+def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_data=True, debug=False, outputdir="./"):
   
   # Process the model if necessary
   if process_model:
@@ -182,7 +183,7 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
     
     
   # Now, cross-correlate the new data against the model
-  corr = Correlate(data, model_orders, debug=debug)
+  corr = Correlate(data, model_orders, debug=debug, outputdir=outputdir)
   
   retdict = {"CCF": corr,
              "model": model_orders,
@@ -194,7 +195,7 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
 """
   This function does the actual correlation.
 """    
-def Correlate(data, model_orders, debug=False):
+def Correlate(data, model_orders, debug=False, outputdir="./"):
   corrlist = []
   normalization = 0.0
   for ordernum, order in enumerate(data):
@@ -226,18 +227,22 @@ def Correlate(data, model_orders, debug=False):
     right = numpy.searchsorted(corr.x, maxvel)
     corr = corr[left:right]
 
-    normalization += float(order.size())
     if debug:
-      outfilename = "Cross_correlations/CCF_order%i.dat" %(ordernum+1)
+      outfilename = "%sCross_correlations/CCF_order%i.dat" %(outputdir, ordernum+1)
       print "Saving ccf for order %i to %s" %(ordernum+1, outfilename)
       corr.output(outfilename)
-      print "Saving ccf inputs to CCF_Inputs/order%i_data.dat and CCF_Inputs/order%i_model.dat\n" %(ordernum+1, ordernum+1)
-      HelperFunctions.ensure_dir("CCF_Inputs/")
-      order.output("CCF_Inputs/order%i_data.dat" %(ordernum+1))
-      model.output("CCF_Inputs/order%i_model.dat" %(ordernum+1))
+      print "Saving ccf inputs to CCF_Inputs/order%i_data.dat and CCF_Inputs/order%i_model.dat" %(ordernum+1, ordernum+1)
+      HelperFunctions.ensure_dir("%sCCF_Inputs/" %(outputdir))
+      order.output("%sCCF_Inputs/order%i_data.dat" %(outputdir, ordernum+1))
+      model.output("%sCCF_Inputs/order%i_model.dat" %(outputdir, ordernum+1))
       
-    
+
     # Save correlation
+    if numpy.any(numpy.isnan(corr.y)):
+      warnings.warn("NaNs found in correlation from order %i\n" %(ordernum+1))
+      continue
+    print "\n"
+    normalization += float(order.size())
     corrlist.append(corr.copy())
 
     
