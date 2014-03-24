@@ -641,7 +641,7 @@ class Analyse():
     
 
 
-  def _GetDelta(self, order, lambda0, Teff, vsini, vmacro, vmicro):
+  def _GetDelta(self, order, lambda0, Teff, vsini, vmacro, vmicro, minmax="min"):
     """
       This private method finds the inner region of a line to ignore
       in the logg fit to the line wings
@@ -672,11 +672,14 @@ class Analyse():
     vtherm = numpy.sqrt(vth_square + vmic**2)
     delta3 = 3*vtherm*10**-5 / c * lambda0
 
-    return min(delta1, delta2, delta3)
+    if minmax.lower == "min":
+      return min(delta1, delta2, delta3)
+    elif minmax.lower == "max":
+      return max(delta1, delta2, delta3)
     
     
 
-  def _FindBestTemperature(self, Teff_guess, logg_guess, wind, beta, He, Si, vmacro):
+  def _FindBestTemperature(self, Teff_guess, logg_guess, wind, beta, He, Si, vmicro, vmacro):
     """
       This semi-private method determines the best temperature and log(g) values,
     given specific values for the wind, metallicity, and macroturbulent velocity
@@ -698,7 +701,19 @@ class Analyse():
     if last < len(self.Teffs) - 1:
       last += 1
 
+    # Define the species to search
+    xlims = {"HGAMMA": [430.0, 434.047, 438.0],
+             "HDELTA": [406.0, 410.174, 414.0],
+             "HBETA": [480.0, 486.133, 492.0]}
+
+    species = ["HGAMMA", "HDELTA"]
+    if wind < -13.8:
+      species.append("HBETA")
+
     # Begin loop over temperatures
+    chisquared = {}
+    loggvals = []
+    loggerrs = []
     for Teff in self.Teffs[first:last]:
       if self.debug:
         print "T = %g" %Teff
@@ -711,14 +726,78 @@ class Analyse():
         last2 += 1
 
       # Do the search over log(g) for this temperature
-      pars_temp = self._FindBestLogg(Teff, loggs[first2:last2], wind, beta, He, Si, vmacro)
-      for p in pars_temp:
-        pars.append(p)
+      bestgrav, deltalogg, separate_bestlogg = self._FindBestLogg(Teff,
+                                                                  logs[first2:last2],
+                                                                  wind,
+                                                                  beta,
+                                                                  He,
+                                                                  Si,
+                                                                  vmacro,
+                                                                  vmicro)
+      #pars_temp = self._FindBestLogg(Teff, loggs[first2:last2], wind, beta, He, Si, vmacro)
+      
+      loggvals.append(bestgrav)
+      loggerrs.append(deltalogg)
+
+      for spec in species:
+        if spec not in self.visible_species.keys():
+          continue
+        order = self.data[self.visible_species[spec]]
+        xlow, lambda0, xhigh = xlims[spec]
+        
+        #We want to include ONLY the inner region in the fit. 
+        delta = self._GetDelta(order, lambda0, Teff, self.vsini, vmacro, vmicro, minmax="max")
+        goodindices = numpy.where(numpy.logical_or(order.x >= lambda0-delta,
+                                                   order.x <= lambda0+delta))[0]
+        waveobs = order.x[goodindices]
+        fluxobs = (order.y/order.cont)[goodindices]
+        errorobs = (order.err/order.cont)[goodindices]
+
+        # Further reduce the region to search so that it is between xlow and xhigh
+        goodindices = numpy.where(numpy.logical_and(waveobs > xlow,
+                                                    waveobs < xhigh))[0]
+        waveobs = waveobs[goodindices]
+        fluxobs = fluxobs[goodindices]
+        errorobs = errorbs[goodindices]
+
+        # Generate the model
+        model = self.GetModel(Teff,
+                              bestlogg,
+                              wind,
+                              beta,
+                              He,
+                              Si,
+                              spec,
+                              vmicro, 
+                              xspacing=order.x[1] - order.x[0])
+        model = Broaden.RotBroad(model, vsini*units.km.to(units.cm))
+        model = Broaden.MacroBroad(model, vmacro)
+        model = Broaden.ReduceResolution(model, self.resolution)
+        model = FittingUtilities.RebinData(model, waveobs)
+        
+
+        # Get the chi-squared for this data
+        chi2 = self._GetChiSquared(waveobs, fluxobs, errorobs, model)
+        chisquared[spec].append(chi2)
+
+
     
-    # Now, find the best temperature and log(g)
-    bestpars = sorted(pars, key=lambda p: p.chisq)[0]
+    # Now, find the best chi-squared value
+    # First, the single best one:
+    chi2arr = []
+    for spec in species:
+      if spec not in self.visible_species.keys():
+        continue
+      chi2arr.append(chisquared[spec])
+    idx = numpy.argmin(chi2arr) % int(last-first)
+    bestindividual = self.Teffs[first+idx]
+
+    # Now, the best one summed over the lines
+    idx = numpy.argmin(numpy.sum(chi2arr, axis=0))
+    bestT = self.Teffs[first+idx]
+
     
-    return bestpars.Teff, bestpars.logg, pars      
+    return bestT, loggvals[idx], loggerrs[idx]
     
 
 
