@@ -372,7 +372,7 @@ def GetTS23dist(datadir="McDonaldData/", MS=None):
 
 
 
-if __name__ == "__main__":
+def main1():
   dirlist = []
   chiron_only = False
   het_only = False
@@ -499,3 +499,187 @@ if __name__ == "__main__":
   #plt.ylabel("Cumulative Frequency")
   plt.show()
       
+
+import re   #Move to top!
+from collections import defaultdict   #Is this already imported?
+import warnings
+def ParseConfiguration(config, plx=10.0, vmag=5.5):
+  # First, find the subsystems using open/close parentheses
+  # Find the open and close parentheses
+  paropen = numpy.array([m.start() for m in re.finditer('\(', config)])
+  parclose = numpy.array([m.start() for m in re.finditer('\)', config)])
+
+  #Each subsystem is enclosed in parentheses.
+  subsystems = defaultdict(list)
+  numopen = 0
+  systems = []
+  for i, char in enumerate(config):
+    if i in paropen:
+      numopen += 1
+      subsystems[numopen].append(i)
+    elif i in parclose:
+      subsystems[numopen].append(i)
+      numopen -= 1
+
+
+  # Determine the mass ratios of everything we know
+  massratios = []
+  for level in sorted(subsystems.keys())[::-1]:
+    for i in range(0, len(subsystems[level]), 2):
+      start = subsystems[level][i]+1
+      end = subsystems[level][i+1]
+      sysconfig = config[start:end]
+      if "WD" in sysconfig.upper():
+        continue
+      print level, ": ", sysconfig
+      if "(" in sysconfig and "?;" not in sysconfig:
+        if sysconfig.find("(") < sysconfig.find("+"):
+          p_mass = float(sysconfig.split("(")[0].split(")")[0])
+          if sysconfig.find("+") < sysconfig.split(")")[1].find("("):
+            s_mass = float(sysconfig.split("(")[1].split(")")[1])
+          else:
+            secondary = sysconfig.split("+")[1].split(";")[0].strip()
+            s_spt = GetSpectralType(secondary, plx, vmag)
+            s_mass = MS.Interpolate(MS.Mass, s_spt)
+
+        else:
+          s_mass = float(sysconfig.split("(")[1].split(")")[0])
+          primary = sysconfig.split("+")[0].split(";")[0].strip()
+          p_spt = GetSpectralType(primary, plx, vmag)
+          p_mass = MS.Interpolate(MS.Mass, p_spt)
+
+        massratios.append(s_mass/p_mass)
+        seg = config.split(sysconfig)
+        n = len(sysconfig)
+        config = "%s%.3f%s%s" %(seg[0], p_mass + s_mass, "0"*(n-5), seg[1])
+        print "NEW: ", config
+
+      elif "?;" not in sysconfig:
+        if "sim" in sysconfig:
+          p_spt = GetSpectralType(primary, plx, vmag)
+          s_spt = p_spt
+        else:
+          #Get the primary and secondary stars
+          primary = sysconfig.split("+")[0].strip().strip(":")
+          secondary = sysconfig.split("+")[1].split(";")[0].strip()
+          p_spt = GetSpectralType(primary, plx, vmag)
+          idx = primary.find(p_spt)
+          if idx != 0:
+            p_mag = float(primary[:idx])
+          else:
+            p_mag = vmag
+          s_spt = GetSpectralType(secondary, plx, vmag, primary_spt=p_spt, primary_mag=p_mag)
+        
+        p_mass = MS.Interpolate(MS.Mass, p_spt)
+        s_mass = MS.Interpolate(MS.Mass, s_spt)
+        massratios.append(s_mass/p_mass)
+        seg = config.split(sysconfig)
+        n = len(sysconfig)
+        config = "%s%.3f%s%s" %(seg[0], p_mass + s_mass, "0"*(n-5), seg[1])
+        print "NEW: ", config
+  return massratios
+
+
+
+def GetSpectralType(star, plx, sysmag, primary_spt=None, primary_mag=None):
+  found = False
+  for typ in ["O", "B", "A", "F", "G", "K", "M"]:
+    if typ in star:
+      found = True
+      idx = star.find(typ)
+      spt = star[idx:]
+
+      if "I" in spt:
+        warnings.warn("The spectral type is not main sequence: %s" %spt)
+      
+      #Check for any other letters:
+      m = re.search("[A-Za-z]", spt[1:])
+      if m != None:
+        idx = m.start()+1
+        spt = spt[:idx]
+
+
+  if found:
+    return spt.split("V")[0]
+  else:
+    #Only a magnitude is given.
+    #Check to see if the user gave the primary spectral type/magnitude
+    if primary_mag != None and primary_spt != None:
+      absmag = MS.Interpolate(MS.AbsMag, primary_spt)
+      absmag2 = primary_mag - 5*numpy.log10(1000.0/plx) + 5
+      reddening = absmag2 - absmag 
+    else:
+      warnings.warn("Cannot determine V band redenning! Setting to 0")
+      reddening = 0.0
+
+    # Convert this magnitude to absolute magnitude using distance
+    mag = float(star)
+    absmag = mag - 5*numpy.log10(1000.0/plx) + 5 - reddening
+    return MS.GetSpectralType(MS.AbsMag, absmag, interpolate=True)
+
+  
+
+
+
+
+
+
+
+def ReadSampleFile(samplefile, startcol=10, endcol=544, namecol=1, configcol=2, obscol=41, parcol=4, magcol=5, delimiter="|"):
+  infile = open(samplefile)
+  lines = infile.readlines()
+  infile.close()
+  massratios = []
+  for line in lines[startcol:endcol]:
+    segments = line.split(delimiter)
+    name = segments[namecol].strip("'").strip()
+    configuration = segments[configcol].strip("'").strip()
+    observed = segments[obscol].strip("'").strip()
+    try:
+      parallax = float(segments[parcol].strip("'").strip())
+    except ValueError:
+      parallax = 50.0
+      warnings.warn("Parallax not parseable: %s" %(segments[parcol].strip("'").strip()))
+    try:
+      vmag = float(segments[magcol].strip("'").strip())
+    except ValueError:
+      vmag = 5.5
+      warnings.warn("V band magnitude not parseable: %s" %(segments[magcol].strip("'").strip()))
+    
+    print name
+    print configuration
+    #try:
+    if observed == "1" or observed == "0":
+      mrs = ParseConfiguration(configuration, plx=parallax, vmag=vmag)
+      for q in mrs:
+        massratios.append(q)
+    #except ValueError:
+    #  print configuration
+
+
+
+  plt.hist(q)
+    
+
+
+
+def main2():
+  """
+    A new version of the driver function, which reads in the full sample spreadsheet
+    that contains multiplicity information from Eggleton and Tokovinin 2008
+  """
+  sampledatafile = "%s/Dropbox/School/Research/AstarStuff/TargetLists/FullSample.csv" %(os.environ['HOME'])
+  known_systems = ReadSampleFile(sampledatafile)
+
+
+
+
+
+
+
+
+
+
+if __name__ == "__main__":
+  MS = SpectralTypeRelations.MainSequence()
+  main2()  
