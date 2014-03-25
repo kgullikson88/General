@@ -471,7 +471,10 @@ class MainSequence:
     
     
   def SpT_To_Number(self, SpT):
-    basenum = float(SpT[1:])
+    if SpT[1:] == "":
+      basenum = 5.0
+    else:
+      basenum = float(SpT[1:])
     SpectralClass = SpT[0]
     if SpectralClass == "O":
       return basenum

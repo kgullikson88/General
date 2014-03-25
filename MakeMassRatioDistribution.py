@@ -32,7 +32,13 @@ NewDetections = {"HIP 60009": [5500,],
                  "HIP 110838": [4400,],
                  "HIP 93393": [3800,],
                  "HR 545": [5000,],
-                 "HIP 22958": [6200,]
+                 "HIP 22958": [6200,],
+                 "HIP 26126": [6600,],
+                 "HIP 42334": [4000,],
+                 "HIP 46283": [6800,],
+                 "HIP 32607": [5700,],
+                 "HIP 39847": [6000,],
+                 "HIP 3478": [4000,]
                  }
 
 #Do the same thing for known binaries not in WDS or SB9
@@ -503,11 +509,21 @@ def main1():
 import re   #Move to top!
 from collections import defaultdict   #Is this already imported?
 import warnings
-def ParseConfiguration(config, plx=10.0, vmag=5.5):
+def ParseConfiguration(config, plx=10.0, vmag=5.5, MSonly=True, maxsep=100, binonly=True):
+  """
+    Parse the configuration given by 'config'.
+    plx: The parallax to the star, in mas
+    vmag: the v-band magnitude of the star
+    MSonly: If true, it ignores components with non main-sequence components
+    maxsep: The maximum separation to count (in AU)
+    binonly: Only use binary stars (not higher order multiples)
+    Returns: A list of mass ratios, and either 1 (if it was usable) or 0 (if not)
+  """
   # First, find the subsystems using open/close parentheses
   # Find the open and close parentheses
   paropen = numpy.array([m.start() for m in re.finditer('\(', config)])
   parclose = numpy.array([m.start() for m in re.finditer('\)', config)])
+  retidx = 0
 
   #Each subsystem is enclosed in parentheses.
   subsystems = defaultdict(list)
@@ -522,6 +538,10 @@ def ParseConfiguration(config, plx=10.0, vmag=5.5):
       numopen -= 1
 
 
+  # Check if it is a high order multiple
+  if len(subsystems.keys()) > 0 and max(subsystems.keys()) > 1 and binonly:
+    return [], retidx
+
   # Determine the mass ratios of everything we know
   massratios = []
   for level in sorted(subsystems.keys())[::-1]:
@@ -529,9 +549,20 @@ def ParseConfiguration(config, plx=10.0, vmag=5.5):
       start = subsystems[level][i]+1
       end = subsystems[level][i+1]
       sysconfig = config[start:end]
-      if "WD" in sysconfig.upper():
+      if "WD" in sysconfig.upper() or "?" in sysconfig:
         continue
       print level, ": ", sysconfig
+
+      # Check if the separation is close enough
+      sep = sysconfig.split(";")[1]
+      if '"' in sep:
+        separation = float(sep.split('"')[0])
+        if 1000.0*separation/plx > maxsep:
+          continue
+
+      if MSonly and "I" in sysconfig:
+        continue
+
       if "(" in sysconfig and "?;" not in sysconfig:
         if sysconfig.find("(") < sysconfig.find("+"):
           #print "Primary found"
@@ -554,13 +585,15 @@ def ParseConfiguration(config, plx=10.0, vmag=5.5):
           p_mass = MS.Interpolate(MS.Mass, p_spt)
 
         massratios.append(s_mass/p_mass)
+        retidx = 1
         seg = config.split(sysconfig)
         n = len(sysconfig)
         config = "%s%.3f%s%s" %(seg[0], p_mass + s_mass, "0"*(n-5), seg[1])
         print "NEW: ", config
 
-      elif "?;" not in sysconfig:
+      else:
         if "sim" in sysconfig:
+          primary = sysconfig.split("+")[0].strip().strip(":")
           p_spt = GetSpectralType(primary, plx, vmag)
           s_spt = p_spt
         else:
@@ -578,11 +611,12 @@ def ParseConfiguration(config, plx=10.0, vmag=5.5):
         p_mass = MS.Interpolate(MS.Mass, p_spt)
         s_mass = MS.Interpolate(MS.Mass, s_spt)
         massratios.append(s_mass/p_mass)
+        retidx = 1
         seg = config.split(sysconfig)
         n = len(sysconfig)
         config = "%s%.3f%s%s" %(seg[0], p_mass + s_mass, "0"*(n-5), seg[1])
         print "NEW: ", config
-  return massratios
+  return massratios, retidx
 
 
 
@@ -598,14 +632,15 @@ def GetSpectralType(star, plx, sysmag, primary_spt=None, primary_mag=None):
         warnings.warn("The spectral type is not main sequence: %s" %spt)
       
       #Check for any other letters:
-      m = re.search("[A-Za-z]", spt[1:])
+      m = re.search("[A-Za-z]|:", spt[1:])
       if m != None:
         idx = m.start()+1
         spt = spt[:idx]
+      break
 
 
   if found:
-    return spt.split("V")[0]
+    return spt
   else:
     #Only a magnitude is given.
     #Check to see if the user gave the primary spectral type/magnitude
@@ -635,6 +670,7 @@ def ReadSampleFile(samplefile, startcol=10, endcol=544, namecol=1, configcol=2, 
   lines = infile.readlines()
   infile.close()
   massratios = []
+  numstars = 0
   for line in lines[startcol:endcol]:
     segments = line.split(delimiter)
     name = segments[namecol].strip("'").strip()
@@ -654,17 +690,18 @@ def ReadSampleFile(samplefile, startcol=10, endcol=544, namecol=1, configcol=2, 
     print name
     print configuration
     #try:
-    if observed == "1" or observed == "0":
-      mrs = ParseConfiguration(configuration, plx=parallax, vmag=vmag)
+    if observed == "1":
+      mrs, useflg = ParseConfiguration(configuration, plx=parallax, vmag=vmag, maxsep=200, binonly=False)
+      numstars += useflg
       for q in mrs:
+        if q > 1:
+          q = 1.0/q
         massratios.append(q)
-    #except ValueError:
-    #  print configuration
+  
+  return massratios, numstars
 
 
 
-  plt.hist(q)
-    
 
 
 
@@ -674,8 +711,54 @@ def main2():
     that contains multiplicity information from Eggleton and Tokovinin 2008
   """
   sampledatafile = "%s/Dropbox/School/Research/AstarStuff/TargetLists/FullSample.csv" %(os.environ['HOME'])
-  known_systems = ReadSampleFile(sampledatafile)
+  known_massratios, numstars = ReadSampleFile(sampledatafile)
+  color = False
+  bins = numpy.arange(0.0, 1.1, 0.1)
 
+  # Read in my mass ratios
+  massratios = [known_massratios,[]]
+  for starname in NewDetections:
+    data = HelperFunctions.GetStarData(starname)
+    spt = data.SpectralType()
+    # Remove things at the end of the spectral type
+    m = re.search("[A-Za-z]|~", spt[1:])
+    if m != None:
+      idx = m.start()+1
+      spt = spt[:idx]
+    primary_mass = MS.Interpolate(MS.Mass, spt)
+    
+    for T in NewDetections[starname]:
+      spt = MS.GetSpectralType(MS.Temperature, T)
+      mass = MS.Interpolate(MS.Mass, spt)
+      q = mass/primary_mass
+      massratios[1].append(q)
+
+
+  if color:
+    plt.hist(massratios, bins=bins, color=['chocolate','deepskyblue'], histtype='barstacked', label=["Known companions", "New companions"], rwidth=1)
+  else:
+    plt.hist(massratios, bins=bins, color=['0.25','0.5'], histtype='barstacked', label=["Known companions", "New companions"], rwidth=1)
+  plt.legend(loc='best', fancybox=True)
+  #Make error bars
+  nums = numpy.zeros(bins.size-1)
+  for i in range(len(massratios)):
+    nums += numpy.histogram(massratios[i], bins=bins)[0]
+  lower = []
+  upper = []
+  for n in nums:
+    pl, pu = HelperFunctions.BinomialErrors(n, numstars, debug=False)
+    lower.append(pl*numpy.sqrt(numstars))
+    upper.append(pu*numpy.sqrt(numstars))
+  #p = nums/nums.sum()
+  #errors = nums*p*(1.0-p)
+  plt.errorbar(bins[:-1] + 0.05, nums, yerr=[lower,upper], fmt=None, ecolor='0.0', elinewidth=2, capsize=5)
+  
+  plt.xlabel(r"$\rm M_s/M_p$", fontsize=17)
+  plt.ylabel("Number", fontsize=17)
+  plt.title("Mass Ratio Distribution for Companions within 200 AU", fontsize=20)
+  
+  plt.show()
+      
 
 
 
