@@ -534,9 +534,14 @@ def ParseConfiguration(config, plx=10.0, vmag=5.5):
       print level, ": ", sysconfig
       if "(" in sysconfig and "?;" not in sysconfig:
         if sysconfig.find("(") < sysconfig.find("+"):
-          p_mass = float(sysconfig.split("(")[0].split(")")[0])
-          if sysconfig.find("+") < sysconfig.split(")")[1].find("("):
-            s_mass = float(sysconfig.split("(")[1].split(")")[1])
+          #print "Primary found"
+          p_mass = float(sysconfig.split("(")[1].split(")")[0])
+          #print sysconfig.split(")")[1]
+          ss = sysconfig.split(")")[1]
+          if ss.find("(") > 0 and (ss.find("+") < ss.find("(")):
+          #if sysconfig.split(")")[1].find("+") < sysconfig.split(")")[0].find("("):
+            #print "Secondary found"
+            s_mass = float(sysconfig.split("(")[2].split(")")[0])
           else:
             secondary = sysconfig.split("+")[1].split(";")[0].strip()
             s_spt = GetSpectralType(secondary, plx, vmag)
