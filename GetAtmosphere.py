@@ -108,7 +108,7 @@ def GetProfile(filenames, datestr, timestr):
   #Convert dew point temperature to ppmv
   #formulas and constants come from http://www.vaisala.com/Vaisala%20Documents/Application%20notes/Humidity_Conversion_Formulas_B210973EN-F.pdf
   Pw = 6.116441 * 10**(7.591386*D/(D + 240.7263))
-  h2o = Pw / P * 1e6
+  h2o = Pw / (P-Pw) * 1e6
 
   #Convert height to km, and temperature to kelvin
   Z /= 1000.0
