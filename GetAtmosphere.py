@@ -5,7 +5,7 @@
 
 from astropy.time import Time
 import numpy
-import matplotlib.pyplot as plt
+import MakeModel
 
 def GetAtmosphereFiles(filenames, datestr, timestr):
   """
@@ -106,8 +106,9 @@ def GetProfile(filenames, datestr, timestr):
   D = D[sorter]
 
   #Convert dew point temperature to ppmv
-  #formulas and constants come from http://www.vaisala.com/Vaisala%20Documents/Application%20notes/Humidity_Conversion_Formulas_B210973EN-F.pdf
-  Pw = 6.116441 * 10**(7.591386*D/(D + 240.7263))
+  Pw = numpy.zeros(D.size)
+  for i, T in enumerate(D):
+    Pw[i] = MakeModel.VaporPressure(T)
   h2o = Pw / (P-Pw) * 1e6
 
   #Convert height to km, and temperature to kelvin
