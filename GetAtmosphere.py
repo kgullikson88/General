@@ -43,7 +43,7 @@ def GetAtmosphereFiles(filenames, datestr, timestr):
     last = goodtimes[1]
   else:
     first = goodtimes[1]
-    last = goodtimes[2]
+    last = goodtimes[0]
 
   return fileDict[first], fileDict[last], first, last, obstime
 
@@ -57,26 +57,41 @@ def InterpolateAtmosphere(firstfile, lastfile, t1, t2, t):
   """
   Pres1,height1,Temp1,dew1 = numpy.loadtxt(firstfile, usecols=(0,1,2,3), unpack=True)
   Pres2,height2,Temp2,dew2 = numpy.loadtxt(lastfile, usecols=(0,1,2,3), unpack=True)
-  
 
+  
   #Sometimes, the first pressure will be different (because it hits the ground level)
   if abs(Pres1[0] - Pres2[0]) > 1e-3:
-    Pres = Pres1[1:]
-    height1 = height1[1:]
-    height2 = height2[1:]
-    Temp1 = Temp1[1:]
-    Temp2 = Temp2[1:]
-    dew1 = dew1[1:]
-    dew2 = dew2[1:]
+    for i in range(len(Pres1)):
+      found = False
+      for j in range(len(Pres2)):
+        if abs(Pres1[i] - Pres2[j]) < 1e-3:
+          found = True
+          break
+      if found:
+        break
+    
+    #Shorten the arrays so the pressure points are the same.
+    Pres1 = Pres1[i:]
+    height1 = height1[i:]
+    Temp1 = Temp1[i:]
+    dew1 = dew1[i:]
+
+    Pres2 = Pres2[j:]
+    height2 = height2[j:]
+    Temp2 = Temp2[j:]
+    dew2 = dew2[j:]
+
+
   
   #Set up output arrays
-  Pres = Pres1
-  height = height1
-  Temp = Temp1
-  dew = dew1
+  Pres = Pres1.copy()
+  height = height1.copy()
+  Temp = Temp1.copy()
+  dew = dew1.copy()
 
   #Now, interpolate the temperature, height, and dewpoint at each pressure
   for i, P in enumerate(Pres):
+    print Pres1[i], Pres2[i], height1[i], height2[i]
     height[i] = (height1[i] - height2[i])/(t1 - t2) * (t - t1) + height1[i]
     Temp[i] = (Temp1[i] - Temp2[i])/(t1-t2) * (t - t1) + Temp1[i]
     dew[i] = (dew1[i] - dew2[i])/(t1-t2) * (t-t1) + dew1[i]
@@ -107,8 +122,8 @@ def GetProfile(filenames, datestr, timestr):
 
   #Convert dew point temperature to ppmv
   Pw = numpy.zeros(D.size)
-  for i, T in enumerate(D):
-    Pw[i] = MakeModel.VaporPressure(T)
+  for i, dewpoint in enumerate(D):
+    Pw[i] = MakeModel.VaporPressure(dewpoint+273.15)
   h2o = Pw / (P-Pw) * 1e6
 
   #Convert height to km, and temperature to kelvin
