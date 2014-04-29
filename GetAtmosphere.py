@@ -91,7 +91,6 @@ def InterpolateAtmosphere(firstfile, lastfile, t1, t2, t):
 
   #Now, interpolate the temperature, height, and dewpoint at each pressure
   for i, P in enumerate(Pres):
-    print Pres1[i], Pres2[i], height1[i], height2[i]
     height[i] = (height1[i] - height2[i])/(t1 - t2) * (t - t1) + height1[i]
     Temp[i] = (Temp1[i] - Temp2[i])/(t1-t2) * (t - t1) + Temp1[i]
     dew[i] = (dew1[i] - dew2[i])/(t1-t2) * (t-t1) + dew1[i]
