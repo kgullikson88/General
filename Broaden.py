@@ -6,7 +6,7 @@
 
 
 from RotBroad_Fast import Broaden as RotBroad
-from FittingUtilities import ReduceResolution
+from FittingUtilities import ReduceResolution, ReduceResolution2
 import numpy
 from scipy.special import erf   #Error function
 from astropy import constants, units
