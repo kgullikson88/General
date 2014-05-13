@@ -115,7 +115,7 @@ def Process(model, data, vsini, resolution, debug=False):
   #Reduce resolution
   if debug:
     print "Convolving to the detector resolution of %g" %resolution
-  if resolution > 5000:
+  if resolution > 5000 and resolution < 500000:
     model = FittingUtilities.ReduceResolution(model, resolution) 
   
   
@@ -154,11 +154,22 @@ def Process(model, data, vsini, resolution, debug=False):
   
   
   
-"""
-  This is the main function. CALL THIS ONE!
-"""
+
 def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_data=True, debug=False, outputdir="./"):
-  
+  """
+  This is the main function. CALL THIS ONE!
+  data: an xypoint instance with the data
+  model: Either a string with the model filename, an xypoint instance, or 
+         a list of xypoint instances
+  vsini: rotational velocity in km/s
+  resolution: detector resolution in lam/dlam 
+  process_model: if true, it will generate a list of model orders suitable 
+                 for cross-correlation. Otherwise, it assumes the input
+                 IS such a list
+  rebin_data: If true, it will rebin the data to a constant log-spacing.
+              Otherwise, it assumes the data input already is correctly spaced.
+  debug: Prints debugging info to the screen, and saves various files.
+  """
   # Process the model if necessary
   if process_model:
     model_orders = Process(model, data, vsini*units.km.to(units.cm), resolution, debug=debug)

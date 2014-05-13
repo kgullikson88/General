@@ -57,7 +57,6 @@ def InterpolateAtmosphere(firstfile, lastfile, t1, t2, t):
   """
   Pres1,height1,Temp1,dew1 = numpy.loadtxt(firstfile, usecols=(0,1,2,3), unpack=True)
   Pres2,height2,Temp2,dew2 = numpy.loadtxt(lastfile, usecols=(0,1,2,3), unpack=True)
-
   
   #Sometimes, the first pressure will be different (because it hits the ground level)
   if abs(Pres1[0] - Pres2[0]) > 1e-3:
