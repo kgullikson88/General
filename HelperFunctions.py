@@ -267,11 +267,12 @@ def GetSurrounding(full_list, value, return_index=False):
   If return_index is True, it will return the index of the surrounding 
     elements rather than the elements themselves
   """
+  sorter = numpy.argsort(full_list)
   full_list = sorted(full_list)
   closest = numpy.argmin([abs(v - value) for v in full_list])
   next_best = closest-1 if full_list[closest] > value or closest == len(full_list)-1 else closest+1
   if return_index:
-    return closest, next_best
+    return sorter[closest], sorter[next_best]
   else:
     return full_list[closest], full_list[next_best]
 
