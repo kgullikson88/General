@@ -219,26 +219,28 @@ def Correlate(data, model_orders, debug=False, outputdir="./"):
     data_rms = numpy.std(reduceddata)
     model_rms = numpy.std(reducedmodel)
     left = numpy.searchsorted(model.x, order.x[0])
-    right = model.x.size - numpy.searchsorted(model.x, order.x[-1])
-    delta = left - right
     
-    #ycorr = numpy.correlate(reduceddata - meandata, reducedmodel - meanmodel, mode='valid')
-    ycorr = scipy.signal.fftconvolve((reduceddata - meandata), (reducedmodel - meanmodel)[::-1], mode='valid')
+    ycorr = scipy.signal.fftconvolve((reducedmodel - meanmodel), (reduceddata - meandata)[::-1], mode='valid')
     xcorr = numpy.arange(ycorr.size)
-    lags = xcorr - right
+    lags = xcorr - left
     distancePerLag = numpy.log(model.x[1] / model.x[0])
-    offsets = -lags*distancePerLag
+    offsets = lags*distancePerLag
     velocity = offsets * constants.c.cgs.value * units.cm.to(units.km)
     corr = DataStructures.xypoint(velocity.size)
-    corr.x = velocity[::-1]
-    corr.y = ycorr[::-1]/(data_rms*model_rms*float(ycorr.size))
+    corr.x = velocity
+    corr.y = ycorr/(data_rms*model_rms*float(ycorr.size))
         
     # Only save part of the correlation
     left = numpy.searchsorted(corr.x, minvel)
     right = numpy.searchsorted(corr.x, maxvel)
     corr = corr[left:right]
 
+    #Make sure that no elements of corr.y are > 1!
+    if max(corr.y) > 1.0:
+      corr.y /= max(corr.y)
+
     if debug:
+      HelperFunctions.ensure_dir("%sCross_correlations/" %(outputdir))
       outfilename = "%sCross_correlations/CCF_order%i.dat" %(outputdir, ordernum+1)
       print "Saving ccf for order %i to %s" %(ordernum+1, outfilename)
       corr.output(outfilename)
@@ -252,7 +254,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./"):
     if numpy.any(numpy.isnan(corr.y)):
       warnings.warn("NaNs found in correlation from order %i\n" %(ordernum+1))
       continue
-    print "\n"
+    #print "\n"
     normalization += float(order.size())
     corrlist.append(corr.copy())
 
