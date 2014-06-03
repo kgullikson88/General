@@ -11,7 +11,7 @@ from collections import defaultdict
 import SpectralTypeRelations
 import numpy
 from scipy.misc import factorial
-from scipy.optimize import fminbound, fmin, brent, golden, minimize_scalar
+from scipy.optimize import fminbound, fmin, brent, golden, minimize_scalar, bisect
 from scipy.linalg import solve_banded
 from scipy.stats import scoreatpercentile
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
@@ -214,11 +214,18 @@ def BinomialErrors(n, N, debug=False, tol=0.001):
     print "Guess P = %g +/- %g" %(p0, guess_errors)
   
   func = lambda x: numpy.sum([numpy.product(range(N+2-j, N+2))/(factorial(j)) * x**j * (1.0-x)**(N+1-j) for j in range(0, n+1)])
-  lower_errfcn = lambda x: numpy.abs(func(x) - 0.84)
-  upper_errfcn = lambda x: numpy.abs(func(x) - 0.16)
+  lower_errfcn = lambda x: func(x) - 0.84
+  upper_errfcn = lambda x: func(x) - 0.16
   if debug:
     print func(max(0.0, p0-guess_errors)), func(p0+guess_errors)
 
+  #Find the root of both error functions
+  minimum = max(0.0, p0-3*guess_errors)
+  maximum = min(1.0, p0+3*guess_errors)
+  lower = bisect(lower_errfcn, minimum, maximum)
+  upper = bisect(upper_errfcn, minimum, maximum)
+
+  """
   #Find the best fit. Need to do various tests for convergence
   converged = False
   methods = ['Bounded', 'Brent', 'Golden']
@@ -254,6 +261,7 @@ def BinomialErrors(n, N, debug=False, tol=0.001):
 
   if debug:
     print "n = %i, N = %i\np0 = %.5f\tlower = %.5f\tupper=%.5f\n" %(n, N, p0, lower, upper)
+  """
   
   return lower, upper
 
