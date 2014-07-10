@@ -300,6 +300,13 @@ if __name__ == "__main__":
               elinewidth=2, 
               capsize=5)
 
+
+  #Add the histogram from Bate 2014 binaries with M > 1.5Msun
+  #bate = [1,4,2,5,9]
+  #batebins = [0.1, 0.3, 0.5, 0.7, 0.9]
+  #batewidth = 0.2
+  #ax.bar(numpy.array(batebins)-batewidth/2, bate, batewidth, color='none', edgecolor='red', lw=3)
+
   #Labels
   ax.set_xlabel(r"$M_s/M_p$", fontsize=15)
   ax.set_ylabel("Number", fontsize=15)

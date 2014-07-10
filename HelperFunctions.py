@@ -27,7 +27,7 @@ from pysynphot.observation import Observation
 from pysynphot.spectrum import ArraySourceSpectrum, ArraySpectralElement
 import FittingUtilities
 import mlpy
-
+import warnings
 
 def ensure_dir(f):
   """
@@ -351,8 +351,19 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
   else:
     #Data is in multispec format rather than in fits extensions
     #Call Rick White's script
-    retdict = multispec.readmultispec(datafile, quiet=not debug)
-  
+    try:
+      retdict = multispec.readmultispec(datafile, quiet=not debug)
+    except ValueError:
+      warnings.warn("Wavelength not found in file %s. Using a pixel grid instead!" %datafile)
+      hdulist = pyfits.open(datafile)
+      data = hdulist[0].data
+      hdulist.close()
+      numpixels = data.shape[-1]
+      numorders = data.shape[-2]
+      wave = numpy.array([numpy.arange(numpixels) for i in range(numorders)])
+      retdict = {'flux': data,
+                 'wavelen': wave}
+
     #Check if wavelength units are in angstroms (common, but I like nm)
     hdulist = pyfits.open(datafile)
     header = hdulist[0].header

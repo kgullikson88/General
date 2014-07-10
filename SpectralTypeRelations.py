@@ -570,6 +570,7 @@ class MainSequence:
     besttype = "O1"
     best_difference = 9e9
     for num in testgrid:
+      num = round(num, 2)
       spt = self.Number_To_SpT(num)
       difference = numpy.abs(value - self.Interpolate(dictionary, spt))
       if difference < best_difference:
