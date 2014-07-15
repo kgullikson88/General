@@ -82,7 +82,7 @@ for fname in model_list:
 """
   This function just processes the model to prepare for cross-correlation
 """
-def Process(model, data, vsini, resolution, debug=False):
+def Process(model, data, vsini, resolution, debug=False, oversample=1):
   
   # Read in the model if necessary
   if isinstance(model, str):
@@ -137,7 +137,7 @@ def Process(model, data, vsini, resolution, debug=False):
     # Figure out the log-spacing of the data
     start = numpy.log(order.x[0])
     end = numpy.log(order.x[-1])
-    xgrid = numpy.logspace(start, end, order.size(), base=numpy.e)
+    xgrid = numpy.logspace(start, end, order.size()*oversample, base=numpy.e)
     logspacing = numpy.log(xgrid[1]/xgrid[0])
     
     # Finally, space the model segment with the same log-spacing
@@ -155,10 +155,10 @@ def Process(model, data, vsini, resolution, debug=False):
   
   
 
-def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_data=True, debug=False, outputdir="./"):
+def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_data=True, debug=False, outputdir="./", addmode="ML", oversample=1):
   """
   This is the main function. CALL THIS ONE!
-  data: an xypoint instance with the data
+  data: a list of xypoint instances with the data
   model: Either a string with the model filename, an xypoint instance, or 
          a list of xypoint instances
   vsini: rotational velocity in km/s
@@ -169,10 +169,21 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
   rebin_data: If true, it will rebin the data to a constant log-spacing.
               Otherwise, it assumes the data input already is correctly spaced.
   debug: Prints debugging info to the screen, and saves various files.
+  addmode: The CCF addition mode. The default is Maximum Likelihood
+             (from Zucker 2003, MNRAS, 342, 1291). The other valid option
+             is "simple", which will just do a straight addition. Maximum
+             Likelihood is better for finding weak signals, but simple is 
+             better for determining parameters from the CCF (such as vsini)
+  oversample: If rebin_data = True, this is the factor by which to over-sample
+              the data while rebinning it. Ignored if rebin_data = False
   """
+  #Some error checking
+  if addmode.lower() != "ml" and addmode.lower() != "simple":
+    sys.exit("Invalid add mode given to Correlate.GetCCF: %s" %addmode)
+
   # Process the model if necessary
   if process_model:
-    model_orders = Process(model, data, vsini*units.km.to(units.cm), resolution, debug=debug)
+    model_orders = Process(model, data, vsini*units.km.to(units.cm), resolution, debug=debug, oversample=oversample)
   elif isinstance(model, list) and isinstance(model[0], DataStructures.xypoint):
     model_orders = model
   else:
@@ -188,13 +199,13 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
       start = numpy.log(order.x[0])
       end = numpy.log(order.x[-1])
       neworder = order.copy()
-      neworder.x = numpy.logspace(start, end, order.size(), base=numpy.e)
+      neworder.x = numpy.logspace(start, end, order.size()*oversample, base=numpy.e)
       neworder = FittingUtilities.RebinData(order, neworder.x)
       data[i] = neworder  
     
     
   # Now, cross-correlate the new data against the model
-  corr = Correlate(data, model_orders, debug=debug, outputdir=outputdir)
+  corr = Correlate(data, model_orders, debug=debug, outputdir=outputdir, addmode=addmode)
   
   retdict = {"CCF": corr,
              "model": model_orders,
@@ -206,7 +217,7 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
 """
   This function does the actual correlation.
 """    
-def Correlate(data, model_orders, debug=False, outputdir="./"):
+def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML"):
   corrlist = []
   normalization = 0.0
   for ordernum, order in enumerate(data):
@@ -259,15 +270,25 @@ def Correlate(data, model_orders, debug=False, outputdir="./"):
     corrlist.append(corr.copy())
 
     
-  # Add up the individual CCFs (use the Maximum Likelihood method from Zucker 2003, MNRAS, 342, 1291)
+  # Add up the individual CCFs 
   total = corrlist[0].copy()
-  total.y = numpy.ones(total.size())
-  for i, corr in enumerate(corrlist):
-    correlation = spline(corr.x, corr.y, k=1)
-    N = data[i].size()
-    total.y *= numpy.power(1.0 - correlation(total.x)**2, float(N)/normalization)
-  master_corr = total.copy()
-  master_corr.y = 1.0 - numpy.power(total.y, 1.0/float(len(corrlist)))
+  if addmode.lower() == "ml":
+    # use the Maximum Likelihood method from Zucker 2003, MNRAS, 342, 1291
+    total.y = numpy.ones(total.size())
+    for i, corr in enumerate(corrlist):
+      correlation = spline(corr.x, corr.y, k=1)
+      N = data[i].size()
+      total.y *= numpy.power(1.0 - correlation(total.x)**2, float(N)/normalization)
+    master_corr = total.copy()
+    master_corr.y = 1.0 - numpy.power(total.y, 1.0/float(len(corrlist)))
+  elif addmode.lower() == "simple":
+    # do a simple addition
+    total.y = numpy.zeros(total.size())
+    for i, corr in enumerate(corrlist):
+      correlation = spline(corr.x, corr.y, k=1)
+      total.y += correlation(total.x)
+    total.y /= float(len(corrlist))
+    master_corr = total.copy()
   
   return master_corr
 
