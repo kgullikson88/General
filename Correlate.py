@@ -285,6 +285,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML"):
     # do a simple addition
     total.y = numpy.zeros(total.size())
     for i, corr in enumerate(corrlist):
+      corr.cont = FittingUtilities.Continuum(corr.x, corr.y, fitorder=2, lowreject=5, highreject=2)
       correlation = spline(corr.x, corr.y, k=1)
       total.y += correlation(total.x)
     total.y /= float(len(corrlist))
