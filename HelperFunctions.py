@@ -441,7 +441,7 @@ def OutputFitsFileExtensions(column_dicts, template, outfilename, mode="append",
     for key in column_dict.keys():
       columns.append(pyfits.Column(name=key, format="D", array=column_dict[key]))
     cols = pyfits.ColDefs(columns)
-    tablehdu = pyfits.new_table(cols)
+    tablehdu = pyfits.BinTableHDU.from_columns(cols)
   
     #Add keywords to extension header
     num_keywords = len(header_info)
