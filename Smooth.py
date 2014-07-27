@@ -31,7 +31,7 @@ def GPSmooth(data, low=0.1, high=10, debug=False):
   data.y[outliers] = smoothed.y[outliers]
     
   gp = GaussianProcess(corr='squared_exponential',
-                       theta0 = numpy.sqrt(low*high),
+                       theta0 = np.sqrt(low*high),
                        thetaL = low,
                        thetaU = high,
                        normalize = False,

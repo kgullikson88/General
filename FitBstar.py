@@ -4,7 +4,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.optimize import leastsq
 from collections import defaultdict
 from astropy.io import fits as pyfits
-import numpy
+import numpy as np
 import sys
 import os
 import RotBroad
@@ -57,8 +57,8 @@ for key in Bstarfiles:
 # upper bound:            ubound(boundary_value, parameter)
 # lower and upper bounds: bound([low, high], parameter)
 # fixed parameter:        fixed(fixed_value, parameter)
-lbound = lambda p, x: 1e4*numpy.sqrt(p-x) + 1e-3*(p-x) if (x<p) else 0
-ubound = lambda p, x: 1e4*numpy.sqrt(x-p) + 1e-3*(x-p) if (x>p) else 0
+lbound = lambda p, x: 1e4*np.sqrt(p-x) + 1e-3*(p-x) if (x<p) else 0
+ubound = lambda p, x: 1e4*np.sqrt(x-p) + 1e-3*(x-p) if (x>p) else 0
 bound  = lambda p, x: lbound(p[0],x) + ubound(p[1],x)
 fixed  = lambda p, x: bound((p,p), x)
 
@@ -109,18 +109,18 @@ def GetModel(spline, data, RV, vsini):
   xspacing = (xgrid[-1] - xgrid[0])/float(xgrid.size - 1)
   first = 2*xgrid[0] - xgrid[-1]
   last = 2*xgrid[-1] - xgrid[0]
-  x = numpy.arange(first, last, xspacing)
+  x = np.arange(first, last, xspacing)
 
   z = RV/Units.c
-  unbroadened = DataStructures.xypoint(x=x, y=spline(x*(1+z)), cont=numpy.ones(x.size))
+  unbroadened = DataStructures.xypoint(x=x, y=spline(x*(1+z)), cont=np.ones(x.size))
 
   broadened = RotBroad.Broaden(unbroadened, vsini, linear=True, alpha=0.1)
 
   #Now, we must spline the broadened function onto the xgrid
   fcn = UnivariateSpline(broadened.x, broadened.y/broadened.cont, s=0)
   a,b,c = AdjustWaveScale(data, fcn)
-  #retarray = DataStructures.xypoint(x=xgrid, y=fcn(xgrid), cont=numpy.ones(xgrid.size))
-  retarray = DataStructures.xypoint(x=xgrid, y=fcn(a+b*xgrid+c*xgrid**2), cont=numpy.ones(xgrid.size))
+  #retarray = DataStructures.xypoint(x=xgrid, y=fcn(xgrid), cont=np.ones(xgrid.size))
+  retarray = DataStructures.xypoint(x=xgrid, y=fcn(a+b*xgrid+c*xgrid**2), cont=np.ones(xgrid.size))
 
   #Adjust model continuum
   corrected = data.y/(data.cont*retarray.y)
@@ -128,13 +128,13 @@ def GetModel(spline, data, RV, vsini):
   done = False
   while not done:
     done = True
-    contfcn = numpy.poly1d(numpy.polyfit(temp.x, temp.y, 2))
+    contfcn = np.poly1d(np.polyfit(temp.x, temp.y, 2))
     residuals = temp.y - contfcn(temp.x)
-    sigma = numpy.std(residuals)
-    badindices = numpy.where(residuals < -2*sigma)[0]
+    sigma = np.std(residuals)
+    badindices = np.where(residuals < -2*sigma)[0]
     if badindices.size > 0 and badindices.size < temp.x.size:
-      temp.x = numpy.delete(temp.x, badindices)
-      temp.y = numpy.delete(temp.y, badindices)
+      temp.x = np.delete(temp.x, badindices)
+      temp.y = np.delete(temp.y, badindices)
       done = False
   retarray.cont = 1.0/contfcn(retarray.x)
 
@@ -157,13 +157,13 @@ def FindBestGravity(data, models, RV, vsini):
     vsini = 100.0*Units.cm/Units.km
   for key in models.keys():
     star = GetModel(models[key], data, RV, vsini)
-    chisq = numpy.sum((data.y-star.y/star.cont)**2/data.err**2)
+    chisq = np.sum((data.y-star.y/star.cont)**2/data.err**2)
     if chisq < best_chisq:
       best_chisq = chisq
       best_logg = key
 
   star = GetModel(models[best_logg], data, RV, vsini)
-  return star, best_logg, (best_chisq+add)*numpy.ones(data.x.size)
+  return star, best_logg, (best_chisq+add)*np.ones(data.x.size)
 
 
 def AdjustWaveScale(data, model, a=0., b=1., c=0.):
@@ -184,13 +184,13 @@ def main1():
     done = False
     print "\nFitting order %i" %(i+1)
     while not done:
-      boxcar = numpy.ones(bcwidth)/float(bcwidth)
+      boxcar = np.ones(bcwidth)/float(bcwidth)
       order = orders[i]
       #star = Fit(order, RV=200.0)
       after = order.y[-boxcar.size/2+1:]
       before = order.y[:boxcar.size/2]
-      extended = numpy.append(numpy.append(before, order.y), after)
-      star = DataStructures.xypoint(x=order.x, y=numpy.convolve(extended, boxcar, mode='valid'))
+      extended = np.append(np.append(before, order.y), after)
+      star = DataStructures.xypoint(x=order.x, y=np.convolve(extended, boxcar, mode='valid'))
 
       pylab.figure(1)
       pylab.plot(order.x, order.y/order.cont)
@@ -214,11 +214,11 @@ def main1():
 
 
 def GetApproximateSpectrum(order, bcwidth=50, numstd=2.0):
-  boxcar = numpy.ones(bcwidth)/float(bcwidth)
+  boxcar = np.ones(bcwidth)/float(bcwidth)
   gausswidth = bcwidth/2.0
   #xspacing = (order.y[-1] - order.y[0])/float(order.y.size - 1.0)
-  #x = numpy.linspace(-bcwidth/2.0, bcwidth/2.0, bcwidth)
-  #gaussian = numpy.exp(x**2 / (2*gausswidth**2))
+  #x = np.linspace(-bcwidth/2.0, bcwidth/2.0, bcwidth)
+  #gaussian = np.exp(x**2 / (2*gausswidth**2))
   #gaussian = gaussian / gaussian.sum()
   done = False
   order2 = order.copy()
@@ -226,19 +226,19 @@ def GetApproximateSpectrum(order, bcwidth=50, numstd=2.0):
   while not done:
     after = order2.y[-boxcar.size/2+1:]
     before = order2.y[:boxcar.size/2]
-    extended = numpy.append(numpy.append(before, order2.y), after)
-    smoothed = numpy.convolve(extended, boxcar, mode='valid')
-    #smoothed = numpy.convolve(extended, gaussian, mode='valid')
+    extended = np.append(np.append(before, order2.y), after)
+    smoothed = np.convolve(extended, boxcar, mode='valid')
+    #smoothed = np.convolve(extended, gaussian, mode='valid')
     residuals = order2.y/smoothed - 1.0
-    std = numpy.std(residuals)
+    std = np.std(residuals)
     if std < 1e-8:
       std = 1e-8
-    badindices = numpy.where(numpy.logical_and(residuals < -numstd*std, residuals > numstd*std))[0]
-    if badindices.size < 5 or (len(sizes) > 10 and numpy.all(size == badindices.size for size in sizes[-10:])):
+    badindices = np.where(np.logical_and(residuals < -numstd*std, residuals > numstd*std))[0]
+    if badindices.size < 5 or (len(sizes) > 10 and np.all(size == badindices.size for size in sizes[-10:])):
       done = True
       break
     sizes.append(badindices.size)
-    goodindices = numpy.where(numpy.logical_and(residuals >= -numstd*std, residuals <= numstd*std))[0]
+    goodindices = np.where(np.logical_and(residuals >= -numstd*std, residuals <= numstd*std))[0]
     fcn = spline(order2.x[goodindices], order2.y[goodindices], k=1)
     order2.y = fcn(order2.x)
   star = order.copy()

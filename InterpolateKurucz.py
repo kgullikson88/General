@@ -1,4 +1,4 @@
-import numpy
+import numpy as np
 from scipy.interpolate import UnivariateSpline
 import os
 from collections import defaultdict
@@ -18,7 +18,7 @@ class Models:
                                                                #The list is the wavelength, followed by
                                                                #a dictionary of flux values for each
                                                                #value of log(g)
-    self.logg_grid = numpy.arange(0.0, 5.5, 0.5)  #grid of log(g) values for the default Kurucz grid.
+    self.logg_grid = np.arange(0.0, 5.5, 0.5)  #grid of log(g) values for the default Kurucz grid.
                                                   #Warning! May not be true if a different grid is used!
     self.modeldir = modeldir
     self.debug = debug
@@ -64,7 +64,7 @@ class Models:
         data = hdulist[1].data
         hdulist.close()
         wave = data['wavelength']
-        d = defaultdict(numpy.ndarray)
+        d = defaultdict(np.ndarray)
         logg_str = "g%.2i" %(logg*10.)
         try:
           flux = data[logg_str]
@@ -96,7 +96,7 @@ class Models:
     Tsecond = 0
     Temperatures = sorted(self.model_dict.keys())
     for temp in Temperatures:
-      if numpy.abs(T-temp) < numpy.abs(Tclosest-temp):
+      if np.abs(T-temp) < np.abs(Tclosest-temp):
         Tclosest = temp
     i = 0
     while Tsecond < Tclosest:
@@ -109,14 +109,14 @@ class Models:
     elif Tclosest == Temperatures[0]:
       Tsecond = Temperatures[1]
       #for temp in Temperatures:
-      #if numpy.abs(T-temp) < numpy.abs(Tsecond-temp) and temp != Tclosest:
+      #if np.abs(T-temp) < np.abs(Tsecond-temp) and temp != Tclosest:
       #  Tsecond = temp
 
     #Do the same thing for log(g)
     gclosest = 9e9
     gsecond =0
     for g in self.logg_grid:
-      if numpy.abs(logg-g) < numpy.abs(gclosest-g):
+      if np.abs(logg-g) < np.abs(gclosest-g):
         gclosest=g
     i = 0
     while gsecond < gclosest:
@@ -137,7 +137,7 @@ class Models:
       print "Metals list: "
       print metals
     for z in metals:
-      if numpy.abs(metal - z) < numpy.abs(metalclosest - z):
+      if np.abs(metal - z) < np.abs(metalclosest - z):
         metalclosest = z
     i = 0
     while metalsecond < metalclosest:
@@ -213,20 +213,20 @@ class Models:
 
     #Now, interpolate to the requested metallicity
     spectrum_T1 = spectrum_T1_Z1.copy()
-    if metalclosest != metal and numpy.all(spectrum_T1_Z1.x == spectrum_T1_Z2.x):
+    if metalclosest != metal and np.all(spectrum_T1_Z1.x == spectrum_T1_Z2.x):
       spectrum_T1.y = (spectrum_T1_Z1.y - spectrum_T1_Z2.y)/(metalclosest - metalsecond) * (metal - metalclosest) + spectrum_T1_Z1.y
       if metalsecond == metalclosest:
         print "[Fe/H] values the same1: %g" %metalsecond
-    elif numpy.any(spectrum_T1_Z1.x != spectrum_T1_Z2.x):
+    elif np.any(spectrum_T1_Z1.x != spectrum_T1_Z2.x):
       print "Wavelength grid not the same!"
       return -1
 
     spectrum_T2 = spectrum_T2_Z1.copy()
-    if metalclosest != metal and numpy.all(spectrum_T2_Z1.x == spectrum_T2_Z2.x):
+    if metalclosest != metal and np.all(spectrum_T2_Z1.x == spectrum_T2_Z2.x):
       spectrum_T2.y = (spectrum_T2_Z1.y - spectrum_T2_Z2.y)/(metalclosest - metalsecond) * (metal - metalclosest) + spectrum_T2_Z1.y
       if metalsecond == metalclosest:
         print "[Fe/H] values the same2: %g" %metalsecond
-    elif numpy.any(spectrum_T2_Z1.x != spectrum_T2_Z2.x):
+    elif np.any(spectrum_T2_Z1.x != spectrum_T2_Z2.x):
       print "Wavelength grid not the same!"
       return -1
       
@@ -234,7 +234,7 @@ class Models:
     spectrum = spectrum_T1.copy()
     if T == Tclosest:
       return spectrum
-    if numpy.all(spectrum_T1.x == spectrum_T2.x):
+    if np.all(spectrum_T1.x == spectrum_T2.x):
       spectrum.y = (spectrum_T1.y - spectrum_T2.y)/(Tclosest - Tsecond) * (T - Tclosest) + spectrum_T1.y
       if Tsecond == Tclosest:
         print "T values the same1: %g" %Tsecond
@@ -258,20 +258,20 @@ class Models:
     Tclosest = 9e9
     Temperatures = sorted(self.model_dict.keys())
     for temp in Temperatures:
-      if numpy.abs(T-temp) < numpy.abs(Tclosest-temp):
+      if np.abs(T-temp) < np.abs(Tclosest-temp):
         Tclosest = temp
 
     #Do the same thing for log(g)
     gclosest = 9e9
     for g in self.logg_grid:
-      if numpy.abs(logg-g) < numpy.abs(gclosest-g):
+      if np.abs(logg-g) < np.abs(gclosest-g):
         gclosest=g
 
     #And again for metallicity
     metalclosest = 9e9
     metals = sorted(self.model_dict[Tclosest].keys())
     for z in metals:
-      if numpy.abs(metal - z) < numpy.abs(metalclosest - z):
+      if np.abs(metal - z) < np.abs(metalclosest - z):
         metalclosest = z
 
     if self.debug:

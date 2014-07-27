@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from numpy import *
+from np import *
    
 def deg2rad(degrees):
    return degrees*pi/180.
@@ -504,7 +504,7 @@ def convolve(image, psf, ft_psf=None, ft_image=None, no_ft=None, correlate=None,
           Fix the bug causing the recomputation of FFT(psf) and/or FFT(image)
                                   Sergey Koposov     December 2006
    """
-   from numpy.fft import fft2, ifft2
+   from np.fft import fft2, ifft2
 
    n_params = 2
    psf_ft = ft_psf
@@ -557,18 +557,18 @@ def convolve(image, psf, ft_psf=None, ft_image=None, no_ft=None, correlate=None,
    return roll(roll(conv, sc[0],0), sc[1],1)
 
 def cv_coord(a,b,c,fr=None,to=None,degr=False):
-        import numpy
+        import numpy as np
 	if degr:
-		degrad = numpy.deg2rad
-		raddeg = numpy.rad2deg
+		degrad = np.deg2rad
+		raddeg = np.rad2deg
 	else:
 		degrad = lambda x: x
 		raddeg = lambda x: x
 	if fr=='sph':
-		cosa = numpy.cos(degrad(a))
-		sina = numpy.sin(degrad(a))
-		cosb = numpy.cos(degrad(b))
-		sinb = numpy.sin(degrad(b))
+		cosa = np.cos(degrad(a))
+		sina = np.sin(degrad(a))
+		cosb = np.cos(degrad(b))
+		sinb = np.sin(degrad(b))
 		x=c*cosa*cosb
 		y=c*sina*cosb
 		z=c*sinb
@@ -583,9 +583,9 @@ def cv_coord(a,b,c,fr=None,to=None,degr=False):
 	if to=='rect':
 		return (x,y,z)
 	elif to=='sph':
-		ra = raddeg(numpy.arctan2(y,x))
-		dec = raddeg(numpy.arctan2(z,numpy.sqrt(x**2+y**2)))
-		rad = numpy.sqrt(x**2+y**2+z**2)
+		ra = raddeg(np.arctan2(y,x))
+		dec = raddeg(np.arctan2(z,np.sqrt(x**2+y**2)))
+		rad = np.sqrt(x**2+y**2+z**2)
 		return (ra,dec,rad)
 	elif to is None:
 		raise Exception('You must specify the output coordinate system')
@@ -709,10 +709,10 @@ def euler(ai, bi, select=1, fk4=False):
           Made J2000 the default, added /FK4 keyword  W. Landsman December 1998
           Add option to specify SELECT as a keyword W. Landsman March 2003
    """
-   import numpy
+   import numpy as np
 
-   twopi = 2.0e0 * numpy.pi
-   fourpi = 4.0e0 * numpy.pi
+   twopi = 2.0e0 * np.pi
+   fourpi = 4.0e0 * np.pi
    
    #   J2000 coordinate conversions are based on the following constants
    #   (see the Hipparcos explanatory supplement).
@@ -726,29 +726,29 @@ def euler(ai, bi, select=1, fk4=False):
    
    if fk4:   
       equinox = '(B1950)'
-      psi = numpy.array ([0.57595865315e0, 4.9261918136e0, 0.00000000000e0, 0.0000000000e0, 0.11129056012e0, 4.7005372834e0])
-      stheta = numpy.array ([0.88781538514e0, -0.88781538514e0, 0.39788119938e0, -0.39788119938e0, 0.86766174755e0, -0.86766174755e0])
-      ctheta = numpy.array([0.46019978478e0, 0.46019978478e0, 0.91743694670e0, 0.91743694670e0, 0.49715499774e0, 0.49715499774e0])
-      phi = numpy.array([4.9261918136e0, 0.57595865315e0, 0.0000000000e0, 0.00000000000e0, 4.7005372834e0, 0.11129056012e0])
+      psi = np.array ([0.57595865315e0, 4.9261918136e0, 0.00000000000e0, 0.0000000000e0, 0.11129056012e0, 4.7005372834e0])
+      stheta = np.array ([0.88781538514e0, -0.88781538514e0, 0.39788119938e0, -0.39788119938e0, 0.86766174755e0, -0.86766174755e0])
+      ctheta = np.array([0.46019978478e0, 0.46019978478e0, 0.91743694670e0, 0.91743694670e0, 0.49715499774e0, 0.49715499774e0])
+      phi = np.array([4.9261918136e0, 0.57595865315e0, 0.0000000000e0, 0.00000000000e0, 4.7005372834e0, 0.11129056012e0])
    else:   
       equinox = '(J2000)'
-      psi = numpy.array([0.57477043300e0, 4.9368292465e0, 0.00000000000e0, 0.0000000000e0, 0.11142137093e0, 4.71279419371e0])
-      stheta = numpy.array([0.88998808748e0, -0.88998808748e0, 0.39777715593e0, -0.39777715593e0, 0.86766622025e0, -0.86766622025e0])
-      ctheta = numpy.array([0.45598377618e0, 0.45598377618e0, 0.91748206207e0, 0.91748206207e0, 0.49714719172e0, 0.49714719172e0])
-      phi = numpy.array([4.9368292465e0, 0.57477043300e0, 0.0000000000e0, 0.00000000000e0, 4.71279419371e0, 0.11142137093e0])
+      psi = np.array([0.57477043300e0, 4.9368292465e0, 0.00000000000e0, 0.0000000000e0, 0.11142137093e0, 4.71279419371e0])
+      stheta = np.array([0.88998808748e0, -0.88998808748e0, 0.39777715593e0, -0.39777715593e0, 0.86766622025e0, -0.86766622025e0])
+      ctheta = np.array([0.45598377618e0, 0.45598377618e0, 0.91748206207e0, 0.91748206207e0, 0.49714719172e0, 0.49714719172e0])
+      phi = np.array([4.9368292465e0, 0.57477043300e0, 0.0000000000e0, 0.00000000000e0, 4.71279419371e0, 0.11142137093e0])
       
    i = select - 1
-   a = numpy.deg2rad(ai) - phi[i]
-   b = numpy.deg2rad(bi)
-   sb = numpy.sin(b)
-   cb = numpy.cos(b)
-   cbsa = cb * numpy.sin(a)
+   a = np.deg2rad(ai) - phi[i]
+   b = np.deg2rad(bi)
+   sb = np.sin(b)
+   cb = np.cos(b)
+   cbsa = cb * np.sin(a)
    b = -stheta[i] * cbsa + ctheta[i] * sb
-   bo = numpy.rad2deg(numpy.arcsin(numpy.minimum(b, 1.0)))
+   bo = np.rad2deg(np.arcsin(np.minimum(b, 1.0)))
    del b
-   a = numpy.arctan2(ctheta[i] * cbsa + stheta[i] * sb, cb * numpy.cos(a))
+   a = np.arctan2(ctheta[i] * cbsa + stheta[i] * sb, cb * np.cos(a))
    del cb, cbsa, sb
-   ao = numpy.rad2deg(((a + psi[i] + fourpi) % twopi) )
+   ao = np.rad2deg(((a + psi[i] + fourpi) % twopi) )
 
    return (ao, bo)
 
@@ -821,7 +821,7 @@ def gal_uvw(distance=None, lsr=None, ra=None, dec=None, pmra=None, pmdec=None, v
    	   vectorization of the loop -- performance on large arrays
            is now 10 times higher                Sergey Koposov December 2008
    """
-   import numpy
+   import numpy as np
 
    n_params = 3
    
@@ -836,19 +836,19 @@ def gal_uvw(distance=None, lsr=None, ra=None, dec=None, pmra=None, pmdec=None, v
    if plx is None and distance is None:
       raise Exception('ERROR - Either a parallax or distance must be specified')
    if distance is not None:
-      if numpy.any(distance==0):
+      if np.any(distance==0):
          raise Exception('ERROR - All distances must be > 0')
       plx = 1e3 / distance          #Parallax in milli-arcseconds
-   if plx is not None and numpy.any(plx==0):   
+   if plx is not None and np.any(plx==0):   
       raise Exception('ERROR - Parallaxes must be > 0')
    
-   cosd = numpy.cos(numpy.deg2rad(dec))
-   sind = numpy.sin(numpy.deg2rad(dec))
-   cosa = numpy.cos(numpy.deg2rad(ra))
-   sina = numpy.sin(numpy.deg2rad(ra))
+   cosd = np.cos(np.deg2rad(dec))
+   sind = np.sin(np.deg2rad(dec))
+   cosa = np.cos(np.deg2rad(ra))
+   sina = np.sin(np.deg2rad(ra))
    
    k = 4.74047     #Equivalent of 1 A.U/yr in km/s   
-   a_g = numpy.array([[0.0548755604, +0.4941094279, -0.8676661490],
+   a_g = np.array([[0.0548755604, +0.4941094279, -0.8676661490],
                 [0.8734370902, -0.4448296300, -0.1980763734], 
                 [0.4838350155, 0.7469822445, +0.4559837762]])
    
@@ -860,7 +860,7 @@ def gal_uvw(distance=None, lsr=None, ra=None, dec=None, pmra=None, pmdec=None, v
    v = (a_g[0,1] * cosa * cosd + a_g[1,1] * sina * cosd + a_g[2,1] * sind) * vec1 + (-a_g[0,1] * sina + a_g[1,1] * cosa) * vec2 + (-a_g[0,1] * cosa * sind - a_g[1,1] * sina * sind + a_g[2,1] * cosd) * vec3
    w = (a_g[0,2] * cosa * cosd + a_g[1,2] * sina * cosd + a_g[2,2] * sind) * vec1 + (-a_g[0,2] * sina + a_g[1,2] * cosa) * vec2 + (-a_g[0,2] * cosa * sind - a_g[1,2] * sina * sind + a_g[2,2] * cosd) * vec3
    
-   lsr_vel = numpy.array([-10.00, 5.25, 7.17])
+   lsr_vel = np.array([-10.00, 5.25, 7.17])
    if (lsr is not None):   
       u = u + lsr_vel[0]
       v = v + lsr_vel[1]
@@ -1063,26 +1063,26 @@ def helio_jd(date, ra, dec, b1950=False, time_diff=False):
 
 def mwrfits(filename, arraylist, namelist=None, header=None):
 	""" 
-	Writes the list of numpy.arrays arraylist as a FITS table filename
+	Writes the list of np.arrays arraylist as a FITS table filename
 	using namelist as list of names. 
 	Arraylist can be dictionary with arrays as values and names as keys. 
-	Also Arraylist can be numpy-record-array.
+	Also Arraylist can be np-record-array.
 	Example:
 	mwrfits('/tmp/xx.fits',[arr,arr1],['X','Y'])
 	Or :
 	mwrfits('test.fits',{'X':arr,'Y':arr1})
 	Or:
-	data = numpy.zeros((4,),dtype=[('run','i4'),('rerun','f8'),('zz','b')])
+	data = np.zeros((4,),dtype=[('run','i4'),('rerun','f8'),('zz','b')])
 	mwfits('test1.fits',data)
 	
 	Keep in mind that when you used a dictionary, the order of columns in the
 	fits file is not guaranteed
 	"""
-        import numpy, pyfits, types, itertools
+        import numpy as np, pyfits, types, itertools
 
 	tmplist=[]
-	if isinstance(arraylist,numpy.ndarray):
-		if arraylist.dtype.type is numpy.void:
+	if isinstance(arraylist,np.ndarray):
+		if arraylist.dtype.type is np.void:
 			iter=itertools.izip(arraylist.dtype.names, itertools.imap (arraylist.__getitem__ , arraylist.dtype.names))
 	else:
 		if isinstance(arraylist,types.ListType):
@@ -1091,19 +1091,19 @@ def mwrfits(filename, arraylist, namelist=None, header=None):
 			iter= arraylist.iteritems()
 
 	for name, arr in iter:
-		if arr.dtype.type==numpy.int8:
+		if arr.dtype.type==np.int8:
 			format='I'
-		elif arr.dtype.type==numpy.int16:
+		elif arr.dtype.type==np.int16:
 			format='I'
-		elif arr.dtype.type==numpy.int32:
+		elif arr.dtype.type==np.int32:
 			format='J'
-		elif arr.dtype.type==numpy.int64:
+		elif arr.dtype.type==np.int64:
 			format='K'
-		elif arr.dtype.type==numpy.float32:
+		elif arr.dtype.type==np.float32:
 			format='E'
-		elif arr.dtype.type==numpy.float64:
+		elif arr.dtype.type==np.float64:
 			format='D'
-		elif arr.dtype.type==numpy.string_:
+		elif arr.dtype.type==np.string_:
 			format='%dA'%arr.dtype.itemsize
 		else:
 			raise Exception("Oops unknown datatype %s"%arr.dtype)
@@ -1399,10 +1399,10 @@ def readcol(filename, delimiter=' ', format=None, skiprows=0, **kw):
 	"""
 
         import scipy.io
-        import numpy 
+        import numpy as np 
         
 	if format==None:
-		res=numpy.loadtxt(filename, delimiter=delimiter, skiprows=skiprows, **kw)
+		res=np.loadtxt(filename, delimiter=delimiter, skiprows=skiprows, **kw)
 		nrows = res.shape[0]
 		if res.ndim==2:
 			ncols = res.shape[1]
@@ -1422,24 +1422,24 @@ def readcol(filename, delimiter=' ', format=None, skiprows=0, **kw):
 		formats=format.split(',')
 		convs={}
 		
-		retnull = lambda s: numpy.float(s or 0)
+		retnull = lambda s: np.float(s or 0)
 		for i, a in enumerate(formats):
 			if a=='I':
-				curtype=numpy.int32
+				curtype=np.int32
 				convs[i]=retnull
 			elif a=='F':
-				curtype=numpy.float32
+				curtype=np.float32
 				convs[i]=retnull
 			elif a=='D':
-				curtype=numpy.float64
+				curtype=np.float64
 				convs[i]=retnull
 			elif a=='S':
-				curtype="S100"#numpy.str
+				curtype="S100"#np.str
 			else:
 				raise Exception("Sorry, Unknown type in the format string\n The allowed types are S,I,F,D (string, int, float, double)")
 			types.append(("a%d"%i,curtype))
 		
-		rec=numpy.loadtxt(file(filename),dtype=types, delimiter=delimiter, 
+		rec=np.loadtxt(file(filename),dtype=types, delimiter=delimiter, 
 						skiprows=skiprows,converters=convs)
 		ncols=len(rec[0])
 		nrows=len(rec)
@@ -1448,13 +1448,13 @@ def readcol(filename, delimiter=' ', format=None, skiprows=0, **kw):
 		stor=[]
 		for a in formats:
 			if a=='I':
-				tmp=numpy.zeros(nrows,dtype=numpy.int32)
+				tmp=np.zeros(nrows,dtype=np.int32)
 			elif a=='F':
-				tmp=numpy.zeros(nrows,dtype=numpy.float32)
+				tmp=np.zeros(nrows,dtype=np.float32)
 			elif a=='D':
-				tmp=numpy.zeros(nrows,dtype=numpy.float64)
+				tmp=np.zeros(nrows,dtype=np.float64)
 			elif a=='S':
-				tmp=numpy.zeros(nrows,dtype="S100")
+				tmp=np.zeros(nrows,dtype="S100")
 			stor.append(tmp)
 
 		for i in range(ncols):

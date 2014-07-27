@@ -4,7 +4,7 @@
 """
 
 from astropy.time import Time
-import numpy
+import numpy as np
 import MakeModel
 
 def GetAtmosphereFiles(filenames, datestr, timestr):
@@ -55,8 +55,8 @@ def InterpolateAtmosphere(firstfile, lastfile, t1, t2, t):
 
     Returns: the pressure, temperature, and dew point at the obstime
   """
-  Pres1,height1,Temp1,dew1 = numpy.loadtxt(firstfile, usecols=(0,1,2,3), unpack=True)
-  Pres2,height2,Temp2,dew2 = numpy.loadtxt(lastfile, usecols=(0,1,2,3), unpack=True)
+  Pres1,height1,Temp1,dew1 = np.loadtxt(firstfile, usecols=(0,1,2,3), unpack=True)
+  Pres2,height2,Temp2,dew2 = np.loadtxt(lastfile, usecols=(0,1,2,3), unpack=True)
   
   #Sometimes, the first pressure will be different (because it hits the ground level)
   if abs(Pres1[0] - Pres2[0]) > 1e-3:
@@ -112,14 +112,14 @@ def GetProfile(filenames, datestr, timestr):
   P, Z, T, D = InterpolateAtmosphere(*GetAtmosphereFiles(filenames, datestr, timestr))
   
   #Sort by height
-  sorter = numpy.argsort(Z)
+  sorter = np.argsort(Z)
   Z = Z[sorter]
   P = P[sorter]
   T = T[sorter]
   D = D[sorter]
 
   #Convert dew point temperature to ppmv
-  Pw = numpy.zeros(D.size)
+  Pw = np.zeros(D.size)
   for i, dewpoint in enumerate(D):
     Pw[i] = MakeModel.VaporPressure(dewpoint+273.15)
   h2o = Pw / (P-Pw) * 1e6

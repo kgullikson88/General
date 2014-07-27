@@ -39,7 +39,7 @@ determine the CCF significance of a peak.
 
 """
 
-import numpy
+import numpy as np
 from scipy.signal import fftconvolve
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import sys
@@ -62,17 +62,17 @@ def Process(filename, data, vsini, resolution):
   
   #Read in the model
   print "Reading in the input model from %s" %filename
-  x, y = numpy.loadtxt(filename, usecols=(0,1), unpack=True)
+  x, y = np.loadtxt(filename, usecols=(0,1), unpack=True)
   x = x*units.angstrom.to(units.nm)
   y = 10**y
-  left = numpy.searchsorted(x, data[0].x[0]-10)
-  right = numpy.searchsorted(x, data[-1].x[-1]+10)
+  left = np.searchsorted(x, data[0].x[0]-10)
+  right = np.searchsorted(x, data[-1].x[-1]+10)
   model = DataStructures.xypoint(x=x[left:right], y=y[left:right])
   
   
   #Linearize the x-axis of the model
   print "Linearizing model"
-  xgrid = numpy.linspace(model.x[0], model.x[-1], model.size())
+  xgrid = np.linspace(model.x[0], model.x[-1], model.size())
   model = FittingUtilities.RebinData(model, xgrid)
   
   
@@ -94,19 +94,19 @@ def Process(filename, data, vsini, resolution):
     sys.stdout.flush()
     # Find how much to extend the model so that we can get maxvel range.
     dlambda = order.x[order.size()/2] * maxvel*1.5/3e5
-    left = numpy.searchsorted(model.x, order.x[0] - dlambda)
-    right = numpy.searchsorted(model.x, order.x[-1] + dlambda)
+    left = np.searchsorted(model.x, order.x[0] - dlambda)
+    right = np.searchsorted(model.x, order.x[-1] + dlambda)
     
     # Figure out the log-spacing of the data
-    start = numpy.log(order.x[0])
-    end = numpy.log(order.x[-1])
-    xgrid = numpy.logspace(start, end, order.size(), base=numpy.e)
-    logspacing = numpy.log(xgrid[1]/xgrid[0])
+    start = np.log(order.x[0])
+    end = np.log(order.x[-1])
+    xgrid = np.logspace(start, end, order.size(), base=np.e)
+    logspacing = np.log(xgrid[1]/xgrid[0])
     
     # Finally, space the model segment with the same log-spacing
-    start = numpy.log(model.x[left])
-    end = numpy.log(model.x[right])
-    xgrid = numpy.exp(numpy.arange(start, end+logspacing, logspacing))
+    start = np.log(model.x[left])
+    end = np.log(model.x[right])
+    xgrid = np.exp(np.arange(start, end+logspacing, logspacing))
       
     segment = FittingUtilities.RebinData(model.copy(), xgrid)
     segment.cont = FittingUtilities.Continuum(segment.x, segment.y, lowreject=1.5, highreject=5, fitorder=2)
@@ -130,7 +130,7 @@ def GetSamples(data, model_file, Nboot, vsini=10.0, resolution=50000):
   
   #Now, begin the bootstrap loop
   print "\n\nStarting loop over bootstrap trials. This could take a while..."
-  output = numpy.zeros(Nboot)
+  output = np.zeros(Nboot)
   pool = Pool(processes=4)
   fcn = partial(GetCCFHeight, data, model_orders)
   #output = pool.map(fcn, range(Nboot), chunksize=Nboot/4)
@@ -162,19 +162,19 @@ def GetCCFHeight(data, model_orders, *args):
   #Randomly sample from each order with replacement to make fake data
   for j in range(len(newdata)):
     order = newdata[j]
-    index = numpy.random.randint(0, order.size(), order.size())
+    index = np.random.randint(0, order.size(), order.size())
     order.y = (order.y/order.cont)[index]
       
     #Resample to log-spacing
-    start = numpy.log(order.x[0])
-    end = numpy.log(order.x[-1])
-    xgrid = numpy.logspace(start, end, order.size(), base=numpy.e)
+    start = np.log(order.x[0])
+    end = np.log(order.x[-1])
+    xgrid = np.logspace(start, end, order.size(), base=np.e)
     newdata[j] = FittingUtilities.RebinData(order, xgrid)
     
     
   #Now, cross-correlate the new data against the model
   corr = Correlate(newdata, model_orders)
-  return numpy.max(corr.y)
+  return np.max(corr.y)
   
     
     
@@ -194,17 +194,17 @@ def Correlate(data, model_orders):
     reducedmodel = model.y/model.cont
     meandata = reduceddata.mean()
     meanmodel = reducedmodel.mean()
-    data_rms = numpy.std(reduceddata)
-    model_rms = numpy.std(reducedmodel)
-    left = numpy.searchsorted(model.x, order.x[0])
-    right = model.x.size - numpy.searchsorted(model.x, order.x[-1])
+    data_rms = np.std(reduceddata)
+    model_rms = np.std(reducedmodel)
+    left = np.searchsorted(model.x, order.x[0])
+    right = model.x.size - np.searchsorted(model.x, order.x[-1])
     delta = left - right
     
-    #ycorr = numpy.correlate(reduceddata - meandata, reducedmodel - meanmodel, mode='valid')
+    #ycorr = np.correlate(reduceddata - meandata, reducedmodel - meanmodel, mode='valid')
     ycorr = fftconvolve((reduceddata - meandata), (reducedmodel - meanmodel)[::-1], mode='valid')
-    xcorr = numpy.arange(ycorr.size)
+    xcorr = np.arange(ycorr.size)
     lags = xcorr - right
-    distancePerLag = numpy.log(model.x[1] / model.x[0])
+    distancePerLag = np.log(model.x[1] / model.x[0])
     offsets = -lags*distancePerLag
     velocity = offsets * constants.c.cgs.value * units.cm.to(units.km)
     corr = DataStructures.xypoint(velocity.size)
@@ -212,8 +212,8 @@ def Correlate(data, model_orders):
     corr.y = ycorr[::-1]/(data_rms*model_rms*float(ycorr.size))
         
     # Only save part of the correlation
-    left = numpy.searchsorted(corr.x, minvel)
-    right = numpy.searchsorted(corr.x, maxvel)
+    left = np.searchsorted(corr.x, minvel)
+    right = np.searchsorted(corr.x, maxvel)
     corr = corr[left:right]
 
     normalization += float(order.size())
@@ -224,13 +224,13 @@ def Correlate(data, model_orders):
     
   # Add up the individual CCFs (use the Maximum Likelihood method from Zucker 2003, MNRAS, 342, 1291)
   total = corrlist[0].copy()
-  total.y = numpy.ones(total.size())
+  total.y = np.ones(total.size())
   for i, corr in enumerate(corrlist):
     correlation = spline(corr.x, corr.y, k=1)
     N = data[i].size()
-    total.y *= numpy.power(1.0 - correlation(total.x)**2, float(N)/normalization)
+    total.y *= np.power(1.0 - correlation(total.x)**2, float(N)/normalization)
   master_corr = total.copy()
-  master_corr.y = 1.0 - numpy.power(total.y, 1.0/float(len(corrlist)))
+  master_corr.y = 1.0 - np.power(total.y, 1.0/float(len(corrlist)))
   
   return master_corr
 

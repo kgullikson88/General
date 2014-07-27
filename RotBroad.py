@@ -1,5 +1,5 @@
 import pylab
-import numpy
+import numpy as np
 #import Units
 from astropy import units, constants
 from scipy.interpolate import UnivariateSpline
@@ -11,7 +11,7 @@ import FindContinuum
 import matplotlib.pyplot as plt
 import warnings
 
-pi = numpy.pi
+pi = np.pi
 
 
 def CombineIntervals(intervals, overlap=0):
@@ -27,10 +27,10 @@ def CombineIntervals(intervals, overlap=0):
       master_y = interval.y[firstindex:lastindex]
       master_cont = interval.cont[firstindex:lastindex]
     else:
-      firstindex = numpy.searchsorted(interval.x, master_x[-1])+1
-      master_x = numpy.append(master_x, interval.x[firstindex:lastindex])
-      master_y = numpy.append(master_y, interval.y[firstindex:lastindex])
-      master_cont = numpy.append(master_cont, interval.cont[firstindex:lastindex])
+      firstindex = np.searchsorted(interval.x, master_x[-1])+1
+      master_x = np.append(master_x, interval.x[firstindex:lastindex])
+      master_y = np.append(master_y, interval.y[firstindex:lastindex])
+      master_cont = np.append(master_cont, interval.cont[firstindex:lastindex])
     iteration += 1
 
   output = DataStructures.xypoint(master_x.size)
@@ -39,7 +39,7 @@ def CombineIntervals(intervals, overlap=0):
   output.cont = master_cont.copy()
 
   #Scale continuum so the highest normalized flux = 1.0
-  maxindex = numpy.argmax(output.y/output.cont)
+  maxindex = np.argmax(output.y/output.cont)
   factor = output.y[maxindex]/output.cont[maxindex]
   output.cont *= factor
 
@@ -48,12 +48,12 @@ def CombineIntervals(intervals, overlap=0):
 
 def ReadFile(filename):
   #Read in file
-  x,y = numpy.loadtxt(filename, unpack=True)
+  x,y = np.loadtxt(filename, unpack=True)
   model = DataStructures.xypoint(x.size)
   model.x = x.copy()*units.angstrom.to(units.nm)
   model.y = y.copy()
   #Read in continuum
-  x,y = numpy.loadtxt(filename[:-1]+"17", unpack=True)
+  x,y = np.loadtxt(filename[:-1]+"17", unpack=True)
   cont_fcn = UnivariateSpline(x*units.angstrom.to(units.nm), y, s=0)
   model.cont = cont_fcn(model.x)
 
@@ -88,7 +88,7 @@ def Broaden(model, vsini, intervalsize=50.0, beta=1.0, linear=False, findcont=Fa
 
 
   while lastindex < model.x.size - 1:
-    lastindex = min (numpy.searchsorted(model.x, model.x[firstindex] + intervalsize), model.size()-1)
+    lastindex = min (np.searchsorted(model.x, model.x[firstindex] + intervalsize), model.size()-1)
     interval = DataStructures.xypoint(lastindex - firstindex + 1)
     if linear:
       interval.x = model.x[firstindex:lastindex]
@@ -96,7 +96,7 @@ def Broaden(model, vsini, intervalsize=50.0, beta=1.0, linear=False, findcont=Fa
       if not findcont:
         interval.cont = model.cont[firstindex:lastindex]
     else:
-      interval.x = numpy.linspace(model.x[firstindex], model.x[lastindex], lastindex - firstindex + 1)
+      interval.x = np.linspace(model.x[firstindex], model.x[lastindex], lastindex - firstindex + 1)
       interval.y = model_fcn(interval.x)
       if not findcont:
         interval.cont = cont_fcn(interval.x)
@@ -109,11 +109,11 @@ def Broaden(model, vsini, intervalsize=50.0, beta=1.0, linear=False, findcont=Fa
     wave0 = interval.x[interval.x.size/2]
     zeta = wave0*vsini/constants.c.cgs.value
     xspacing = interval.x[1] - interval.x[0]
-    wave = numpy.arange(wave0 - zeta, wave0 + zeta + xspacing, xspacing)
+    wave = np.arange(wave0 - zeta, wave0 + zeta + xspacing, xspacing)
     x = (wave-wave0)/zeta
     x[x<-1] = -1.0
     x[x>1] = 1.0
-    profile = 1.0/(zeta*(1+2*beta/3.)) * ( 2/numpy.pi*numpy.sqrt( 1-x**2 ) + 0.5*beta*( 1-x**2  ) )
+    profile = 1.0/(zeta*(1+2*beta/3.)) * ( 2/np.pi*np.sqrt( 1-x**2 ) + 0.5*beta*( 1-x**2  ) )
     if profile.size < 10:
       warning.warn( "Warning! Profile size too small: %i\nNot broadening!" %(profile.size) )
       intervals.append(interval)
@@ -127,9 +127,9 @@ def Broaden(model, vsini, intervalsize=50.0, beta=1.0, linear=False, findcont=Fa
     wave0 = interval.x[interval.x.size/2]
     zeta = wave0*vsini/constants.c.cgs.value
     xspacing = interval.x[1] - interval.x[0]
-    wave = numpy.arange(wave0 - zeta, wave0 + zeta, xspacing)
-    x = numpy.linspace(-1.0, 1.0, wave.size)
-    flux = pi/2.0*(1.0 - 1.0/(1. + 2*beta/3.)*(2/pi*numpy.sqrt(1.-x**2) + beta/2*(1.-x**2)))
+    wave = np.arange(wave0 - zeta, wave0 + zeta, xspacing)
+    x = np.linspace(-1.0, 1.0, wave.size)
+    flux = pi/2.0*(1.0 - 1.0/(1. + 2*beta/3.)*(2/pi*np.sqrt(1.-x**2) + beta/2*(1.-x**2)))
     profile = flux.max() - flux
     #plt.plot(profile)
     """
@@ -139,7 +139,7 @@ def Broaden(model, vsini, intervalsize=50.0, beta=1.0, linear=False, findcont=Fa
     after = interval.y[:profile.size/2]
     before = interval.y[-int(profile.size):]
     after = interval.y[:int(profile.size)]
-    extended = numpy.append(numpy.append(before, interval.y), after)
+    extended = np.append(np.append(before, interval.y), after)
 
     if profile.size % 2 == 0:
       left, right = int(profile.size*1.5), int(profile.size*1.5)-1
@@ -148,7 +148,7 @@ def Broaden(model, vsini, intervalsize=50.0, beta=1.0, linear=False, findcont=Fa
     
     #interval.y = scipy.signal.fftconvolve(extended, profile/profile.sum(), mode="valid")
     #interval.y = scipy.signal.fftconvolve(extended, profile/profile.sum(), mode="full")[left:-right]
-    interval.y = numpy.convolve(extended, profile/profile.sum(), mode="full")[left:-right]
+    interval.y = np.convolve(extended, profile/profile.sum(), mode="full")[left:-right]
     intervals.append(interval)
 
     if profile.size > profilesize:
@@ -185,7 +185,7 @@ def Broaden2(model, vsini, intervalsize=50.0, epsilon=0.5, linear=False, findcon
 
   if not linear:
     model_fcn = UnivariateSpline(model.x, model.y, s=0)
-    x = numpy.linspace(model.x[0], model.x[-1], model.size())
+    x = np.linspace(model.x[0], model.x[-1], model.size())
     model = DataStructures.xypoint(x=x, y=model_fcn(x))
     if not findcont:
       model.cont = cont_fcn(model.x)
@@ -200,25 +200,25 @@ def Broaden2(model, vsini, intervalsize=50.0, epsilon=0.5, linear=False, findcon
   model.x = constants.c.cgs.value * (model.x - wave0)/wave0
 
   #Make broadening profile
-  left = numpy.searchsorted(model.x, -2*vsini)
-  right = numpy.searchsorted(model.x, 2*vsini)
+  left = np.searchsorted(model.x, -2*vsini)
+  right = np.searchsorted(model.x, 2*vsini)
   profile = model[left:right]
-  profile.y = numpy.zeros(profile.size())
+  profile.y = np.zeros(profile.size())
   dv = profile.x/vsini
-  indices = numpy.where(numpy.abs(dv) < 1.0)[0]
-  profile.y[indices] = 1.0/(vsini*(1-epsilon/3.0)) * (2*(1-epsilon)/numpy.pi * numpy.sqrt(1-dv[indices]**2) + epsilon/2.0 * (1-dv[indices]**2) )
+  indices = np.where(np.abs(dv) < 1.0)[0]
+  profile.y[indices] = 1.0/(vsini*(1-epsilon/3.0)) * (2*(1-epsilon)/np.pi * np.sqrt(1-dv[indices]**2) + epsilon/2.0 * (1-dv[indices]**2) )
   
   #Extend interval to reduce edge effects (basically turn convolve into circular convolution)
   before = model.y[-int(profile.size()):]
   after = model.y[:int(profile.size())]
-  extended = numpy.append(numpy.append(before, model.y), after)
+  extended = np.append(np.append(before, model.y), after)
 
   if profile.size() % 2 == 0:
     left, right = int(profile.size()*1.5), int(profile.size()*1.5)-1
   else:
     left, right = int(profile.size()*1.5), int(profile.size()*1.5)
 
-  model.y = numpy.convolve(extended, profile.y/profile.y.sum(), mode="full")[left:-right]
+  model.y = np.convolve(extended, profile.y/profile.y.sum(), mode="full")[left:-right]
 
   #Return back to wavelength space
   model.x = wave0 * (1 + model.x/constants.c.cgs.value)
@@ -232,7 +232,7 @@ def Test_fcn(model):
   model_fcn = UnivariateSpline(model.x, model.y, s=0)
   cont_fcn = UnivariateSpline(model.x, model.cont, s=0)
 
-  print model_fcn(numpy.median(model.x))
+  print model_fcn(np.median(model.x))
 
   
 
@@ -244,8 +244,8 @@ if __name__ == "__main__":
 
   filename = "BG19000g400v2.vis.7"
   fulldata = ReadFile(filename)
-  left = numpy.searchsorted(fulldata.x, 850)
-  right = numpy.searchsorted(fulldata.x, 950)
+  left = np.searchsorted(fulldata.x, 850)
+  right = np.searchsorted(fulldata.x, 950)
   data = DataStructures.xypoint(right-left+1)
   data.x = fulldata.x[left:right]
   data.y = fulldata.y[left:right]
@@ -255,4 +255,4 @@ if __name__ == "__main__":
   pylab.show()
   #outfilename = "Broadened_" + SpT + "_v%.0f.dat" %(vsini)
   #print "Outputting to ", outfilename
-  #numpy.savetxt(outfilename, numpy.transpose((spectrum.x, spectrum.y/spectrum.cont)), fmt='%.8f\t%.8g')
+  #np.savetxt(outfilename, np.transpose((spectrum.x, spectrum.y/spectrum.cont)), fmt='%.8f\t%.8g')

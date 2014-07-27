@@ -1,4 +1,4 @@
-import numpy
+import numpy as np
 import astropysics.obstools as tools
 from scipy.optimize import leastsq, fmin
 import matplotlib.pyplot as plt
@@ -43,8 +43,8 @@ def FitFunction(colors, SpT, distance, Rv=3.1):
   for color in colors:
     if colors[color][0] != None:
       plt.errorbar(colors[color][2], colors[color][0], yerr=colors[color][1])
-      print "%g +/- %g\n%g" %(colors[color][0], colors[color][1], extinct.Alambda(Color2Lambda[color]) + 5.0*numpy.log10(pars[2]) - 5.0)
-      plt.plot(colors[color][2], extinct.Alambda(Color2Lambda[color]) + 5.0*numpy.log10(pars[2]) - 5.0, 'ro')
+      print "%g +/- %g\n%g" %(colors[color][0], colors[color][1], extinct.Alambda(Color2Lambda[color]) + 5.0*np.log10(pars[2]) - 5.0)
+      plt.plot(colors[color][2], extinct.Alambda(Color2Lambda[color]) + 5.0*np.log10(pars[2]) - 5.0, 'ro')
   plt.show()
 
   pars, success = leastsq(ErrorFunction, pars, args=(colors, SpT))
@@ -54,8 +54,8 @@ def FitFunction(colors, SpT, distance, Rv=3.1):
   for color in colors:
     if colors[color][0] != None:
       plt.errorbar(colors[color][2], colors[color][0], yerr=colors[color][1])
-      print "%g +/- %g\n%g" %(colors[color][0], colors[color][1], extinct.Alambda(Color2Lambda[color]) + 5.0*numpy.log10(pars[2]) - 5.0)
-      plt.plot(colors[color][2], extinct.Alambda(Color2Lambda[color]) + 5.0*numpy.log10(pars[2]) - 5.0, 'ro')
+      print "%g +/- %g\n%g" %(colors[color][0], colors[color][1], extinct.Alambda(Color2Lambda[color]) + 5.0*np.log10(pars[2]) - 5.0)
+      plt.plot(colors[color][2], extinct.Alambda(Color2Lambda[color]) + 5.0*np.log10(pars[2]) - 5.0, 'ro')
   plt.show()
 
   print "Pars, X^2 = ", pars, chisq
@@ -70,11 +70,11 @@ def ErrorFunction(pars, colors, SpT):
   extinct.A0 = A0
   for color in colors:
     if colors[color][0] != None:
-      difference += (colors[color][0] - extinct.Alambda(Color2Lambda[color]) - 5.0*numpy.log10(d) + 5.0)**2 / colors[color][1]**2
+      difference += (colors[color][0] - extinct.Alambda(Color2Lambda[color]) - 5.0*np.log10(d) + 5.0)**2 / colors[color][1]**2
 
   print pars, difference
 
-  return difference*numpy.ones(10)
+  return difference*np.ones(10)
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ import subprocess
 import matplotlib.pyplot as plt
 import sys
 import os
-import numpy
+import numpy as np
 from collections import defaultdict
 from scipy.interpolate import UnivariateSpline
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
@@ -88,11 +88,11 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1):
   if isinstance(model, str):
     if debug:
       print "Reading in the input model from %s" %model
-    x, y = numpy.loadtxt(model, usecols=(0,1), unpack=True)
+    x, y = np.loadtxt(model, usecols=(0,1), unpack=True)
     x = x*units.angstrom.to(units.nm)
     y = 10**y
-    left = numpy.searchsorted(x, data[0].x[0]-10)
-    right = numpy.searchsorted(x, data[-1].x[-1]+10)
+    left = np.searchsorted(x, data[0].x[0]-10)
+    right = np.searchsorted(x, data[-1].x[-1]+10)
     model = DataStructures.xypoint(x=x[left:right], y=y[left:right])
   elif not isinstance(model, DataStructures.xypoint):
     raise TypeError("Input model is of an unknown type! Must be a DataStructures.xypoint or a string with the filename.")
@@ -101,7 +101,7 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1):
   #Linearize the x-axis of the model
   if debug:
     print "Linearizing model"
-  xgrid = numpy.linspace(model.x[0], model.x[-1], model.size())
+  xgrid = np.linspace(model.x[0], model.x[-1], model.size())
   model = FittingUtilities.RebinData(model, xgrid)
   
   
@@ -130,20 +130,20 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1):
       sys.stdout.flush()
     # Find how much to extend the model so that we can get maxvel range.
     dlambda = order.x[order.size()/2] * maxvel*1.5/3e5
-    left = numpy.searchsorted(model.x, order.x[0] - dlambda)
-    right = numpy.searchsorted(model.x, order.x[-1] + dlambda)
+    left = np.searchsorted(model.x, order.x[0] - dlambda)
+    right = np.searchsorted(model.x, order.x[-1] + dlambda)
     right = min(right, model.size()-2)
     
     # Figure out the log-spacing of the data
-    start = numpy.log(order.x[0])
-    end = numpy.log(order.x[-1])
-    xgrid = numpy.logspace(start, end, order.size()*oversample, base=numpy.e)
-    logspacing = numpy.log(xgrid[1]/xgrid[0])
+    start = np.log(order.x[0])
+    end = np.log(order.x[-1])
+    xgrid = np.logspace(start, end, order.size()*oversample, base=np.e)
+    logspacing = np.log(xgrid[1]/xgrid[0])
     
     # Finally, space the model segment with the same log-spacing
-    start = numpy.log(model.x[left])
-    end = numpy.log(model.x[right])
-    xgrid = numpy.exp(numpy.arange(start, end+logspacing, logspacing))
+    start = np.log(model.x[left])
+    end = np.log(model.x[right])
+    xgrid = np.exp(np.arange(start, end+logspacing, logspacing))
       
     segment = FittingUtilities.RebinData(model[left:right+1].copy(), xgrid)
     segment.cont = FittingUtilities.Continuum(segment.x, segment.y, lowreject=1.5, highreject=5, fitorder=2)
@@ -196,10 +196,10 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
       print "Resampling data to log-spacing"
     for i, order in enumerate(data):
       
-      start = numpy.log(order.x[0])
-      end = numpy.log(order.x[-1])
+      start = np.log(order.x[0])
+      end = np.log(order.x[-1])
       neworder = order.copy()
-      neworder.x = numpy.logspace(start, end, order.size()*oversample, base=numpy.e)
+      neworder.x = np.logspace(start, end, order.size()*oversample, base=np.e)
       neworder = FittingUtilities.RebinData(order, neworder.x)
       data[i] = neworder  
     
@@ -227,14 +227,14 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML"):
     reducedmodel = model.y/model.cont
     meandata = reduceddata.mean()
     meanmodel = reducedmodel.mean()
-    data_rms = numpy.std(reduceddata)
-    model_rms = numpy.std(reducedmodel)
-    left = numpy.searchsorted(model.x, order.x[0])
+    data_rms = np.std(reduceddata)
+    model_rms = np.std(reducedmodel)
+    left = np.searchsorted(model.x, order.x[0])
     
     ycorr = scipy.signal.fftconvolve((reducedmodel - meanmodel), (reduceddata - meandata)[::-1], mode='valid')
-    xcorr = numpy.arange(ycorr.size)
+    xcorr = np.arange(ycorr.size)
     lags = xcorr - left
-    distancePerLag = numpy.log(model.x[1] / model.x[0])
+    distancePerLag = np.log(model.x[1] / model.x[0])
     offsets = lags*distancePerLag
     velocity = offsets * constants.c.cgs.value * units.cm.to(units.km)
     corr = DataStructures.xypoint(velocity.size)
@@ -242,8 +242,8 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML"):
     corr.y = ycorr/(data_rms*model_rms*float(ycorr.size))
         
     # Only save part of the correlation
-    left = numpy.searchsorted(corr.x, minvel)
-    right = numpy.searchsorted(corr.x, maxvel)
+    left = np.searchsorted(corr.x, minvel)
+    right = np.searchsorted(corr.x, maxvel)
     corr = corr[left:right]
 
     #Make sure that no elements of corr.y are > 1!
@@ -262,7 +262,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML"):
       
 
     # Save correlation
-    if numpy.any(numpy.isnan(corr.y)):
+    if np.any(np.isnan(corr.y)):
       warnings.warn("NaNs found in correlation from order %i\n" %(ordernum+1))
       continue
     #print "\n"
@@ -274,16 +274,16 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML"):
   total = corrlist[0].copy()
   if addmode.lower() == "ml":
     # use the Maximum Likelihood method from Zucker 2003, MNRAS, 342, 1291
-    total.y = numpy.ones(total.size())
+    total.y = np.ones(total.size())
     for i, corr in enumerate(corrlist):
       correlation = spline(corr.x, corr.y, k=1)
       N = data[i].size()
-      total.y *= numpy.power(1.0 - correlation(total.x)**2, float(N)/normalization)
+      total.y *= np.power(1.0 - correlation(total.x)**2, float(N)/normalization)
     master_corr = total.copy()
-    master_corr.y = 1.0 - numpy.power(total.y, 1.0/float(len(corrlist)))
+    master_corr.y = 1.0 - np.power(total.y, 1.0/float(len(corrlist)))
   elif addmode.lower() == "simple":
     # do a simple addition
-    total.y = numpy.zeros(total.size())
+    total.y = np.zeros(total.size())
     for i, corr in enumerate(corrlist):
       corr.cont = FittingUtilities.Continuum(corr.x, corr.y, fitorder=2, lowreject=5, highreject=2)
       correlation = spline(corr.x, corr.y, k=1)
@@ -321,10 +321,10 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
   for i, order in enumerate(data):
     if debug:
       print "Resampling order %i to log-spacing" %i
-    start = numpy.log(order.x[0])
-    end = numpy.log(order.x[-1])
+    start = np.log(order.x[0])
+    end = np.log(order.x[-1])
     neworder = order.copy()
-    neworder.x = numpy.logspace(start, end, order.size(), base=numpy.e)
+    neworder.x = np.logspace(start, end, order.size(), base=np.e)
     neworder = FittingUtilities.RebinData(order, neworder.x)
     data[i] = neworder    
 
@@ -347,10 +347,10 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
     #a: Read in file (or  rename if already read in: PREFERRABLE!)
     if isinstance(models[i], str):
       print "******************************\nReading file ", modelfile
-      x,y = numpy.loadtxt(models[i], usecols=(0,1), unpack=True)
+      x,y = np.loadtxt(models[i], usecols=(0,1), unpack=True)
       x *= units.angstrom.to(units.nm)
       y = 10**y
-      cont = numpy.ones(y.size)*y.max()
+      cont = np.ones(y.size)*y.max()
       model = DataStructures.xypoint(x=x, y=y, cont=cont)
     elif isinstance(models[i], DataStructures.xypoint):
       model = models[i].copy()
@@ -360,8 +360,8 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
     if process_model:
       if debug:
         print "Processing model..."
-      left = numpy.searchsorted(model.x, data[0].x[0] - 10.0)
-      right = numpy.searchsorted(model.x, data[-1].x[-1] + 10.0)
+      left = np.searchsorted(model.x, data[0].x[0] - 10.0)
+      right = np.searchsorted(model.x, data[-1].x[-1] + 10.0)
       if left > 0:
         left -= 1
       x2 = model.x[left:right].copy()
@@ -383,14 +383,14 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
     normalization = 0.0
     for ordernum, order in enumerate(data):
       if process_model:
-        left = max(0, numpy.searchsorted(model.x, 2*order.x[0] - order.x[-1])-1)
-        right = min(model.x.size-1, numpy.searchsorted(model.x, 2*order.x[-1] - order.x[0]))
+        left = max(0, np.searchsorted(model.x, 2*order.x[0] - order.x[-1])-1)
+        right = min(model.x.size-1, np.searchsorted(model.x, 2*order.x[-1] - order.x[0]))
         if left > 0:
           left -= 1
 
         #b: Make wavelength spacing constant
         model2 = DataStructures.xypoint(right - left + 1)
-        model2.x = numpy.linspace(model.x[left], model.x[right], right - left + 1)
+        model2.x = np.linspace(model.x[left], model.x[right], right - left + 1)
         model2.y = MODEL(model2.x)
         model2.cont = FittingUtilities.Continuum(model2.x, model2.y, lowreject=1.5, highreject=5, fitorder=2)
         model2.cont[model2.cont < 1e-5] = 1e-5
@@ -408,11 +408,11 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
           print "After resolution decrease"
 
         #f: Rebin to the same spacing as the data
-        logspacing = numpy.log(order.x[1]/order.x[0])
-        start = numpy.log(model2.x[0])
-        end = numpy.log(model2.x[-1])
-        xgrid = numpy.exp(numpy.arange(start, end+logspacing, logspacing))
-        #xgrid = numpy.arange(model2.x[0], model2.x[-1], order.x[1] - order.x[0])
+        logspacing = np.log(order.x[1]/order.x[0])
+        start = np.log(model2.x[0])
+        end = np.log(model2.x[-1])
+        xgrid = np.exp(np.arange(start, end+logspacing, logspacing))
+        #xgrid = np.arange(model2.x[0], model2.x[-1], order.x[1] - order.x[0])
         model2 = FittingUtilities.RebinData(model2.copy(), xgrid)
         model2.cont = FittingUtilities.Continuum(model2.x, model2.y, lowreject=1.5, highreject=5, fitorder=2)
         if debug:
@@ -423,10 +423,10 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
       reducedmodel = model2.y/model2.cont
       meandata = reduceddata.mean()
       meanmodel = reducedmodel.mean()
-      data_rms = numpy.sqrt(numpy.sum((reduceddata - meandata)**2)/float(reduceddata.size))
-      model_rms = numpy.sqrt(numpy.sum((reducedmodel - meanmodel)**2)/float(reducedmodel.size))
-      left = numpy.searchsorted(model2.x, order.x[0])
-      right = model2.x.size - numpy.searchsorted(model2.x, order.x[-1])
+      data_rms = np.sqrt(np.sum((reduceddata - meandata)**2)/float(reduceddata.size))
+      model_rms = np.sqrt(np.sum((reducedmodel - meanmodel)**2)/float(reducedmodel.size))
+      left = np.searchsorted(model2.x, order.x[0])
+      right = model2.x.size - np.searchsorted(model2.x, order.x[-1])
       delta = left - right
       if debug:
         order.output("Corr_inputdata.dat")
@@ -434,8 +434,8 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
     
       ycorr = scipy.signal.fftconvolve((reduceddata - meandata), (reducedmodel - meanmodel)[::-1], mode=corr_mode)
       
-      #ycorr = numpy.correlate(reduceddata - meandata, reducedmodel - meanmodel, mode=corr_mode)
-      xcorr = numpy.arange(ycorr.size)
+      #ycorr = np.correlate(reduceddata - meandata, reducedmodel - meanmodel, mode=corr_mode)
+      xcorr = np.arange(ycorr.size)
       if corr_mode == 'valid':
         lags = xcorr - (model2.x.size + order.x.size + delta - 1.0)/2.0
         lags = xcorr - (0 + right)
@@ -445,8 +445,8 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
         sys.exit("Sorry! corr_mode = %s not supported yet!" %corr_mode)
       #distancePerLag = model2.x[1] - model2.x[0]
       #offsets = -lags*distancePerLag
-      #velocity = offsets*3e5 / numpy.median(order.x)   
-      distancePerLag = numpy.log(model2.x[1] / model2.x[0])
+      #velocity = offsets*3e5 / np.median(order.x)   
+      distancePerLag = np.log(model2.x[1] / model2.x[0])
       offsets = -lags*distancePerLag
       velocity = offsets * constants.c.cgs.value * units.cm.to(units.km)
       corr = DataStructures.xypoint(velocity.size)
@@ -454,12 +454,12 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
       #corr.y = ycorr[::-1]/model_rms
       corr.y = ycorr[::-1]/(data_rms*model_rms*float(ycorr.size))
       if debug:
-        if numpy.any(numpy.isnan([corr.y[i] for i in range(corr.size())])):
+        if np.any(np.isnan([corr.y[i] for i in range(corr.size())])):
           print "NaN found in correlation!"
           corr.output("badcorrelation.dat")
           print data_rms, model_rms, reduceddata.size
           sys.exit()
-      elif numpy.any(numpy.isnan([corr.y[i] for i in range(corr.size())])):
+      elif np.any(np.isnan([corr.y[i] for i in range(corr.size())])):
         print "NaN found in correlation!"
         #Output the inputs that are causing the issue
         order.output("%s.badccf_data.order%i" %(outfilename, ordernum+1))
@@ -468,8 +468,8 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
           
         
       #i: Only save part of the correlation
-      left = numpy.searchsorted(corr.x, minvel)
-      right = numpy.searchsorted(corr.x, maxvel)
+      left = np.searchsorted(corr.x, minvel)
+      right = np.searchsorted(corr.x, maxvel)
       corr.x = corr.x[left:right]
       corr.y = corr.y[left:right]
 
@@ -478,28 +478,28 @@ def PyCorr(data, stars=star_list, temps=temp_list, models=model_list, model_fcns
       corrlist.append(corr.copy())
       if debug:
         print "Outputting single-order CCF to %s.order%i" %(outfilename, ordernum+1)
-        numpy.savetxt("%s.order%i" %(outfilename, ordernum+1), numpy.transpose((corr.x, corr.y)))
+        np.savetxt("%s.order%i" %(outfilename, ordernum+1), np.transpose((corr.x, corr.y)))
         #corr.output("%s.order%i" %(outfilename, ordernum+1))
 
     #Add up the individual CCFs (use the Maximum Likelihood method from Zucker 2003, MNRAS, 342, 1291)
     total = corrlist[0].copy()
-    total.y = numpy.ones(total.size())
+    total.y = np.ones(total.size())
     #N = orders[0].size()
-    #total.y = numpy.power(1.0 - total.y**2, float(N)/normalization)
+    #total.y = np.power(1.0 - total.y**2, float(N)/normalization)
     #master_corr = corrlist[0]
     for i, corr in enumerate(corrlist):
       correlation = UnivariateSpline(corr.x, corr.y, s=0, k=1)
       N = data[i].size()
-      total.y *= numpy.power(1.0 - correlation(total.x)**2, float(N)/normalization)
+      total.y *= np.power(1.0 - correlation(total.x)**2, float(N)/normalization)
       #master_corr.y += correlation(master_corr.x)
     #master_corr.y /= normalization
     master_corr = total.copy()
-    master_corr.y = 1.0 - numpy.power(total.y, 1.0/float(len(corrlist)))
+    master_corr.y = 1.0 - np.power(total.y, 1.0/float(len(corrlist)))
 
     #Finally, output
     if save_output:
       print "Outputting to ", outfilename, "\n"
-      numpy.savetxt(outfilename, numpy.transpose((master_corr.x, master_corr.y)), fmt="%.10g")
+      np.savetxt(outfilename, np.transpose((master_corr.x, master_corr.y)), fmt="%.10g")
       returnlist.append(outfilename)
     else:
       returnlist.append(master_corr)
@@ -535,17 +535,17 @@ def AutoCorrelate(data, stars=star_list, temps=temp_list, models=model_list, gra
     #a: Read in file (or  rename if already read in: PREFERRABLE!)
     if isinstance(models[i], str):
       print "******************************\nReading file ", modelfile
-      x,y = numpy.loadtxt(models[i], usecols=(0,1), unpack=True)
+      x,y = np.loadtxt(models[i], usecols=(0,1), unpack=True)
       x *= units.angstrom.to(units.nm)
       y = 10**y
-      cont = numpy.ones(y.size)*y.max()
+      cont = np.ones(y.size)*y.max()
       model = DataStructures.xypoint(x=x, y=y, cont=cont)
     elif isinstance(models[i], DataStructures.xypoint):
       model = models[i].copy()
 
     if process_model:
-      left = numpy.searchsorted(model.x, data[0].x[0] - 10.0)
-      right = numpy.searchsorted(model.x, data[-1].x[-1] + 10.0)
+      left = np.searchsorted(model.x, data[0].x[0] - 10.0)
+      right = np.searchsorted(model.x, data[-1].x[-1] + 10.0)
       if left > 0:
         left -= 1
       x2 = model.x[left:right].copy()
@@ -559,14 +559,14 @@ def AutoCorrelate(data, stars=star_list, temps=temp_list, models=model_list, gra
     corrlist = []
     for ordernum, order in enumerate(data):
       if process_model:
-        left = numpy.searchsorted(model.x, order.x[0] - 10.0)
-        right = numpy.searchsorted(model.x, order.x[-1] + 10.0)
+        left = np.searchsorted(model.x, order.x[0] - 10.0)
+        right = np.searchsorted(model.x, order.x[-1] + 10.0)
         if left > 0:
           left -= 1
 
         #b: Make wavelength spacing constant
         model2 = DataStructures.xypoint(right - left + 1)
-        model2.x = numpy.linspace(model.x[left], model.x[right], right - left + 1)
+        model2.x = np.linspace(model.x[left], model.x[right], right - left + 1)
         model2.y = MODEL(model2.x)
         model2.cont = CONT(model2.x)
 
@@ -585,7 +585,7 @@ def AutoCorrelate(data, stars=star_list, temps=temp_list, models=model_list, gra
           print model.y
 
         #f: Rebin to the same spacing as the data
-        xgrid = numpy.arange(model2.x[0], model2.x[-1], order.x[1] - order.x[0])
+        xgrid = np.arange(model2.x[0], model2.x[-1], order.x[1] - order.x[0])
         modellong = FittingUtilities.RebinData(model2.copy(), xgrid)
         modelshort = FittingUtilities.RebinData(model2.copy(), order.x)
         if debug:
@@ -596,20 +596,20 @@ def AutoCorrelate(data, stars=star_list, temps=temp_list, models=model_list, gra
       #Now, do the actual cross-correlation
       reducedshort = modelshort.y / modelshort.cont
       reducedlong = modellong.y / modellong.cont
-      meanshort = numpy.mean(reducedshort)
-      meanlong = numpy.mean(reducedlong)
-      modelshort_rms = numpy.sqrt(numpy.sum((reducedshort-meanshort)**2))
-      modellong_rms = numpy.sqrt(numpy.sum((reducedlong-meanlong)**2))
-      left = numpy.searchsorted(modellong.x, modelshort.x[0])
-      right = modellong.x.size - numpy.searchsorted(modellong.x, modelshort.x[-1])
+      meanshort = np.mean(reducedshort)
+      meanlong = np.mean(reducedlong)
+      modelshort_rms = np.sqrt(np.sum((reducedshort-meanshort)**2))
+      modellong_rms = np.sqrt(np.sum((reducedlong-meanlong)**2))
+      left = np.searchsorted(modellong.x, modelshort.x[0])
+      right = modellong.x.size - np.searchsorted(modellong.x, modelshort.x[-1])
       delta = left - right
       if debug:
         modellong.output("Corr_inputmodellong.dat")
         modelshort.output("Corr_inputmodelshort.dat")
     
       
-      ycorr = numpy.correlate(reducedshort - meanshort, reducedlong - meanlong, mode=corr_mode)
-      xcorr = numpy.arange(ycorr.size)
+      ycorr = np.correlate(reducedshort - meanshort, reducedlong - meanlong, mode=corr_mode)
+      xcorr = np.arange(ycorr.size)
       if corr_mode == 'valid':
         lags = xcorr - (modellong.x.size + modelshort.x.size + delta - 1.0)/2.0
         lags = xcorr - right
@@ -619,27 +619,27 @@ def AutoCorrelate(data, stars=star_list, temps=temp_list, models=model_list, gra
         sys.exit("Sorry! corr_mode = %s not supported yet!" %corr_mode)
       distancePerLag = modellong.x[1] - modellong.x[0]
       offsets = -lags*distancePerLag
-      velocity = offsets*3e5 / numpy.median(modelshort.x)   
+      velocity = offsets*3e5 / np.median(modelshort.x)   
       corr = DataStructures.xypoint(velocity.size)
       corr.x = velocity[::-1]
       corr.y = ycorr[::-1]/(modelshort_rms*modellong_rms)
         
       #i: Only save part of the correlation
-      left = numpy.searchsorted(corr.x, minvel)
-      right = numpy.searchsorted(corr.x, maxvel)
+      left = np.searchsorted(corr.x, minvel)
+      right = np.searchsorted(corr.x, maxvel)
       corr.x = corr.x[left:right]
       corr.y = corr.y[left:right]
         
       #j: Adjust correlation by fit, if user wants
       if normalize:
-        mean = numpy.mean(corr.y)
-        std = numpy.std(corr.y)
+        mean = np.mean(corr.y)
+        std = np.std(corr.y)
         corr.y = (corr.y - mean)/std
 
       #k: Save correlation
       corrlist.append(corr.copy())
       if debug:
-        numpy.savetxt("%s.order%i" %(outfilename, ordernum+1), numpy.transpose((corr.x, corr.y)))
+        np.savetxt("%s.order%i" %(outfilename, ordernum+1), np.transpose((corr.x, corr.y)))
         #corr.output("%s.order%i" %(outfilename, ordernum+1))
 
     #Add up the individual CCFs
@@ -653,7 +653,7 @@ def AutoCorrelate(data, stars=star_list, temps=temp_list, models=model_list, gra
       outfilename = "%s%s.%.0fkps_%sK%+.1f%+.1f" %(outdir, outfilebase, vsini*units.cm.to(units.km), star, gravity, metallicity)
     if save_output:
       print "Outputting to ", outfilename, "\n"
-      numpy.savetxt(outfilename, numpy.transpose((master_corr.x, master_corr.y)), fmt="%.10g")
+      np.savetxt(outfilename, np.transpose((master_corr.x, master_corr.y)), fmt="%.10g")
       returnlist.append(outfilename)
     else:
       returnlist.append(master_corr)

@@ -1,6 +1,6 @@
 from collections import defaultdict
 from scipy.interpolate import UnivariateSpline, griddata
-import numpy
+import numpy as np
 import DataStructures
 from astropy import constants
 import warnings
@@ -566,13 +566,13 @@ class MainSequence:
 
   def GetSpectralType(self, dictionary, value, interpolate=False):
     #Returns the spectral type that is closest to the value (within 0.1 subtypes)
-    testgrid = numpy.arange(self.SpT_To_Number("O1"), self.SpT_To_Number("M9"), 0.1)
+    testgrid = np.arange(self.SpT_To_Number("O1"), self.SpT_To_Number("M9"), 0.1)
     besttype = "O1"
     best_difference = 9e9
     for num in testgrid:
       num = round(num, 2)
       spt = self.Number_To_SpT(num)
-      difference = numpy.abs(value - self.Interpolate(dictionary, spt))
+      difference = np.abs(value - self.Interpolate(dictionary, spt))
       if difference < best_difference:
         best_difference = difference
         besttype = spt
@@ -597,7 +597,7 @@ class MainSequence:
 ########################################################
 import os
 import HelperFunctions
-import numpy
+import numpy as np
 homedir = os.environ["HOME"] + "/"
 tracksfile = homedir + "Dropbox/School/Research/Stellar_Evolution/Padova_Tracks.dat"
 
@@ -656,7 +656,7 @@ class PreMainSequence:
           logg = float(segments[2])
           Lum = float(segments[3])
           Tracks[age]["Mass"].append(mass)
-          Tracks[age]["Temperature"].append(numpy.log10(Teff))
+          Tracks[age]["Temperature"].append(np.log10(Teff))
           Tracks[age]["Luminosity"].append(Lum)
           Tracks[age]["Gravity"].append(logg)
           j += 1
@@ -697,7 +697,7 @@ class PreMainSequence:
     elif key == "Radius":
       #We need to get this from the luminosity and temperature
       lum = self.GetFromTemperature(age, temperature, key="Luminosity")
-      return numpy.sqrt(lum) / (temperature/5780.0)**2
+      return np.sqrt(lum) / (temperature/5780.0)**2
 
     
     # Otherwise, interpolate
@@ -711,12 +711,12 @@ class PreMainSequence:
       for T, V in zip(temps, val):
         points.append((t, T))
         values.append(V)
-    xi = numpy.array([[numpy.log10(age), numpy.log10(temperature)],])
-    points = numpy.array(points)
-    values = numpy.array(values)
+    xi = np.array([[np.log10(age), np.log10(temperature)],])
+    points = np.array(points)
+    values = np.array(values)
     
     val = griddata(points, values, xi, method='linear')
-    if numpy.isnan(val):
+    if np.isnan(val):
       warnings.warn("Requested temperature (%g) at this age (%g) is outside of grid!" %(temperature, age))
       val = griddata(points, values, xi, method='nearest')
 
@@ -743,11 +743,11 @@ class PreMainSequence:
       for T, M in zip(temps, masses):
         points.append((t, M))
         values.append(T)
-    xi = numpy.array([[numpy.log10(age), mass],])
-    points = numpy.array(points)
-    values = numpy.array(values)
+    xi = np.array([[np.log10(age), mass],])
+    points = np.array(points)
+    values = np.array(values)
     val = griddata(points, values, xi, method='linear')
-    if numpy.isnan(val):
+    if np.isnan(val):
       warnings.warn("Requested temperature (%g) at this age (%g) is outside of grid!" %(temperature, age))
       val = griddata(points, values, xi, method='nearest')
     return 10**float(val)
@@ -774,11 +774,11 @@ class PreMainSequence:
     tol = 0.001
     for i in range(1,3):
       age = ages[i]
-      masses = numpy.array(Tracks[age]["Mass"])
+      masses = np.array(Tracks[age]["Mass"])
       length = len(common_masses)
       badindices = []
       for j, m in enumerate(common_masses[::-1]):
-        if numpy.min(numpy.abs(m - masses)) > tol:
+        if np.min(np.abs(m - masses)) > tol:
           badindices.append(length - 1 - j)
       for idx in badindices:
         common_masses.pop(idx)
@@ -797,12 +797,12 @@ class PreMainSequence:
     i = 1
     while not done and i < len(ages):
       age = ages[i]
-      masses = numpy.array(Tracks[age]["Mass"])
+      masses = np.array(Tracks[age]["Mass"])
       done = True
-      if numpy.min(numpy.abs(m1 - masses)) <= tol:
+      if np.min(np.abs(m1 - masses)) <= tol:
         age1 = age
         done = False
-      if numpy.min(numpy.abs(m2 - masses)) <= tol:
+      if np.min(np.abs(m2 - masses)) <= tol:
         age2 = age
         done = False
       i += 1

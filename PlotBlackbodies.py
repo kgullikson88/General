@@ -1,5 +1,5 @@
 import pylab
-import numpy
+import numpy as np
 import sys
 from astropy import constants, units
 from scipy.interpolate import UnivariateSpline
@@ -9,16 +9,16 @@ def Planck(x,T):
   h = constants.h.cgs.value
   c = constants.c.cgs.value
   k = constants.k_B.cgs.value
-  pi = numpy.pi
-  return 2*pi*h*c**2/x**5*1.0/(numpy.exp(h*c/(x*k*T)) - 1.0)
+  pi = np.pi
+  return 2*pi*h*c**2/x**5*1.0/(np.exp(h*c/(x*k*T)) - 1.0)
 
 def Planck_nu(nu, T):
   h = constants.h.cgs.value
   c = constants.c.cgs.value
   k = constants.k_B.cgs.value
-  pi = numpy.pi
+  pi = np.pi
   x = h*nu/(k*T)
-  return 2*pi*h*nu**3/c**2 * 1.0/(numpy.exp(x) - 1.0)
+  return 2*pi*h*nu**3/c**2 * 1.0/(np.exp(x) - 1.0)
 
 
 if __name__ == "__main__":
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     #Filter format is two columns: One for wavelength in nanometer
     # and the other for transmission (as a fraction, not a percent)
     filterfile = sys.argv[3]
-    x, y = numpy.loadtxt(filterfile, unpack=True)
+    x, y = np.loadtxt(filterfile, unpack=True)
     FILTER = UnivariateSpline(x, y, s=0)
     filt = True
     first = x[0]
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     first = 100
     last = 10000
 
-  x = numpy.arange(first,last,1)
+  x = np.arange(first,last,1)
   xcm = x * units.nm.to(units.cm)
   y1 = Planck(xcm, T1)
   y2 = Planck(xcm, T2)

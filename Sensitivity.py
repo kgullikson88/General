@@ -5,7 +5,7 @@ import SpectralTypeRelations
 from PlotBlackbodies import Planck
 import Smooth
 import RotBroad_Fast as RotBroad
-import numpy as np
+import numpy as np as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from astropy import units, constants

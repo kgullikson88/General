@@ -1,4 +1,4 @@
-import numpy
+import numpy as np
 import pylab
 from scipy.interpolate import griddata, interp1d
 from scipy.integrate import simps
@@ -39,9 +39,9 @@ defaultfilters = {'U': "%sUband2.dat" %filterdir,
     i.e. converting from erg/s/cm2/Hz to Jansky requires unitconv=1e23
 """
 class Integrate:
-  def __init__(self, kurucz=None, Tvals=numpy.arange(5000, 30000, 500),
-               gvals=numpy.arange(3.0, 5.0, 0.1),
-               metalvals=numpy.arange(-1.0, 0.5, 0.1),
+  def __init__(self, kurucz=None, Tvals=np.arange(5000, 30000, 500),
+               gvals=np.arange(3.0, 5.0, 0.1),
+               metalvals=np.arange(-1.0, 0.5, 0.1),
                filterfiles=defaultfilters, fluxtype="Fnu", unitconv=1.0):
     if kurucz == None:
       kurucz = InterpolateKurucz.Models()
@@ -49,7 +49,7 @@ class Integrate:
     #Read in filter files and store as DataStructures.xypoints
     self.filters = {}
     for band in filterfiles:
-      x, y = numpy.loadtxt(filterfiles[band], unpack=True)
+      x, y = np.loadtxt(filterfiles[band], unpack=True)
       self.filters[band] = DataStructures.xypoint(x=x, y=y)
 
     Temperatures = []
@@ -99,7 +99,7 @@ class Integrate:
 
 
 if __name__ == "__main__":
-  integrate = Integrate(Tvals=numpy.arange(15000, 17000, 200), gvals=numpy.arange(4.0, 4.3, 0.1))
+  integrate = Integrate(Tvals=np.arange(15000, 17000, 200), gvals=np.arange(4.0, 4.3, 0.1))
   interpolators = integrate.Interpolators
   T = 16050.
   logg = 4.14

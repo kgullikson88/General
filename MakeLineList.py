@@ -1,4 +1,4 @@
-import numpy
+import numpy as np
 import matplotlib.pyplot as plt
 import FitsUtils
 from astropy.io import fits as pyfits
@@ -29,8 +29,8 @@ def FindLines(spectrum, tol=0.99, linespacing = 0.01, debug=False):
     else:
       lines.pop(i)
   plt.show()
-  return numpy.array(lines)
-#numpy.savetxt("Linelist4.dat", lines, fmt="%.8f")
+  return np.array(lines)
+#np.savetxt("Linelist4.dat", lines, fmt="%.8f")
 
 
 
@@ -38,6 +38,6 @@ if __name__ == "__main__":
   filename = os.environ["HOME"] + "/School/Research/Useful_Datafiles/Telluric_Visible.dat"
   filename = "tell.dat"
   print "Reading telluric model"
-  x,trans = numpy.loadtxt(filename, unpack=True)
+  x,trans = np.loadtxt(filename, unpack=True)
   model = DataStructures.xypoint(x=x[::-1], y=trans[::-1])
   FindLines(model, debug=True)

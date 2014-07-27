@@ -12,7 +12,7 @@ from matplotlib import rc
 #rc('font',**{'family':'serif','serif':['Palatino']})
 #rc('text', usetex=True)
 import matplotlib.pyplot as plt
-import numpy as np
+import numpy as np as np
 import HelperFunctions
 import SpectralTypeRelations
 from astropy.io import fits as pyfits

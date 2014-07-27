@@ -9,7 +9,7 @@ import pySIMBAD as sim
 import DataStructures
 from collections import defaultdict
 import SpectralTypeRelations
-import numpy
+import numpy as np
 from scipy.misc import factorial
 from scipy.optimize import fminbound, fmin, brent, golden, minimize_scalar, bisect
 from scipy.linalg import solve_banded
@@ -208,12 +208,12 @@ def BinomialErrors(n, N, debug=False, tol=0.001):
   n = int(n)
   N = int(N)
   p0 = float(n)/float(N)  #Observed probability
-  guess_errors = numpy.sqrt(n*p0*(1.0-p0)/float(N))
+  guess_errors = np.sqrt(n*p0*(1.0-p0)/float(N))
   if debug:
     print "n = %i\nN = %i" %(n,N)
     print "Guess P = %g +/- %g" %(p0, guess_errors)
   
-  func = lambda x: numpy.sum([numpy.product(range(N+2-j, N+2))/(factorial(j)) * x**j * (1.0-x)**(N+1-j) for j in range(0, n+1)])
+  func = lambda x: np.sum([np.product(range(N+2-j, N+2))/(factorial(j)) * x**j * (1.0-x)**(N+1-j) for j in range(0, n+1)])
   lower_errfcn = lambda x: func(x) - 0.84
   upper_errfcn = lambda x: func(x) - 0.16
   if debug:
@@ -237,9 +237,9 @@ def GetSurrounding(full_list, value, return_index=False):
   If return_index is True, it will return the index of the surrounding 
     elements rather than the elements themselves
   """
-  sorter = numpy.argsort(full_list)
+  sorter = np.argsort(full_list)
   full_list = sorted(full_list)
-  closest = numpy.argmin([abs(v - value) for v in full_list])
+  closest = np.argmin([abs(v - value) for v in full_list])
   next_best = closest-1 if full_list[closest] > value or closest == len(full_list)-1 else closest+1
   if return_index:
     return sorter[closest], sorter[next_best]
@@ -322,7 +322,7 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
       hdulist.close()
       numpixels = data.shape[-1]
       numorders = data.shape[-2]
-      wave = numpy.array([numpy.arange(numpixels) for i in range(numorders)])
+      wave = np.array([np.arange(numpixels) for i in range(numorders)])
       retdict = {'flux': data,
                  'wavelen': wave}
 
@@ -350,8 +350,8 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
       wave = retdict['wavelen'][i]*wave_factor
       if errors == False:
         flux = retdict['flux'][i]
-        err = numpy.ones(flux.size)*1e9
-        err[flux > 0] = numpy.sqrt(flux[flux > 0])
+        err = np.ones(flux.size)*1e9
+        err[flux > 0] = np.sqrt(flux[flux > 0])
       else:
         if type(errors) != int:
           errors = int(raw_input("Enter the band number (in C-numbering) of the error/sigma band: "))
@@ -369,7 +369,7 @@ def OutputFitsFileExtensions(column_dicts, template, outfilename, mode="append",
   """
   Function to output a fits file
   column_dict is a dictionary where the key is the name of the column
-     and the value is a numpy array with the data. Example of a column
+     and the value is a np array with the data. Example of a column
      would be the wavelength or flux at each pixel
   template is the filename of the template fits file. The header will
      be taken from this file and used as the main header
@@ -441,7 +441,7 @@ def LowPassFilter(data, vel, width=5, linearize=False):
     errorfcn = spline(data.x, data.err, k=1)
     contfcn = spline(data.x, data.cont, k=1)
     linear = DataStructures.xypoint(data.x.size)
-    linear.x = numpy.linspace(data.x[0], data.x[-1], linear.size())
+    linear.x = np.linspace(data.x[0], data.x[-1], linear.size())
     linear.y = datafcn(linear.x)
     linear.err = errorfcn(linear.x)
     linear.cont = contfcn(linear.x)
@@ -469,14 +469,14 @@ def LowPassFilter(data, vel, width=5, linearize=False):
   taps = firwin(N, cutoff_hz/nyq_rate, window=('kaiser', beta))
 
   #Extend data to prevent edge effects
-  y = numpy.r_[data.y[::-1], data.y, data.y[::-1]]
+  y = np.r_[data.y[::-1], data.y, data.y[::-1]]
 
   # Use lfilter to filter data with the FIR filter.
   smoothed_y = lfilter(taps, 1.0, y)
 
   # The phase delay of the filtered signal.
   delay = 0.5 * (N-1) / sample_rate
-  delay_idx = numpy.searchsorted(data.x, data.x[0] + delay) - 1
+  delay_idx = np.searchsorted(data.x, data.x[0] + delay) - 1
   smoothed_y = smoothed_y[data.size()+delay_idx:-data.size()+delay_idx]
   if linearize:
     return linear.x, smoothed_y
@@ -497,7 +497,7 @@ def IterativeLowPass(data, vel, numiter=100, lowreject=3, highreject=3, width=5,
     errorfcn = spline(datacopy.x, datacopy.err, k=1)
     contfcn = spline(datacopy.x, datacopy.cont, k=1)
     linear = DataStructures.xypoint(datacopy.x.size)
-    linear.x = numpy.linspace(datacopy.x[0], datacopy.x[-1], linear.size())
+    linear.x = np.linspace(datacopy.x[0], datacopy.x[-1], linear.size())
     linear.y = datafcn(linear.x)
     linear.err = errorfcn(linear.x)
     linear.cont = contfcn(linear.x)
@@ -511,9 +511,9 @@ def IterativeLowPass(data, vel, numiter=100, lowreject=3, highreject=3, width=5,
     iter += 1
     smoothed = LowPassFilter(datacopy, vel, width=width)
     residuals = datacopy.y / smoothed
-    mean = numpy.mean(residuals)
-    std = numpy.std(residuals)
-    badpoints = numpy.where(numpy.logical_or((residuals - mean) < -lowreject*std, residuals - mean > highreject*std))[0]
+    mean = np.mean(residuals)
+    std = np.std(residuals)
+    badpoints = np.where(np.logical_or((residuals - mean) < -lowreject*std, residuals - mean > highreject*std))[0]
     if badpoints.size > 0:
       done = False
       datacopy.y[badpoints] = smoothed[badpoints]
@@ -540,7 +540,7 @@ def HighPassFilter(data, vel, width=5, linearize=False):
     errorfcn = spline(data.x, data.err, k=3)
     contfcn = spline(data.x, data.cont, k=3)
     linear = DataStructures.xypoint(data.x.size)
-    linear.x = numpy.linspace(data.x[0], data.x[-1], linear.size())
+    linear.x = np.linspace(data.x[0], data.x[-1], linear.size())
     linear.y = datafcn(linear.x)
     linear.err = errorfcn(linear.x)
     linear.cont = contfcn(linear.x)
@@ -569,14 +569,14 @@ def HighPassFilter(data, vel, width=5, linearize=False):
   taps = firwin(N, cutoff_hz/nyq_rate, window=('kaiser', beta), pass_zero=False)
 
   #Extend data to prevent edge effects
-  y = numpy.r_[data.y[::-1], data.y, data.y[::-1]]
+  y = np.r_[data.y[::-1], data.y, data.y[::-1]]
 
   # Use lfilter to filter data with the FIR filter.
   smoothed_y = lfilter(taps, 1.0, y)
 
   # The phase delay of the filtered signal.
   delay = 0.5 * (N-1) / sample_rate
-  delay_idx = numpy.searchsorted(data.x, data.x[0] + delay) - 1
+  delay_idx = np.searchsorted(data.x, data.x[0] + delay) - 1
   smoothed_y = smoothed_y[data.size()+delay_idx:-data.size()+delay_idx]
   if linearize:
     return linear.x, smoothed_y
@@ -601,24 +601,24 @@ def Denoise(data):
   #Figure out the unknown parameter 'a'
   sum1 = 0.0
   sum2 = 0.0
-  numlevels = int(numpy.log2(WC.size))
+  numlevels = int(np.log2(WC.size))
   start = 2**(numlevels-1)
-  median = numpy.median(WC[start:])
-  sigma = numpy.median(numpy.abs(WC[start:] - median)) / 0.6745
+  median = np.median(WC[start:])
+  sigma = np.median(np.abs(WC[start:] - median)) / 0.6745
   for w in WC:
-    phi = w*numpy.exp(-w**2 / (12.0*sigma**2) )
-    dphi = numpy.exp(-w**2 / (12.0*sigma**2) ) * (1 - 2*w**2 / (12*sigma**2) )
+    phi = w*np.exp(-w**2 / (12.0*sigma**2) )
+    dphi = np.exp(-w**2 / (12.0*sigma**2) ) * (1 - 2*w**2 / (12*sigma**2) )
     sum1 += sigma**2 * dphi
     sum2 += phi**2
   a = -sum1 / sum2
 
   #Adjust all wavelet coefficients
-  WC = WC + a*WC*numpy.exp( -WC**2 / (12*sigma**2) )
+  WC = WC + a*WC*np.exp( -WC**2 / (12*sigma**2) )
 
   #Now, do a soft threshold
   threshold = scoreatpercentile(WC, 80.0)
-  WC[numpy.abs(WC) <= threshold] = 0.0
-  WC[numpy.abs(WC) > threshold] -= threshold*numpy.sign(WC[numpy.abs(WC) > threshold])
+  WC[np.abs(WC) <= threshold] = 0.0
+  WC[np.abs(WC) > threshold] -= threshold*np.sign(WC[np.abs(WC) > threshold])
 
   #Transform back
   y2 = mlpy.wavelet.idwt(WC, 'd', 10)
@@ -648,7 +648,7 @@ def BayesFit(data, model_fcn, priors, limits=None, burn_in=100, nwalkers=100, ns
                      and returns a y-array. The number of parameters
                      should be the same as the length of the 'priors'
                      parameter
-    priors:       Either a 2d numpy array or a list of lists. Each index
+    priors:       Either a 2d np array or a list of lists. Each index
                      should contain the expected value and the uncertainty
                      in that value (assumes all Gaussian priors!).
     limits:       If given, it should be a list of the same shape as
@@ -664,28 +664,28 @@ def BayesFit(data, model_fcn, priors, limits=None, burn_in=100, nwalkers=100, ns
     a:            See emcee.EnsembleSampler. Basically, it controls the step size
   """
 
-  # Priors needs to be a numpy array later, so convert to that first
-  priors = numpy.array(priors)
+  # Priors needs to be a np array later, so convert to that first
+  priors = np.array(priors)
   
   # Define the likelihood, prior, and posterior probability functions
-  likelihood = lambda pars, data, model_fcn: numpy.sum( -(data.y - model_fcn(data.x, pars))**2 / (2.0*data.err**2))
+  likelihood = lambda pars, data, model_fcn: np.sum( -(data.y - model_fcn(data.x, pars))**2 / (2.0*data.err**2))
   if limits == None:
-    prior = lambda pars, priors: numpy.sum( -(pars-priors[:,0])**2 / (2.0*priors[:,1]**2))
+    prior = lambda pars, priors: np.sum( -(pars-priors[:,0])**2 / (2.0*priors[:,1]**2))
     posterior = lambda pars, data, model_fcn, priors: likelihood(pars, data, model_fcn) + prior(pars, priors)
   else:
-    limits = numpy.array(limits)
-    prior = lambda pars, priors, limits: -9e19 if any(numpy.logical_or(pars<limits[:,0], pars>limits[:,1])) else numpy.sum( -(pars-priors[:,0])**2 / (2.0*priors[:,1]**2))
+    limits = np.array(limits)
+    prior = lambda pars, priors, limits: -9e19 if any(np.logical_or(pars<limits[:,0], pars>limits[:,1])) else np.sum( -(pars-priors[:,0])**2 / (2.0*priors[:,1]**2))
     posterior = lambda pars, data, model_fcn, priors, limits: likelihood(pars, data, model_fcn) + prior(pars, priors, limits)
 
     
   # Set up the MCMC sampler
   ndim = priors.shape[0]
   if limits == None:
-    p0 = [numpy.random.normal(loc=priors[:,0], scale=priors[:,1]) for i in range(nwalkers)]
+    p0 = [np.random.normal(loc=priors[:,0], scale=priors[:,1]) for i in range(nwalkers)]
     sampler = emcee.EnsembleSampler(nwalkers, ndim, posterior, threads=nthreads, args=(data, model_fcn, priors), a=4)
   else:
-    ranges = numpy.array([l[1] - l[0] for l in limits])
-    p0 = [numpy.random.rand(ndim)*ranges+limits[:,0] for i in range(nwalkers)]
+    ranges = np.array([l[1] - l[0] for l in limits])
+    p0 = [np.random.rand(ndim)*ranges+limits[:,0] for i in range(nwalkers)]
     sampler = emcee.EnsembleSampler(nwalkers, ndim, posterior, threads=nthreads, args=(data, model_fcn, priors, limits), a=a)
 
   # Burn-in the sampler
@@ -698,13 +698,13 @@ def BayesFit(data, model_fcn, priors, limits=None, burn_in=100, nwalkers=100, ns
   pos, prob, state = sampler.run_mcmc(pos, nsamples, rstate0=state)
 
 
-  print "Acceptance fraction = %f" %numpy.mean(sampler.acceptance_fraction)
-  maxprob_indice = numpy.argmax(prob)
+  print "Acceptance fraction = %f" %np.mean(sampler.acceptance_fraction)
+  maxprob_indice = np.argmax(prob)
   priors[:,0] = pos[maxprob_indice]
   #Get the parameter estimates
   chain = sampler.flatchain
   for i in range(ndim):
-    priors[i][1] = numpy.std(chain[:,i])
+    priors[i][1] = np.std(chain[:,i])
 
   if full_output:
     return priors, chain
@@ -714,7 +714,7 @@ def BayesFit(data, model_fcn, priors, limits=None, burn_in=100, nwalkers=100, ns
 
   
 def Gauss(x, mu, sigma, amp=1):
-  return amp*numpy.exp( -(x-mu)**2 / (2*sigma**2) )
+  return amp*np.exp( -(x-mu)**2 / (2*sigma**2) )
 
 
 
@@ -732,13 +732,13 @@ def FindOutliers(data, numsiglow=6, numsighigh=3, numiters=10, expand=0):
 
   done = False
   i = 0
-  good = numpy.arange(data.size()).astype(int)
+  good = np.arange(data.size()).astype(int)
 
   while not done and i < numiters:
-    sig = numpy.std(data.y[good]/data.cont[good])
-    outliers = numpy.where(numpy.logical_or(data.y/data.cont - 1.0 > numsighigh*sig,
+    sig = np.std(data.y[good]/data.cont[good])
+    outliers = np.where(np.logical_or(data.y/data.cont - 1.0 > numsighigh*sig,
                                             data.y/data.cont - 1.0 < -numsiglow*sig))[0]
-    good = numpy.where(numpy.logical_and(data.y/data.cont - 1.0 <= numsighigh*sig,
+    good = np.where(np.logical_and(data.y/data.cont - 1.0 <= numsighigh*sig,
                                          data.y/data.cont - 1.0 >= -numsiglow*sig))[0]
     i += 1
     if outliers.size < 1:
@@ -753,5 +753,5 @@ def FindOutliers(data, numsiglow=6, numsighigh=3, numiters=10, expand=0):
   #Remove duplicates from 'exclude'
   temp = []
   [temp.append(i) for i in exclude if not i in temp]
-  return numpy.array(temp)
+  return np.array(temp)
   

@@ -18,7 +18,7 @@
 #matplotlib.use("GTKAgg")
 import matplotlib.pyplot as plt
 import HelperFunctions
-import numpy
+import numpy as np
 import scipy
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.interpolate import interp1d
@@ -99,7 +99,7 @@ class Analyse():
       G = constants.G.cgs.value
       Msun = constants.M_sun.cgs.value
       Rsun = constants.R_sun.cgs.value
-      logg = numpy.log10(G*M*Msun/(R*Rsun**2))
+      logg = np.log10(G*M*Msun/(R*Rsun**2))
     self.Teff_guess = Teff
     self.logg_guess = logg
     self.vsini = 300
@@ -165,7 +165,7 @@ class Analyse():
       Teff = HelperFunctions.GetSurrounding(self.Teffs, Teff)[0]
       print "\tClosest value is %g\n\n" %Teff
     # logg and vmacro depend on Teff, so make those lists now
-    loggs = [round(g, 2) for g in numpy.arange(4.5, 4*numpy.log10(Teff) - 15.02, -0.1)]
+    loggs = [round(g, 2) for g in np.arange(4.5, 4*np.log10(Teff) - 15.02, -0.1)]
     if Teff < 20000:
       self.vmacros = (3,6,10,12,15)
     else:
@@ -206,7 +206,7 @@ class Analyse():
     fname = "%s/T%i/g%i/%s%.2i/%s/OUT.%s_VT%.3i.gz" %(self.gridlocation, Teff, logg*10, windstr, beta*10, abstr, species, vmacro)
     if not isfile(fname):
       warnings.warn("File %s not found! Skipping. This could cause errors later!" %fname)
-      return DataStructures.xypoint(x=numpy.arange(300, 1000, 10))
+      return DataStructures.xypoint(x=np.arange(300, 1000, 10))
 
     # Gunzip that file to a temporary one.
     tmpfile = "tmp%f" %time.time()
@@ -216,16 +216,16 @@ class Analyse():
     output.close()
     with warnings.catch_warnings():
       warnings.simplefilter("ignore")
-      x, y = numpy.genfromtxt(tmpfile, invalid_raise=False, usecols=(2,4), unpack=True)
+      x, y = np.genfromtxt(tmpfile, invalid_raise=False, usecols=(2,4), unpack=True)
 
     #Removes NaNs from random extra lines in the files...
-    while numpy.any(numpy.isnan(y)):
+    while np.any(np.isnan(y)):
       x = x[:-1]
       y = y[:-1]
 
     # Check for duplicate x points (why does this grid suck so much?!)
-    xdiff = numpy.array([x[i+1] - x[i] for i in range(x.size-1)])
-    goodindices = numpy.where(xdiff > 1e-7)[0]
+    xdiff = np.array([x[i+1] - x[i] for i in range(x.size-1)])
+    goodindices = np.where(xdiff > 1e-7)[0]
     x = x[goodindices]
     y = y[goodindices]
 
@@ -237,7 +237,7 @@ class Analyse():
 
     if xspacing != None:
       modelfcn = spline(x, y, k=1)
-      x = numpy.arange(x[0], x[-1]+xspacing, xspacing)
+      x = np.arange(x[0], x[-1]+xspacing, xspacing)
       y = modelfcn(x)
     return DataStructures.xypoint(x=x, y=y)
       
@@ -253,7 +253,7 @@ class Analyse():
     """
     orders = HelperFunctions.ReadFits(fname, extensions=True, x="wavelength", y="flux", cont="continuum", errors="error")
     for i, order in enumerate(orders):
-      orders[i].err = numpy.sqrt(order.y)
+      orders[i].err = np.sqrt(order.y)
     self.data = orders
     if resample:
       for i, order in enumerate(self.data):
@@ -281,7 +281,7 @@ class Analyse():
       self.InputData(fname)
 
     # Read in the vsini linelist file
-    center, left, right = numpy.loadtxt(vsini_lines, usecols=(1,2,3), unpack=True)
+    center, left, right = np.loadtxt(vsini_lines, usecols=(1,2,3), unpack=True)
     center /= 10.0
     left /= 10.0
     right /= 10.0
@@ -297,8 +297,8 @@ class Analyse():
           break
       if not found:
         continue
-      first = numpy.searchsorted(order.x, l)
-      last = numpy.searchsorted(order.x, r)
+      first = np.searchsorted(order.x, l)
+      last = np.searchsorted(order.x, r)
       segment = order[first:last]
       segment.cont = FittingUtilities.Continuum(segment.x, segment.y, fitorder=1, lowreject=1, highreject=5)
       segment.y /= segment.cont
@@ -337,8 +337,8 @@ class Analyse():
 
     # Save the mean and standard deviation in the file 'vsini.dat'
     outfile = open("vsini.dat", "a")
-    outfile.write("%s%.2f\t%.3f\n" %(self.fname.ljust(20), numpy.mean(vsini_values), numpy.std(vsini_values)))
-    self.vsini = numpy.mean(vsini_values)
+    outfile.write("%s%.2f\t%.3f\n" %(self.fname.ljust(20), np.mean(vsini_values), np.std(vsini_values)))
+    self.vsini = np.mean(vsini_values)
     return
 
 
@@ -438,11 +438,11 @@ class Analyse():
     self.parlist = parlist   #TEMPORARY! REMOVE WHEN I AM DONE WITH THIS FUNCTION!
     
     #For Teff and logg close to the best ones, find the best other parameters (search them all?)
-    tidx = numpy.argmin(abs(numpy.array(self.Teffs) - Teff))
+    tidx = np.argmin(abs(np.array(self.Teffs) - Teff))
     for i in range(max(0, tidx-1), min(len(self.Teffs), tidx+2)):
       T = self.Teffs[i]
-      loggs = numpy.array([round(g, 2) for g in numpy.arange(4.5, 4*numpy.log10(T) - 15.02, -0.1)])
-      gidx = numpy.argmin(abs(loggs - logg))
+      loggs = np.array([round(g, 2) for g in np.arange(4.5, 4*np.log10(T) - 15.02, -0.1)])
+      gidx = np.argmin(abs(loggs - logg))
       for j in range(max(0, gidx-1), min(len(loggs), gidx+2)):
         pars = self._FitParameters(T, loggs[j], parlist)
     self.parlist = parlist   #TEMPORARY! REMOVE WHEN I AM DONE WITH THIS FUNCTION!
@@ -465,7 +465,7 @@ class Analyse():
     species = {}
     
     Teff = self.Teffs[4]
-    logg = [round(g, 2) for g in numpy.arange(4.5, 4*numpy.log10(Teff) - 15.02, -0.1)][0]
+    logg = [round(g, 2) for g in np.arange(4.5, 4*np.log10(Teff) - 15.02, -0.1)][0]
     for spec in self.species:
       print "\nGetting model for %s" %spec
       model = self.GetModel(Teff,
@@ -520,14 +520,14 @@ class Analyse():
         
       #We don't want to include the inner region in the fit. 
       delta = self._GetDelta(order, lambda0, Teff, self.vsini, vmacro, vmicro)
-      goodindices = numpy.where(numpy.logical_or(order.x < lambda0-delta,
+      goodindices = np.where(np.logical_or(order.x < lambda0-delta,
                                                    order.x > lambda0+delta))[0]
       waveobs = order.x[goodindices]
       fluxobs = (order.y/order.cont)[goodindices]
       errorobs = (order.err/order.cont)[goodindices]
 
       # Further reduce the region to search so that it is between xlow and xhigh
-      goodindices = numpy.where(numpy.logical_and(waveobs > xlow,
+      goodindices = np.where(np.logical_and(waveobs > xlow,
                                                     waveobs < xhigh))[0]
       waveobs = waveobs[goodindices]
       fluxobs = fluxobs[goodindices]
@@ -560,15 +560,15 @@ class Analyse():
 
 
       # Find the best chi-squared, summed over the lines considered, and the best individual one
-      chisquared = numpy.array(chisquared)
-      bestlogg = logg_values[numpy.argmin(chisquared[i])]
-      separate_best = numpy.argmin(chisquared[i])
+      chisquared = np.array(chisquared)
+      bestlogg = logg_values[np.argmin(chisquared[i])]
+      separate_best = np.argmin(chisquared[i])
       separate_bestlogg[i] = logg_values[separate_best]
 
       # Find where there are large deviations (other lines)
       modelflux = lineprofiles[separate_best]
-      sigma = numpy.std(modelflux - fluxobs)
-      good = numpy.where(abs(modelflux - fluxobs) < 3.0*sigma)
+      sigma = np.std(modelflux - fluxobs)
+      good = np.where(abs(modelflux - fluxobs) < 3.0*sigma)
       waveobs = waveobs[good]
       fluxobs = fluxobs[good]
       errorobs = errorobs[good]
@@ -579,15 +579,15 @@ class Analyse():
         chisquared[i][j] = chi2
         j += 1
 
-      bestlogg = logg_values[numpy.argmin(chisquared[i])]
-      separate_best = numpy.argmin(chisquared[i])
+      bestlogg = logg_values[np.argmin(chisquared[i])]
+      separate_best = np.argmin(chisquared[i])
       separate_bestlogg[i] = logg_values[separate_best]
     
-    total = numpy.sum(chisquared, index=0)
-    separate_bestlogg = numpy.array(separate_bestlogg)
+    total = np.sum(chisquared, index=0)
+    separate_bestlogg = np.array(separate_bestlogg)
 
     # Find the best logg over all lines considered
-    best = numpy.argmin(total)
+    best = np.argmin(total)
     bestgrav = logg_values[best]
     loggmin = min(separate_bestlogg)
     loggmax = max(separate_bestlogg)
@@ -595,8 +595,8 @@ class Analyse():
     # Determine the error the the logg-determination as the 
     # maximal deviation between the separately determined
     # loggs and the general best matching one
-    deltalogg_minus = numpy.sqrt((bestgrav - loggmin)**2 + sigma**2)
-    deltalogg_plus = numpy.sqrt((bestgrav - loggmax)**2 + sigma**2)
+    deltalogg_minus = np.sqrt((bestgrav - loggmin)**2 + sigma**2)
+    deltalogg_plus = np.sqrt((bestgrav - loggmax)**2 + sigma**2)
     deltalogg = max(0.5, deltalogg_minus, deltalogg_plus)
 
     return [bestgrav, deltalogg, separate_bestlogg]
@@ -612,7 +612,7 @@ class Analyse():
     given the model.
     """
     # Make sure the observation and model overlap
-    goodindices = numpy.where(numpy.logical_and(waveobs > model.x[0], waveobs < model.x[-1]))[0]
+    goodindices = np.where(np.logical_and(waveobs > model.x[0], waveobs < model.x[-1]))[0]
     wavecompare = waveobs[goodindices]
     fluxcompare = fluxobs[goodindices]
     errorcompare = errorobs[goodindices]
@@ -647,14 +647,14 @@ class Analyse():
       in the logg fit to the line wings
     """
     # FHWM
-    idx = numpy.argmin(abs(order.x - lambda0))
+    idx = np.argmin(abs(order.x - lambda0))
     flux0 = order.y[idx]/order.cont[idx]
     fluxhalf = 0.5(1.0 + flux0)
 
-    idx = max(numpy.where(numpy.logical_and(order.x/order.y > fluxhalf, order.x < lambda0))[0])
+    idx = max(np.where(np.logical_and(order.x/order.y > fluxhalf, order.x < lambda0))[0])
     waveblue = order.x[idx]
 
-    idx = min(numpy.where(numpy.logical_and(order.x/order.y > fluxhalf, order.x > lambda0))[0])
+    idx = min(np.where(np.logical_and(order.x/order.y > fluxhalf, order.x > lambda0))[0])
     wavered = order.x[idx]
 
     delta1 = min(lambda0-waveblue, wavered-lambda0)
@@ -669,7 +669,7 @@ class Analyse():
     kB = constants.k_B.cgs.value
     vth_square = 2*kB*Teff/mp
     vmic = vmicro*10**5
-    vtherm = numpy.sqrt(vth_square + vmic**2)
+    vtherm = np.sqrt(vth_square + vmic**2)
     delta3 = 3*vtherm*10**-5 / c * lambda0
 
     if minmax.lower == "min":
@@ -717,7 +717,7 @@ class Analyse():
     for Teff in self.Teffs[first:last]:
       if self.debug:
         print "T = %g" %Teff
-      loggs = [round(g, 2) for g in numpy.arange(4.5, 4*numpy.log10(Teff) - 15.02, -0.1)][::-1]
+      loggs = [round(g, 2) for g in np.arange(4.5, 4*np.log10(Teff) - 15.02, -0.1)][::-1]
       logg_low = HelperFunctions.GetSurrounding(loggs, self.logg_guess-dlogg)[0]
       logg_high = HelperFunctions.GetSurrounding(loggs, self.logg_guess+dlogg)[0]
       first2 = loggs.index(logg_low)
@@ -747,14 +747,14 @@ class Analyse():
         
         #We want to include ONLY the inner region in the fit. 
         delta = self._GetDelta(order, lambda0, Teff, self.vsini, vmacro, vmicro, minmax="max")
-        goodindices = numpy.where(numpy.logical_or(order.x >= lambda0-delta,
+        goodindices = np.where(np.logical_or(order.x >= lambda0-delta,
                                                    order.x <= lambda0+delta))[0]
         waveobs = order.x[goodindices]
         fluxobs = (order.y/order.cont)[goodindices]
         errorobs = (order.err/order.cont)[goodindices]
 
         # Further reduce the region to search so that it is between xlow and xhigh
-        goodindices = numpy.where(numpy.logical_and(waveobs > xlow,
+        goodindices = np.where(np.logical_and(waveobs > xlow,
                                                     waveobs < xhigh))[0]
         waveobs = waveobs[goodindices]
         fluxobs = fluxobs[goodindices]
@@ -789,11 +789,11 @@ class Analyse():
       if spec not in self.visible_species.keys():
         continue
       chi2arr.append(chisquared[spec])
-    idx = numpy.argmin(chi2arr) % int(last-first)
+    idx = np.argmin(chi2arr) % int(last-first)
     bestindividual = self.Teffs[first+idx]
 
     # Now, the best one summed over the lines
-    idx = numpy.argmin(numpy.sum(chi2arr, axis=0))
+    idx = np.argmin(np.sum(chi2arr, axis=0))
     bestT = self.Teffs[first+idx]
 
     
@@ -858,7 +858,7 @@ class Analyse():
                 model = Broaden.RotBroad(model, self.vsini*units.km.to(units.cm))
                 model = Broaden.ReduceResolution(model, 60000.0)
                 model = FittingUtilities.RebinData(model, order.x)
-                chisq += numpy.sum((order.y - model.y*order.cont)**2 / order.err**2)
+                chisq += np.sum((order.y - model.y*order.cont)**2 / order.err**2)
                 normalization += float(order.size())
               p = ParameterValues(Teff, logg, Q, beta, He, Si, vmacro, chisq/(normalization-7.0))
               parlist.append(p)
@@ -880,10 +880,10 @@ class Analyse():
     # Get all of the models with the appropriate temperature and log(g)
     # We will assume solar abundances of everything, and no wind for this
 
-    xgrid = numpy.arange(self.data[0].x[0]-20, self.data[-1].x[-1]+20, 0.01)
-    full_model = DataStructures.xypoint(x=xgrid, y=numpy.ones(xgrid.size))
+    xgrid = np.arange(self.data[0].x[0]-20, self.data[-1].x[-1]+20, 0.01)
+    full_model = DataStructures.xypoint(x=xgrid, y=np.ones(xgrid.size))
     Teff = HelperFunctions.GetSurrounding(self.Teffs, self.Teff_guess)[0]
-    loggs = [round(g, 2) for g in numpy.arange(4.5, 4*numpy.log10(Teff) - 15.02, -0.1)]
+    loggs = [round(g, 2) for g in np.arange(4.5, 4*np.log10(Teff) - 15.02, -0.1)]
     logg = HelperFunctions.GetSurrounding(loggs, self.logg_guess)[0]
     corrlist = []
     normalization = 0.0
@@ -915,22 +915,22 @@ class Analyse():
 
       # Make sure the model is bigger than this order
       if model.x[0] > order.x[0]-5.0:
-        model.x = numpy.r_[(order.x[0]-5.0,), model.x]
-        model.y = numpy.r_[(1.0,), model.y]
+        model.x = np.r_[(order.x[0]-5.0,), model.x]
+        model.y = np.r_[(1.0,), model.y]
       if model.x[-1] < order.x[-1]+5.0:
-        model.x = numpy.r_[model.x, (order.x[-1]+5.0,)]
-        model.y = numpy.r_[model.y, (1.0,)]
-      model.cont = numpy.ones(model.x.size)
+        model.x = np.r_[model.x, (order.x[-1]+5.0,)]
+        model.y = np.r_[model.y, (1.0,)]
+      model.cont = np.ones(model.x.size)
 
       # Rotationally broaden model
-      xgrid = numpy.arange(model.x[0], model.x[-1], 0.001)
+      xgrid = np.arange(model.x[0], model.x[-1], 0.001)
       model = FittingUtilities.RebinData(model, xgrid)
       model = Broaden.RotBroad(model, self.vsini*units.km.to(units.cm))
 
       # Find low point:
-      idx = numpy.argmin(model.y)
+      idx = np.argmin(model.y)
       w0 = model.x[idx]
-      idx = numpy.argmin(order.y/order.cont)
+      idx = np.argmin(order.y/order.cont)
       x0 = order.x[idx]
       print "Model wavelength = %.5f" %w0
       print "Data wavelength = %.5f" %x0
@@ -938,21 +938,21 @@ class Analyse():
       
 
       # Rebin data to constant (log) spacing
-      start = numpy.log(order.x[0])
-      end = numpy.log(order.x[-1])
+      start = np.log(order.x[0])
+      end = np.log(order.x[-1])
       neworder = order.copy()
-      neworder.x = numpy.logspace(start, end, order.size(), base=numpy.e)
+      neworder.x = np.logspace(start, end, order.size(), base=np.e)
       neworder = FittingUtilities.RebinData(order, neworder.x)
 
       # Rebin the model to the same spacing
-      logspacing = numpy.log(neworder.x[1]/neworder.x[0])
-      left = numpy.searchsorted(model.x, order.x[0] - 10)
-      right = numpy.searchsorted(model.x, order.x[-1] + 10)
+      logspacing = np.log(neworder.x[1]/neworder.x[0])
+      left = np.searchsorted(model.x, order.x[0] - 10)
+      right = np.searchsorted(model.x, order.x[-1] + 10)
       right = min(right, model.size()-2)
       left, right = 0, -1
-      start = numpy.log(model.x[left])
-      end = numpy.log(model.x[right])
-      xgrid = numpy.exp(numpy.arange(start, end+logspacing*1.1, logspacing))
+      start = np.log(model.x[left])
+      end = np.log(model.x[right])
+      xgrid = np.exp(np.arange(start, end+logspacing*1.1, logspacing))
       
       segment = FittingUtilities.RebinData(model, xgrid) 
       plt.figure(3)
@@ -964,7 +964,7 @@ class Analyse():
       plt.plot(corr.x, corr.y)
 
 
-      if not numpy.any(numpy.isnan(corr.y)):
+      if not np.any(np.isnan(corr.y)):
         corrlist.append(corr)
         normalization += float(order.size())
       
@@ -980,21 +980,21 @@ class Analyse():
     #output = Correlate.GetCCF(self.data, full_model, vsini=0.0, resolution=60000, process_model=True, rebin_data=True, debug=True)
     #ccf = output["CCF"]
     #plt.plot(ccf.x, ccf.y)
-    #idx = numpy.argmax(ccf.y)
+    #idx = np.argmax(ccf.y)
     #print "Maximum CCF at %g km/s" %(ccf.x[idx])
     #plt.show()
 
     # Add up the individual CCFs (use the Maximum Likelihood method from Zucker 2003, MNRAS, 342, 1291)
     total = corrlist[0].copy()
-    total.y = numpy.ones(total.size())
+    total.y = np.ones(total.size())
     for i, corr in enumerate(corrlist):
       correlation = spline(corr.x, corr.y, k=1)
       N = self.data[i].size()
-      total.y *= numpy.power(1.0 - correlation(total.x)**2, float(N)/normalization)
+      total.y *= np.power(1.0 - correlation(total.x)**2, float(N)/normalization)
     master_corr = total.copy()
-    master_corr.y = 1.0 - numpy.power(total.y, 1.0/float(len(corrlist)))
+    master_corr.y = 1.0 - np.power(total.y, 1.0/float(len(corrlist)))
 
-    idx = numpy.argmax(master_corr.y)
+    idx = np.argmax(master_corr.y)
     rv = master_corr.x[idx]
     print "Radial velocity = %g km/s" %rv
 
@@ -1046,15 +1046,15 @@ class Analyse():
     cid = fig.canvas.mpl_connect('button_press_event', self.mouseclick)
 
     # Make wavelength spacing uniform
-    xgrid = numpy.linspace(spectrum.x[0], spectrum.x[-1], spectrum.size())
+    xgrid = np.linspace(spectrum.x[0], spectrum.x[-1], spectrum.size())
     spectrum = FittingUtilities.RebinData(spectrum, xgrid)
-    extend = numpy.array(40*spectrum.size()*[1,])
-    spectrum.y = numpy.r_[extend, spectrum.y, extend]
+    extend = np.array(40*spectrum.size()*[1,])
+    spectrum.y = np.r_[extend, spectrum.y, extend]
 
     # Do the fourier transorm and keep the positive frequencies
-    fft = numpy.fft.fft(spectrum.y - 1.0)
-    freq = numpy.fft.fftfreq(spectrum.y.size, d=spectrum.x[1]-spectrum.x[0])
-    good = numpy.where(freq > 0)[0]
+    fft = np.fft.fft(spectrum.y - 1.0)
+    freq = np.fft.fftfreq(spectrum.y.size, d=spectrum.x[1]-spectrum.x[0])
+    good = np.where(freq > 0)[0]
     fft = fft[good].real**2 + fft[good].imag**2
     freq = freq[good]
 
@@ -1117,5 +1117,5 @@ class Analyse():
     """
       Semi-private method to resample an order to a constant wavelength spacing
     """
-    xgrid = numpy.linspace(order.x[0], order.x[-1], order.size())
+    xgrid = np.linspace(order.x[0], order.x[-1], order.size())
     return FittingUtilities.RebinData(order, xgrid)

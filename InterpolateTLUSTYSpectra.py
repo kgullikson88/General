@@ -5,7 +5,7 @@
 """
 
 
-import numpy
+import numpy as np
 from scipy.interpolate import UnivariateSpline, LinearNDInterpolator
 import os
 from collections import defaultdict
@@ -19,7 +19,7 @@ homedir = os.environ["HOME"] + "/"
 model_directory = "/Volumes/Time Machine Backups/Stellar_Models/TLUSTY/"
 
 class Models:
-  def __init__(self, modeldir=model_directory, xgrid=numpy.arange(300, 1000, 0.001), debug=False): 
+  def __init__(self, modeldir=model_directory, xgrid=np.arange(300, 1000, 0.001), debug=False): 
     if not modeldir.endswith("/"):
       modeldir = modeldir + "/"
 
@@ -34,7 +34,7 @@ class Models:
     self.xgrid = xgrid
     self.debug = debug
     self.Tstep = 1000              #Hard-coded steps for now. Might be bad...
-    self.Zstep = numpy.log10(2.0)
+    self.Zstep = np.log10(2.0)
     self.gstep = 0.25
     self.vstep = 8.0
 
@@ -51,9 +51,9 @@ class Models:
         if mchar == "G":
           metal = 0.0
         elif mchar == "C":
-          metal = numpy.log10(2.0)
+          metal = np.log10(2.0)
         elif mchar == "L":
-          metal = numpy.log10(0.5)
+          metal = np.log10(0.5)
         else:
           print "metallicity code for file %s not recognized!" %fname
           continue
@@ -93,8 +93,8 @@ class Models:
         print "Reading model with: \n\tT=%f\n\t[Fe/H]=%f\n\tlog(g)=%f\n\tvmicro=%f" %(T, metal, logg, vmicro)
       fluxfile = self.model_dict[T][metal][logg][vmicro]
       contfile = fluxfile.replace("vis.7", "vis.17")
-      x,y = numpy.loadtxt(fluxfile, usecols=(0,1), unpack=True)
-      x2,c = numpy.loadtxt(contfile, usecols=(0,1), unpack=True)
+      x,y = np.loadtxt(fluxfile, usecols=(0,1), unpack=True)
+      x2,c = np.loadtxt(contfile, usecols=(0,1), unpack=True)
       flux = DataStructures.xypoint(x=x*units.angstrom.to(units.nm), y=y)
       cont = DataStructures.xypoint(x=x2*units.angstrom.to(units.nm), y=c)
       flux = RebinData(flux, self.xgrid)
@@ -238,23 +238,23 @@ class Models:
     spectra = []
     flux = []
     Temps = sorted(self.model_dict.keys())
-    left = max(0, numpy.searchsorted(Temps, T-1000) - 1)
-    right = min(len(Temps), numpy.searchsorted(Temps, T+1000) + 1)
+    left = max(0, np.searchsorted(Temps, T-1000) - 1)
+    right = min(len(Temps), np.searchsorted(Temps, T+1000) + 1)
     for Ti in Temps[left:right]:
       #print Ti
       metallicities = sorted(self.model_dict[Ti].keys())
-      left = max(0, numpy.searchsorted(metallicities, metal-1) - 1)
-      right = min(len(metallicities), numpy.searchsorted(metallicities, metal+1) + 1)
+      left = max(0, np.searchsorted(metallicities, metal-1) - 1)
+      right = min(len(metallicities), np.searchsorted(metallicities, metal+1) + 1)
       for Zi in metallicities[left:right]:
         #print "\t", Zi
         grav = sorted(self.model_dict[Ti][Zi].keys())
-        left = max(0, numpy.searchsorted(grav, logg-0.5) - 1)
-        right = min(len(grav), numpy.searchsorted(grav, logg+0.5) + 1)
+        left = max(0, np.searchsorted(grav, logg-0.5) - 1)
+        right = min(len(grav), np.searchsorted(grav, logg+0.5) + 1)
         for g in grav[left:right]:
           #print "\t\t", g
           vm = sorted(self.model_dict[Ti][Zi][g].keys())
-          left = max(0, numpy.searchsorted(grav, vmicro-1) - 1)
-          right = min(len(vm), numpy.searchsorted(grav, vmicro+1) + 1)
+          left = max(0, np.searchsorted(grav, vmicro-1) - 1)
+          right = min(len(vm), np.searchsorted(grav, vmicro+1) + 1)
           #print "\t\t", left, right, vm
           for v in vm[left:right]:
             #print "\t\t\t", v
@@ -293,8 +293,8 @@ class Models:
   def GetClosestSpectrum(self, T, metal, logg, vmicro, weights=None):
     bestindex = 0
     distance = 9e9
-    if weights == None or not (type(weights) == list or type(weights) == tuple or isinstance(weights, numpy.ndarray))  or len(weights) < 4:
-      weights = numpy.ones(4)
+    if weights == None or not (type(weights) == list or type(weights) == tuple or isinstance(weights, np.ndarray))  or len(weights) < 4:
+      weights = np.ones(4)
     
     for idx, gridpoint in enumerate(self.grid):
       d = ((T-gridpoint[0])**2 * weights[0] + 

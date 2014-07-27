@@ -7,7 +7,7 @@
 
 from RotBroad_Fast import Broaden as RotBroad
 from FittingUtilities import ReduceResolution, ReduceResolution2
-import numpy
+import numpy as np
 from scipy.special import erf   #Error function
 from astropy import constants, units
 from scipy.signal import fftconvolve
@@ -32,26 +32,26 @@ def MacroBroad(data, vmacro, extend=True):
   """
   # Make the kernel
   c = constants.c.cgs.value * units.cm.to(units.km)
-  sq_pi = numpy.sqrt(numpy.pi)
-  lambda0 = numpy.median(data.x)
+  sq_pi = np.sqrt(np.pi)
+  lambda0 = np.median(data.x)
   xspacing = data.x[1] - data.x[0]
   mr = vmacro * lambda0 / c
   ccr = 2/(sq_pi * mr)
 
-  px = numpy.arange(-data.size()/2, data.size()/2+1) * xspacing
+  px = np.arange(-data.size()/2, data.size()/2+1) * xspacing
   pxmr = abs(px) / mr
-  profile = ccr * (numpy.exp(-pxmr**2) + sq_pi*pxmr*(erf(pxmr) - 1.0))
+  profile = ccr * (np.exp(-pxmr**2) + sq_pi*pxmr*(erf(pxmr) - 1.0))
 
   # Extend the xy axes to avoid edge-effects, if desired
   if extend:
     
     before = data.y[-profile.size/2+1:]
     after = data.y[:profile.size/2]
-    extended = numpy.r_[before, data.y, after]
+    extended = np.r_[before, data.y, after]
 
     first = data.x[0] - float(int(profile.size/2.0+0.5))*xspacing
     last = data.x[-1] + float(int(profile.size/2.0+0.5))*xspacing
-    x2 = numpy.linspace(first, last, extended.size) 
+    x2 = np.linspace(first, last, extended.size) 
     
     conv_mode = "valid"
 

@@ -4,7 +4,7 @@ and measured E(B-V) from my spectra. It then prepares the
 Chorizos input file
 """
 
-import numpy
+import numpy as np
 import sys
 import os
 
