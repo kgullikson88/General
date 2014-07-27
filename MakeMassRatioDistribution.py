@@ -12,7 +12,7 @@ from matplotlib import rc
 #rc('font',**{'family':'serif','serif':['Palatino']})
 #rc('text', usetex=True)
 import matplotlib.pyplot as plt
-import numpy
+import numpy as np
 import HelperFunctions
 import SpectralTypeRelations
 from astropy.io import fits as pyfits
@@ -243,8 +243,8 @@ def MakeDistribution():
 
 
   #Save the mass-ratios
-  numpy.savetxt("Known_Massratios.txt", numpy.transpose(all_massratios))
-  numpy.savetxt("New_Massratios.txt", numpy.transpose(new_massratios))
+  np.savetxt("Known_Massratios.txt", np.transpose(all_massratios))
+  np.savetxt("New_Massratios.txt", np.transpose(new_massratios))
 
   return all_massratios, new_massratios
 
@@ -254,8 +254,8 @@ def GetDistribution():
   """
   Just reads in the distribution saved in MakeDistribution
   """
-  known = numpy.loadtxt("Known_Massratios.txt")
-  new = numpy.loadtxt("New_Massratios.txt")
+  known = np.loadtxt("Known_Massratios.txt")
+  new = np.loadtxt("New_Massratios.txt")
   return known, new
 
 
@@ -271,9 +271,11 @@ if __name__ == "__main__":
   known_massratios, new_massratios = GetDistribution()
 
   #Finally, plot
-  bins = numpy.arange(0.0, 1.1, 0.1)
+  dq = 0.2
+  bins = np.arange(0.0, 1.0+dq, dq)
   fig = plt.figure(dpi=120)
   ax = fig.add_subplot(111)
+  """
   qdist = [known_massratios, new_massratios]
   ax.hist(qdist,
           bins=bins, 
@@ -283,17 +285,40 @@ if __name__ == "__main__":
           rwidth=1.0)
   
   #Make error bars
-  nums = numpy.zeros(bins.size - 1)
+  nums = np.zeros(bins.size - 1)
   for i in range(len(qdist)):
-    nums += numpy.histogram(qdist[i], bins=bins)[0]
+    nums += np.histogram(qdist[i], bins=bins)[0]
   lower = []
   upper = []
   for n in nums:
     pl, pu = HelperFunctions.BinomialErrors(n, numstars, debug=False)
-    lower.append(pl*numpy.sqrt(numstars))
-    upper.append(pu*numpy.sqrt(numstars))
-  ax.errorbar(bins[:-1]+0.05, 
-              nums, 
+    lower.append(pl*numstars)
+    upper.append(pu*numstars)
+  """
+  
+
+  known_binned = np.histogram(known_massratios, bins=bins)[0]
+  new_binned = np.histogram(new_massratios, bins=bins)[0]
+  ax.bar(bins[:-1], known_binned/float(numstars), 
+         width=dq, 
+         color='DarkSlateBlue', 
+         label="Known binary systems")
+  ax.bar(bins[:-1], new_binned/float(numstars), 
+         bottom=known_binned/float(numstars), 
+         width=dq, 
+         color='SaddleBrown', 
+         label="New candidate binary systems")
+  
+  #Make error bars
+  lower = []
+  upper = []
+  for n in known_binned + new_binned:
+    pl, pu = HelperFunctions.BinomialErrors(n, numstars)
+    lower.append(pl)
+    upper.append(pu)
+
+  ax.errorbar(bins[:-1]+dq/2.0, 
+              (known_binned+new_binned)/float(numstars), 
               yerr=[lower, upper], 
               fmt=None, 
               ecolor='0.0', 
@@ -305,13 +330,13 @@ if __name__ == "__main__":
   #bate = [1,4,2,5,9]
   #batebins = [0.1, 0.3, 0.5, 0.7, 0.9]
   #batewidth = 0.2
-  #ax.bar(numpy.array(batebins)-batewidth/2, bate, batewidth, color='none', edgecolor='red', lw=3)
+  #ax.bar(np.array(batebins)-batewidth/2, bate, batewidth, color='none', edgecolor='red', lw=3)
 
   #Labels
   ax.set_xlabel(r"$M_s/M_p$", fontsize=15)
-  ax.set_ylabel("Number", fontsize=15)
-  ax.set_ylim((0, 15))
+  ax.set_ylabel("Fraction", fontsize=15)
+  #ax.set_ylim((0, 15))
   ax.set_title("Mass Ratio Distribution Within 200 AU", fontsize=20)
-  leg = ax.legend(loc='best', fancybox=True)
+  leg = ax.legend(loc=1, fancybox=True)
   leg.get_frame().set_alpha(0.5)
   plt.show()

@@ -224,44 +224,6 @@ def BinomialErrors(n, N, debug=False, tol=0.001):
   maximum = min(1.0, p0+3*guess_errors)
   lower = bisect(lower_errfcn, minimum, maximum)
   upper = bisect(upper_errfcn, minimum, maximum)
-
-  """
-  #Find the best fit. Need to do various tests for convergence
-  converged = False
-  methods = ['Bounded', 'Brent', 'Golden']
-  i = 0
-  while not converged and i < len(methods):
-    if debug:
-      print "Trying with lower bound with method %s", methods[i]
-    result = minimize_scalar(lower_errfcn, bracket=(0.0, p0), bounds=(0.0, p0), method=methods[i])
-    if result.fun < tol and result.x > 0.0 and result.x < p0:
-      converged = True
-      lower = result.x
-    i += 1
-  if not converged:
-    print "BinomialErrors Warning! Fit did not succeed for lower bound. Using Gaussian approximation"
-    lower = p0 - max(0.0, p0-guess_errors)
-
-    
-
-  #Now, do the same thing for the upper interval
-  i = 0
-  converged = False
-  while not converged and i < len(methods):
-    if debug:
-      print "Trying to fit upper limit with method %s" %(methods[i])
-    result = minimize_scalar(upper_errfcn, bracket=(p0, 1.0), bounds=(p0, 1.0), method=methods[i])
-    if result.fun < tol and result.x > p0 and result.x < 1.0:
-      converged = True
-      upper = result.x
-    i += 1
-  if not converged:
-    print "BinomialErrors Warning! Fit did not succeed for upper bound. Using Gaussian approximation"
-    upper = p0 + min(1.0, p0+guess_errors)
-
-  if debug:
-    print "n = %i, N = %i\np0 = %.5f\tlower = %.5f\tupper=%.5f\n" %(n, N, p0, lower, upper)
-  """
   
   return lower, upper
 
