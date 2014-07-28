@@ -197,35 +197,28 @@ def CheckMultiplicitySB9(starname):
 
 
 
-def BinomialErrors(n, N, debug=False, tol=0.001):
-  """
-  A function to determine the error bars from binomial statistics.
-  Follows Burgasser et al 2003, ApJ 586, 512
-  
-  n is the number observed
-  N is the sample size
-  """
-  n = int(n)
-  N = int(N)
-  p0 = float(n)/float(N)  #Observed probability
-  guess_errors = np.sqrt(n*p0*(1.0-p0)/float(N))
-  if debug:
-    print "n = %i\nN = %i" %(n,N)
-    print "Guess P = %g +/- %g" %(p0, guess_errors)
-  
-  func = lambda x: np.sum([np.product(range(N+2-j, N+2))/(factorial(j)) * x**j * (1.0-x)**(N+1-j) for j in range(0, n+1)])
-  lower_errfcn = lambda x: func(x) - 0.84
-  upper_errfcn = lambda x: func(x) - 0.16
-  if debug:
-    print func(max(0.0, p0-guess_errors)), func(p0+guess_errors)
 
-  #Find the root of both error functions
-  minimum = max(0.0, p0-3*guess_errors)
-  maximum = min(1.0, p0+3*guess_errors)
-  lower = bisect(lower_errfcn, minimum, maximum)
-  upper = bisect(upper_errfcn, minimum, maximum)
-  
-  return lower, upper
+def BinomialErrors( nobs, Nsamp, alpha=0.16 ):
+    """
+    One sided confidence interval for a binomial test.
+
+    If after Nsamp trials we obtain nobs
+    trials that resulted in success, find c such that
+
+    P(nobs/Nsamp < mle; theta = c) = alpha
+
+    where theta is the success probability for each trial. 
+
+    Code stolen shamelessly from stackoverflow: 
+    http://stackoverflow.com/questions/13059011/is-there-any-python-function-library-for-calculate-binomial-confidence-intervals
+    """
+    from scipy.stats import binom
+
+    mle = float(nobs) / float(Nsamp)
+    to_minimise = lambda c: binom.cdf(nobs,Nsamp,c)-alpha
+    upper_errfcn = lambda c: binom.cdf(nobs, Nsamp, c) - alpha
+    lower_errfcn = lambda c: binom.cdf(nobs, Nsamp, c) - (1.0 - alpha)
+    return bisect(lower_errfcn,0,1), bisect(upper_errfcn, 0, 1)
 
 
 

@@ -12,7 +12,7 @@ from matplotlib import rc
 #rc('font',**{'family':'serif','serif':['Palatino']})
 #rc('text', usetex=True)
 import matplotlib.pyplot as plt
-import numpy as np as np
+import numpy as np
 import HelperFunctions
 import SpectralTypeRelations
 from astropy.io import fits as pyfits
@@ -271,7 +271,7 @@ if __name__ == "__main__":
   known_massratios, new_massratios = GetDistribution()
 
   #Finally, plot
-  dq = 0.2
+  dq = 0.1
   bins = np.arange(0.0, 1.0+dq, dq)
   fig = plt.figure(dpi=120)
   ax = fig.add_subplot(111)
