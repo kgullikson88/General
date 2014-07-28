@@ -312,13 +312,14 @@ if __name__ == "__main__":
   #Make error bars
   lower = []
   upper = []
-  for n in known_binned + new_binned:
-    pl, pu = HelperFunctions.BinomialErrors(n, numstars)
-    lower.append(pl)
-    upper.append(pu)
+  nobs = (known_binned + new_binned).astype(float)
+  for n in nobs:
+    p0, pl, pu = HelperFunctions.BinomialErrors(n, numstars)
+    lower.append(p0-pl)
+    upper.append(pu-p0)
 
   ax.errorbar(bins[:-1]+dq/2.0, 
-              (known_binned+new_binned)/float(numstars), 
+              (nobs)/float(numstars), 
               yerr=[lower, upper], 
               fmt=None, 
               ecolor='0.0', 

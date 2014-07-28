@@ -214,11 +214,11 @@ def BinomialErrors( nobs, Nsamp, alpha=0.16 ):
     """
     from scipy.stats import binom
 
-    mle = float(nobs) / float(Nsamp)
+    p0 = float(nobs) / float(Nsamp)
     to_minimise = lambda c: binom.cdf(nobs,Nsamp,c)-alpha
     upper_errfcn = lambda c: binom.cdf(nobs, Nsamp, c) - alpha
     lower_errfcn = lambda c: binom.cdf(nobs, Nsamp, c) - (1.0 - alpha)
-    return bisect(lower_errfcn,0,1), bisect(upper_errfcn, 0, 1)
+    return p0, bisect(lower_errfcn,0,1), bisect(upper_errfcn, 0, 1)
 
 
 
