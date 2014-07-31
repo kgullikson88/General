@@ -1,9 +1,13 @@
 from distutils.core import setup
 from distutils.extension import Extension
-from Cython.Distutils import build_ext
+
 import numpy as np
 
+from Cython.Distutils import build_ext
+
+
 setup(
-    cmdclass = {'build_ext': build_ext},
-    ext_modules = [Extension("RotBroad_Fast", ["RotBroad2.pyx"], include_dirs=[np.get_include()], extra_compile_args=["-O3"])]
-    )
+    cmdclass={'build_ext': build_ext},
+    ext_modules=[
+        Extension("RotBroad_Fast", ["RotBroad2.pyx"], include_dirs=[np.get_include()], extra_compile_args=["-O3"])]
+)

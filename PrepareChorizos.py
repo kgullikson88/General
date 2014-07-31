@@ -4,35 +4,33 @@ and measured E(B-V) from my spectra. It then prepares the
 Chorizos input file
 """
 
-import numpy as np
-import sys
 import os
 
 
 class StarInfo:
     def __init__(self):
-        self.name = ""   #Star designation
-        self.EBV = 0.0   #E(B-V)
-        self.B = 0.0     #B mag
-        self.B_e = 0.0   #B mag error
-        self.V = 0.0     #V mag
-        self.V_e = 0.0   #V mag error
-        self.J = 0.0     #J mag 
-        self.J_e = 0.0   #J mag error
-        self.H = 0.0     #H mag
-        self.H_e = 0.0   #H mag error
-        self.K = 0.0     #K mag
-        self.K_e = 0.0   #K mag error
+        self.name = ""  # Star designation
+        self.EBV = 0.0  # E(B-V)
+        self.B = 0.0  # B mag
+        self.B_e = 0.0  # B mag error
+        self.V = 0.0  # V mag
+        self.V_e = 0.0  # V mag error
+        self.J = 0.0  # J mag
+        self.J_e = 0.0  # J mag error
+        self.H = 0.0  # H mag
+        self.H_e = 0.0  # H mag error
+        self.K = 0.0  # K mag
+        self.K_e = 0.0  # K mag error
 
 
 if __name__ == "__main__":
-    phot_filename = "%s/Dropbox/School/Research/AstarStuff/TargetLists/Kharchenko2009.csv" %(os.environ["HOME"])
-    red_filename = "%s/Dropbox/School/Research/AstarStuff/TargetLists/Na_Params.csv" %(os.environ["HOME"])
+    phot_filename = "%s/Dropbox/School/Research/AstarStuff/TargetLists/Kharchenko2009.csv" % (os.environ["HOME"])
+    red_filename = "%s/Dropbox/School/Research/AstarStuff/TargetLists/Na_Params.csv" % (os.environ["HOME"])
 
     all_stars = []
     full_info = []
 
-    #Read in the photometry
+    # Read in the photometry
     infile = open(phot_filename)
     lines = infile.readlines()
     infile.close()
@@ -77,22 +75,22 @@ if __name__ == "__main__":
 
     #Finally, generate the Chorizos setup file
     for star in full_info:
-        print "%s " %star.name + "%.3f "*18 %(star.B,
-                                              star.B_e,
-                                              star.V,
-                                              star.V_e,
-                                              star.J,
-                                              star.J_e,
-                                              star.H,
-                                              star.H_e,
-                                              star.K,
-                                              star.K_e,
-                                              8000.0,
-                                              30000.0,
-                                              3.0,
-                                              5.0,
-                                              -1.0,
-                                              0.0,
-                                              star.EBV,
-                                              star.EBV)
+        print "%s " % star.name + "%.3f " * 18 % (star.B,
+                                                  star.B_e,
+                                                  star.V,
+                                                  star.V_e,
+                                                  star.J,
+                                                  star.J_e,
+                                                  star.H,
+                                                  star.H_e,
+                                                  star.K,
+                                                  star.K_e,
+                                                  8000.0,
+                                                  30000.0,
+                                                  3.0,
+                                                  5.0,
+                                                  -1.0,
+                                                  0.0,
+                                                  star.EBV,
+                                                  star.EBV)
 

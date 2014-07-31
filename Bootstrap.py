@@ -39,18 +39,21 @@ determine the CCF significance of a peak.
 
 """
 
-import numpy as np
 from scipy.signal import fftconvolve
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import sys
 import time
-from astropy import units, constants
 from multiprocessing import Pool
 from functools import partial
+
+import numpy as np
+from astropy import units, constants
 import DataStructures
 import FittingUtilities
+
 import RotBroad_Fast as RotBroad
 import HelperFunctions
+
 
 minvel = -1000.0
 maxvel = 1000.0
@@ -58,181 +61,176 @@ maxvel = 1000.0
 """
   This function just processes the model to prepare for cross-correlation
 """
+
+
 def Process(filename, data, vsini, resolution):
-  
-  #Read in the model
-  print "Reading in the input model from %s" %filename
-  x, y = np.loadtxt(filename, usecols=(0,1), unpack=True)
-  x = x*units.angstrom.to(units.nm)
-  y = 10**y
-  left = np.searchsorted(x, data[0].x[0]-10)
-  right = np.searchsorted(x, data[-1].x[-1]+10)
-  model = DataStructures.xypoint(x=x[left:right], y=y[left:right])
-  
-  
-  #Linearize the x-axis of the model
-  print "Linearizing model"
-  xgrid = np.linspace(model.x[0], model.x[-1], model.size())
-  model = FittingUtilities.RebinData(model, xgrid)
-  
-  
-  #Broaden
-  print "Rotationally broadening model to vsini = %g km/s" %(vsini*units.cm.to(units.km))
-  if vsini > 1.0*units.km.to(units.cm):
-    model = RotBroad.Broaden(model, vsini, linear=True)
-    
-    
-  #Reduce resolution
-  print "Convolving to the detector resolution of %g" %resolution
-  model = FittingUtilities.ReduceResolution(model, resolution) 
-  
-  
-  # Rebin subsets of the model to the same spacing as the data
-  model_orders = []
-  for i, order in enumerate(data):
-    sys.stdout.write("\rGenerating model subset for order %i in the input data" %(i+1))
-    sys.stdout.flush()
-    # Find how much to extend the model so that we can get maxvel range.
-    dlambda = order.x[order.size()/2] * maxvel*1.5/3e5
-    left = np.searchsorted(model.x, order.x[0] - dlambda)
-    right = np.searchsorted(model.x, order.x[-1] + dlambda)
-    
-    # Figure out the log-spacing of the data
-    start = np.log(order.x[0])
-    end = np.log(order.x[-1])
-    xgrid = np.logspace(start, end, order.size(), base=np.e)
-    logspacing = np.log(xgrid[1]/xgrid[0])
-    
-    # Finally, space the model segment with the same log-spacing
-    start = np.log(model.x[left])
-    end = np.log(model.x[right])
-    xgrid = np.exp(np.arange(start, end+logspacing, logspacing))
-      
-    segment = FittingUtilities.RebinData(model.copy(), xgrid)
-    segment.cont = FittingUtilities.Continuum(segment.x, segment.y, lowreject=1.5, highreject=5, fitorder=2)
-    model_orders.append(segment)
-   
-  
-  return model_orders
-  
-  
-  
-  
-  
+    # Read in the model
+    print "Reading in the input model from %s" % filename
+    x, y = np.loadtxt(filename, usecols=(0, 1), unpack=True)
+    x = x * units.angstrom.to(units.nm)
+    y = 10 ** y
+    left = np.searchsorted(x, data[0].x[0] - 10)
+    right = np.searchsorted(x, data[-1].x[-1] + 10)
+    model = DataStructures.xypoint(x=x[left:right], y=y[left:right])
+
+
+    #Linearize the x-axis of the model
+    print "Linearizing model"
+    xgrid = np.linspace(model.x[0], model.x[-1], model.size())
+    model = FittingUtilities.RebinData(model, xgrid)
+
+
+    #Broaden
+    print "Rotationally broadening model to vsini = %g km/s" % (vsini * units.cm.to(units.km))
+    if vsini > 1.0 * units.km.to(units.cm):
+        model = RotBroad.Broaden(model, vsini, linear=True)
+
+
+    #Reduce resolution
+    print "Convolving to the detector resolution of %g" % resolution
+    model = FittingUtilities.ReduceResolution(model, resolution)
+
+
+    # Rebin subsets of the model to the same spacing as the data
+    model_orders = []
+    for i, order in enumerate(data):
+        sys.stdout.write("\rGenerating model subset for order %i in the input data" % (i + 1))
+        sys.stdout.flush()
+        # Find how much to extend the model so that we can get maxvel range.
+        dlambda = order.x[order.size() / 2] * maxvel * 1.5 / 3e5
+        left = np.searchsorted(model.x, order.x[0] - dlambda)
+        right = np.searchsorted(model.x, order.x[-1] + dlambda)
+
+        # Figure out the log-spacing of the data
+        start = np.log(order.x[0])
+        end = np.log(order.x[-1])
+        xgrid = np.logspace(start, end, order.size(), base=np.e)
+        logspacing = np.log(xgrid[1] / xgrid[0])
+
+        # Finally, space the model segment with the same log-spacing
+        start = np.log(model.x[left])
+        end = np.log(model.x[right])
+        xgrid = np.exp(np.arange(start, end + logspacing, logspacing))
+
+        segment = FittingUtilities.RebinData(model.copy(), xgrid)
+        segment.cont = FittingUtilities.Continuum(segment.x, segment.y, lowreject=1.5, highreject=5, fitorder=2)
+        model_orders.append(segment)
+
+    return model_orders
+
+
 """
   This is the main function, which does the analysis
 """
-def GetSamples(data, model_file, Nboot, vsini=10.0, resolution=50000):
 
-  #First, read in and process the model
-  model_orders = Process(model_file, data, vsini*units.km.to(units.cm), resolution)
-  
-  
-  #Now, begin the bootstrap loop
-  print "\n\nStarting loop over bootstrap trials. This could take a while..."
-  output = np.zeros(Nboot)
-  pool = Pool(processes=4)
-  fcn = partial(GetCCFHeight, data, model_orders)
-  #output = pool.map(fcn, range(Nboot), chunksize=Nboot/4)
-  
-  result = pool.imap_unordered(fcn, xrange(Nboot))
-  #result = pool.map_async(fcn, xrange(Nboot))
-  pool.close()
-  
-  
-  while True:
-    completed = result._index
-    #completed = Nboot - result._number_left
-    if (completed == Nboot): break
-    #if result.ready(): break
-    sys.stdout.write("\rExecution is %.2f%% done" %(100.0*completed/float(Nboot)))
-    sys.stdout.flush()
-    time.sleep(2)
-  
-  output = [r for r in result]
-  #print output
-  return output
-  
-    
-  
+
+def GetSamples(data, model_file, Nboot, vsini=10.0, resolution=50000):
+    # First, read in and process the model
+    model_orders = Process(model_file, data, vsini * units.km.to(units.cm), resolution)
+
+
+    #Now, begin the bootstrap loop
+    print "\n\nStarting loop over bootstrap trials. This could take a while..."
+    output = np.zeros(Nboot)
+    pool = Pool(processes=4)
+    fcn = partial(GetCCFHeight, data, model_orders)
+    #output = pool.map(fcn, range(Nboot), chunksize=Nboot/4)
+
+    result = pool.imap_unordered(fcn, xrange(Nboot))
+    #result = pool.map_async(fcn, xrange(Nboot))
+    pool.close()
+
+    while True:
+        completed = result._index
+        #completed = Nboot - result._number_left
+        if (completed == Nboot): break
+        #if result.ready(): break
+        sys.stdout.write("\rExecution is %.2f%% done" % (100.0 * completed / float(Nboot)))
+        sys.stdout.flush()
+        time.sleep(2)
+
+    output = [r for r in result]
+    #print output
+    return output
+
+
 def GetCCFHeight(data, model_orders, *args):
-  #Copy the original data. We will overwrite this in a minute
-  newdata = [order.copy() for order in data]
-    
-  #Randomly sample from each order with replacement to make fake data
-  for j in range(len(newdata)):
-    order = newdata[j]
-    index = np.random.randint(0, order.size(), order.size())
-    order.y = (order.y/order.cont)[index]
-      
-    #Resample to log-spacing
-    start = np.log(order.x[0])
-    end = np.log(order.x[-1])
-    xgrid = np.logspace(start, end, order.size(), base=np.e)
-    newdata[j] = FittingUtilities.RebinData(order, xgrid)
-    
-    
-  #Now, cross-correlate the new data against the model
-  corr = Correlate(newdata, model_orders)
-  return np.max(corr.y)
-  
-    
-    
-    
-    
+    # Copy the original data. We will overwrite this in a minute
+    newdata = [order.copy() for order in data]
+
+    #Randomly sample from each order with replacement to make fake data
+    for j in range(len(newdata)):
+        order = newdata[j]
+        index = np.random.randint(0, order.size(), order.size())
+        order.y = (order.y / order.cont)[index]
+
+        #Resample to log-spacing
+        start = np.log(order.x[0])
+        end = np.log(order.x[-1])
+        xgrid = np.logspace(start, end, order.size(), base=np.e)
+        newdata[j] = FittingUtilities.RebinData(order, xgrid)
+
+
+    #Now, cross-correlate the new data against the model
+    corr = Correlate(newdata, model_orders)
+    return np.max(corr.y)
+
+
 """
   This function does the actual correlation, in the same way
 that we do it for the companion search.
-"""    
+"""
+
+
 def Correlate(data, model_orders):
-  corrlist = []
-  normalization = 0.0
-  for ordernum, order in enumerate(data):
-    #print "Cross-correlating order %i" %(ordernum+1)
-    model = model_orders[ordernum]
-    reduceddata = order.y
-    reducedmodel = model.y/model.cont
-    meandata = reduceddata.mean()
-    meanmodel = reducedmodel.mean()
-    data_rms = np.std(reduceddata)
-    model_rms = np.std(reducedmodel)
-    left = np.searchsorted(model.x, order.x[0])
-    right = model.x.size - np.searchsorted(model.x, order.x[-1])
-    delta = left - right
-    
-    #ycorr = np.correlate(reduceddata - meandata, reducedmodel - meanmodel, mode='valid')
-    ycorr = fftconvolve((reduceddata - meandata), (reducedmodel - meanmodel)[::-1], mode='valid')
-    xcorr = np.arange(ycorr.size)
-    lags = xcorr - right
-    distancePerLag = np.log(model.x[1] / model.x[0])
-    offsets = -lags*distancePerLag
-    velocity = offsets * constants.c.cgs.value * units.cm.to(units.km)
-    corr = DataStructures.xypoint(velocity.size)
-    corr.x = velocity[::-1]
-    corr.y = ycorr[::-1]/(data_rms*model_rms*float(ycorr.size))
-        
-    # Only save part of the correlation
-    left = np.searchsorted(corr.x, minvel)
-    right = np.searchsorted(corr.x, maxvel)
-    corr = corr[left:right]
+    corrlist = []
+    normalization = 0.0
+    for ordernum, order in enumerate(data):
+        # print "Cross-correlating order %i" %(ordernum+1)
+        model = model_orders[ordernum]
+        reduceddata = order.y
+        reducedmodel = model.y / model.cont
+        meandata = reduceddata.mean()
+        meanmodel = reducedmodel.mean()
+        data_rms = np.std(reduceddata)
+        model_rms = np.std(reducedmodel)
+        left = np.searchsorted(model.x, order.x[0])
+        right = model.x.size - np.searchsorted(model.x, order.x[-1])
+        delta = left - right
 
-    normalization += float(order.size())
-    
-    # Save correlation
-    corrlist.append(corr.copy())
+        #ycorr = np.correlate(reduceddata - meandata, reducedmodel - meanmodel, mode='valid')
+        ycorr = fftconvolve((reduceddata - meandata), (reducedmodel - meanmodel)[::-1], mode='valid')
+        xcorr = np.arange(ycorr.size)
+        lags = xcorr - right
+        distancePerLag = np.log(model.x[1] / model.x[0])
+        offsets = -lags * distancePerLag
+        velocity = offsets * constants.c.cgs.value * units.cm.to(units.km)
+        corr = DataStructures.xypoint(velocity.size)
+        corr.x = velocity[::-1]
+        corr.y = ycorr[::-1] / (data_rms * model_rms * float(ycorr.size))
 
-    
-  # Add up the individual CCFs (use the Maximum Likelihood method from Zucker 2003, MNRAS, 342, 1291)
-  total = corrlist[0].copy()
-  total.y = np.ones(total.size())
-  for i, corr in enumerate(corrlist):
-    correlation = spline(corr.x, corr.y, k=1)
-    N = data[i].size()
-    total.y *= np.power(1.0 - correlation(total.x)**2, float(N)/normalization)
-  master_corr = total.copy()
-  master_corr.y = 1.0 - np.power(total.y, 1.0/float(len(corrlist)))
-  
-  return master_corr
+        # Only save part of the correlation
+        left = np.searchsorted(corr.x, minvel)
+        right = np.searchsorted(corr.x, maxvel)
+        corr = corr[left:right]
+
+        normalization += float(order.size())
+
+        # Save correlation
+        corrlist.append(corr.copy())
+
+
+    # Add up the individual CCFs (use the Maximum Likelihood method from Zucker 2003, MNRAS, 342, 1291)
+    total = corrlist[0].copy()
+    total.y = np.ones(total.size())
+    for i, corr in enumerate(corrlist):
+        correlation = spline(corr.x, corr.y, k=1)
+        N = data[i].size()
+        total.y *= np.power(1.0 - correlation(total.x) ** 2, float(N) / normalization)
+    master_corr = total.copy()
+    master_corr.y = 1.0 - np.power(total.y, 1.0 / float(len(corrlist)))
+
+    return master_corr
 
 
 
