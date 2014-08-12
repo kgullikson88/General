@@ -87,16 +87,16 @@ class Analyse():
         self.visible_species = {}
 
         # Get spectral type if the user didn't enter it
-        if SpT == None:
+        if SpT is None:
             SpT = raw_input("Enter Spectral Type: ")
         self.SpT = SpT
 
         #Use the spectral type to get effective temperature and log(g)
         #   (if those keywords were not given when calling this)
         MS = SpectralTypeRelations.MainSequence()
-        if Teff == None:
+        if Teff is None:
             Teff = MS.Interpolate(MS.Temperature, SpT)
-        if logg == None:
+        if logg is None:
             M = MS.Interpolate(MS.Mass, SpT)
             R = MS.Interpolate(MS.Radius, SpT)
             G = constants.G.cgs.value
@@ -111,7 +111,7 @@ class Analyse():
 
         # Read the filename if it is given
         self.data = None
-        if fname != None:
+        if fname is not None:
             self.InputData(fname)
 
             # Initialize a figure for drawing
@@ -235,7 +235,7 @@ class Analyse():
         # delete the temporary file
         subprocess.check_call(['rm', tmpfile])
 
-        if xspacing != None:
+        if xspacing is not None:
             modelfcn = spline(x, y, k=1)
             x = np.arange(x[0], x[-1] + xspacing, xspacing)
             y = modelfcn(x)
@@ -273,7 +273,7 @@ class Analyse():
         """
 
         # First, check to make sure the user entered a datafile
-        if self.data == None:
+        if self.data is None:
             fname = raw_input("Enter filename for the data: ")
             self.InputData(fname)
 
@@ -289,7 +289,7 @@ class Analyse():
         for c, l, r in zip(center, left, right):
             found = False
             for order in self.data:
-                if c > order.x[0] and c < order.x[-1]:
+                if order.x[0] < c < order.x[-1]:
                     found = True
                     break
             if not found:
@@ -351,7 +351,7 @@ class Analyse():
                       after doing the correction
         """
         # First, check to make sure the user entered a datafile
-        if self.data == None:
+        if self.data is None:
             fname = raw_input("Enter filename for the data: ")
             self.InputData(fname)
 
@@ -406,7 +406,7 @@ class Analyse():
         """
 
         # First, check to make sure the user entered a datafile
-        if self.data == None:
+        if self.data is None:
             fname = raw_input("Enter filename for the data: ")
             self.InputData(fname)
 
@@ -424,7 +424,7 @@ class Analyse():
 
 
         # Find the best Teff and log(g)
-        if windguess == None:
+        if windguess is None:
             Teff, logg, parlist = self._FindBestTemperature(self.Teff_guess, self.logg_guess, -14.3, 0.9, 0.1, -4.49,
                                                             10.0)
         else:
@@ -478,7 +478,7 @@ class Analyse():
             diff = 9e9
             for i, order in enumerate(self.data):
                 x0 = (order.x[0] + order.x[-1]) / 2.0
-                if abs(x0 - w0) < diff and w0 > order.x[0] and w0 < order.x[-1]:
+                if abs(x0 - w0) < diff and order.x[0] < w0 < order.x[-1]:
                     diff = abs(x0 - w0)
                     idx = i
             if idx < 0 or (idx == i and diff > 10.0):
@@ -885,7 +885,7 @@ class Analyse():
             diff = 9e9
             for i, order in enumerate(self.data):
                 x0 = (order.x[0] + order.x[-1]) / 2.0
-                if abs(x0 - w0) < diff and w0 > order.x[0] and w0 < order.x[-1]:
+                if abs(x0 - w0) < diff and order.x[0] < w0 < order.x[-1]:
                     diff = abs(x0 - w0)
                     idx = i
             if idx < 0 or (idx == i and diff > 10.0):
