@@ -102,13 +102,6 @@ def Broaden(model, vsini, epsilon=0.5, linear=False, findcont=False):
   s2 = (start + num*dwave)*vsini/(dwave*constants.c.cgs.value)
   vsini *= units.cm.to(units.km)
   nd = s2 + 5.5
-  print model.y
-  print ys
-  print num
-  print nd
-  print start
-  print dwave
-  print vsini
-  print epsilon
+
   broadened.y = convolve(model.y, ys, num, nd, start, dwave, vsini, epsilon)
   return broadened
