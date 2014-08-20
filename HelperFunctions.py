@@ -5,19 +5,16 @@
 import os
 import csv
 from collections import defaultdict
-from scipy.misc import factorial
-from scipy.optimize import fminbound, fmin, brent, golden, minimize_scalar, bisect
-from scipy.linalg import solve_banded
+
+from scipy.optimize import bisect
 from scipy.stats import scoreatpercentile
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.signal import kaiserord, firwin, lfilter
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-
 from astropy.io import fits as pyfits
-import DataStructures
 import numpy as np
 from astropy import units, constants
 
+import DataStructures
 import pySIMBAD as sim
 import SpectralTypeRelations
 import readmultispec as multispec
@@ -27,8 +24,6 @@ try:
     import emcee
 except ImportError:
     print "Warning! emcee module not loaded! BayesFit Module will not be available!"
-from pysynphot.observation import Observation
-from pysynphot.spectrum import ArraySourceSpectrum, ArraySpectralElement
 import FittingUtilities
 import mlpy
 import warnings
@@ -354,7 +349,7 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
     return orders
 
 
-def OutputFitsFileExtensions(column_dicts, template, outfilename, mode="append", headers_info=[]):
+def OutputFitsFileExtensions(column_dicts, template, outfilename, mode="append", headers_info=[], primary_header=[]):
     """
     Function to output a fits file
     column_dict is a dictionary where the key is the name of the column
@@ -365,7 +360,8 @@ def OutputFitsFileExtensions(column_dicts, template, outfilename, mode="append",
     mode determines how the outputted file is made. Append will just add
        a fits extension to the existing file (and then save it as outfilename)
        "new" mode will create a new fits file.
-       header_info takes a list of lists. Each sub-list should have size 2 where the first element is the name of the new keyword, and the second element is the corresponding value. A 3rd element may be added as a comment
+    header_info takes a list of lists. Each sub-list should have size 2 where the first element is the name of the new keyword, and the second element is the corresponding value. A 3rd element may be added as a comment
+    primary_header takes a dictionary with keywords to insert into the primary fits header (and not each extension)
     """
 
     # Get header from template. Use this in the new file
@@ -384,6 +380,11 @@ def OutputFitsFileExtensions(column_dicts, template, outfilename, mode="append",
         header = pyfits.getheader(template)
         pri_hdu = pyfits.PrimaryHDU(header=header)
         hdulist = pyfits.HDUList([pri_hdu, ])
+
+    if len(primary_header.keys()) > 0:
+        for key in primary_header:
+            hdulist[0].header[key] = primary_header[key]
+
 
     for i in range(len(column_dicts)):
         column_dict = column_dicts[i]
