@@ -349,7 +349,7 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
     return orders
 
 
-def OutputFitsFileExtensions(column_dicts, template, outfilename, mode="append", headers_info=[], primary_header=[]):
+def OutputFitsFileExtensions(column_dicts, template, outfilename, mode="append", headers_info=[], primary_header={}):
     """
     Function to output a fits file
     column_dict is a dictionary where the key is the name of the column
