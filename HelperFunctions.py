@@ -726,4 +726,19 @@ def FindOutliers(data, numsiglow=6, numsighigh=3, numiters=10, expand=0):
     temp = []
     [temp.append(i) for i in exclude if not i in temp]
     return np.array(temp)
-  
+
+
+def IsListlike(arg):
+    """This function just test to check if the object acts like a list
+
+    :param arg:
+    :return:
+    """
+    if isinstance(arg, basestring):  # Python 3: isinstance(arg, str)
+        return False
+    try:
+        tmp = [x for x in arg]
+        return True
+        # return '<' + ", ".join(srepr(x) for x in arg) + '>'
+    except TypeError:  # catch when for loop fails
+        return False
