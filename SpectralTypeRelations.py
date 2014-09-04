@@ -1,12 +1,11 @@
 from collections import defaultdict
-from scipy.interpolate import UnivariateSpline, griddata
 import warnings
 import sys
 
-import numpy as np
+from scipy.interpolate import UnivariateSpline, griddata
+
 import DataStructures
-from astropy import constants
-import matplotlib.pyplot as plt
+
 
 
 # Provides relations temperature, luminosity, radius, and mass for varius spectral types
@@ -632,7 +631,8 @@ class PreMainSequence:
                 logg = float(segments[6])  #gravity
                 evol_stage = int(segments[-1])
 
-                if evol_stage >= minimum_stage and evol_stage <= maximum_stage:
+                if (minimum_stage <= evol_stage <= maximum_stage and
+                        (len(Tracks[age]["Mass"]) == 0 or Tracks[age]["Mass"][-1] < mass)):
                     Tracks[age]["Initial Mass"].append(m_initial)
                     Tracks[age]["Mass"].append(mass)
                     Tracks[age]["Temperature"].append(Teff)

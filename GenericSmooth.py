@@ -1,15 +1,33 @@
 import FittingUtilities
+
 from sklearn.gaussian_process import GaussianProcess
 
 import HelperFunctions
 
 
-def SmoothData(order, windowsize=91, smoothorder=5, lowreject=3, highreject=3, numiters=10):
+def SmoothData(order, windowsize=91, smoothorder=5, lowreject=3, highreject=3, numiters=10, expand=0, normalize=True):
     denoised = HelperFunctions.Denoise(order.copy())
-    denoised.y = FittingUtilities.Iterative_SV(denoised.y, windowsize, smoothorder, lowreject=lowreject,
-                                               highreject=highreject, numiters=numiters)
+    denoised.y = FittingUtilities.Iterative_SV(denoised.y,
+                                               windowsize,
+                                               smoothorder,
+                                               lowreject=lowreject,
+                                               highreject=highreject,
+                                               numiters=numiters,
+                                               expand=expand)
+    if normalize:
     denoised.y /= denoised.y.max()
     return denoised
+
+
+def roundodd(num):
+    rounded = round(num)
+    if rounded % 2 != 0:
+        return rounded
+    else:
+        if rounded > num:
+            return rounded - 1
+        else:
+            return rounded + 1
 
 
 def GPSmooth(data, low=0.1, high=10, debug=False):

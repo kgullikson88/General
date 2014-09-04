@@ -1,20 +1,18 @@
-import subprocess
 import sys
 import os
-from collections import defaultdict
+import warnings
+import numpy as np
+import FittingUtilities
+import RotBroad_Fast as RotBroad
+
 from scipy.interpolate import UnivariateSpline
+
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import scipy.signal
-import warnings
-import time
-
-import matplotlib.pyplot as plt
-import numpy as np
-import DataStructures
 from astropy import units, constants
-import FittingUtilities
 
-import RotBroad_Fast as RotBroad
+import DataStructures
+
 import HelperFunctions
 
 
@@ -121,7 +119,7 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1):
         model = FittingUtilities.ReduceResolution(model, resolution)
 
 
-        # Rebin subsets of the model to the same spacing as the data
+    # Rebin subsets of the model to the same spacing as the data
     model_orders = []
     if debug:
         model.output("Test_model.dat")

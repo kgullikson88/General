@@ -3,9 +3,9 @@ import os
 import sys
 import re
 from collections import defaultdict
+import numpy as np
 
 from astropy import units
-import numpy as np
 
 import HelperFunctions
 import DataStructures
@@ -47,7 +47,7 @@ def GetModelList(type='phoenix', metal=[-0.5, 0, 0.5], logg=[4.5, ], temperature
         all_models = [f for f in os.listdir(modeldir) if 'phoenix' in f.lower()]
         chosen_models = []
         for model in all_models:
-            temp, gravity, metallicity = ClassifyModel(fname)
+            Teff, gravity, metallicity = ClassifyModel(model)
             if Teff in temperature and gravity in logg and metallicity in metal:
                 chosen_models.append("{:s}{:s}".format(modeldir, model))
 
