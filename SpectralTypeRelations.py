@@ -615,6 +615,12 @@ class PreMainSequence:
         lines = infile.readlines()
         infile.close()
         Tracks = defaultdict(lambda: defaultdict(list))
+        self.Mass = []
+        self.InitialMass = []
+        self.Luminosity = []
+        self.Gravity = []
+        self.Age = []
+        self.Temperature = []
         for line in lines:
             if not line.startswith("#"):
                 segments = line.split()
@@ -632,6 +638,12 @@ class PreMainSequence:
                     Tracks[age]["Temperature"].append(Teff)
                     Tracks[age]["Luminosity"].append(Lum)
                     Tracks[age]["Gravity"].append(logg)
+                    self.Mass.append(mass)
+                    self.InitialMass.append(m_initial)
+                    self.Luminosity.append(Lum)
+                    self.Gravity.append(logg)
+                    self.Temperature.append(Teff)
+                    self.Age.append(age)
 
         return Tracks
 

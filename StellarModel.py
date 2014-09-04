@@ -44,15 +44,10 @@ def GetModelList(type='phoenix', metal=[-0.5, 0, 0.5], logg=[4.5, ], temperature
         raise ValueError("The metal, log, and temperature arguments must ALL be list-like!")
 
     if type.lower() == 'phoenix':
-        all_models = os.listdir(modeldir)
+        all_models = [f for f in os.listdir(modeldir) if 'phoenix' in f.lower()]
         chosen_models = []
         for model in all_models:
-            segments = re.split("-|\+", model)
-            Teff = int(segments[0].split("lte")[-1]) * 100
-            gravity = float(segments[1])
-            metallicity = float(segments[2][:3])
-            if not "+" in model and metallicity > 0:
-                metallicity *= -1
+            temp, gravity, metallicity = ClassifyModel(fname)
             if Teff in temperature and gravity in logg and metallicity in metal:
                 chosen_models.append("{:s}{:s}".format(modeldir, model))
 
@@ -62,6 +57,30 @@ def GetModelList(type='phoenix', metal=[-0.5, 0, 0.5], logg=[4.5, ], temperature
         raise NotImplementedError("Sorry, the model type ({:s}) is not available!".format(type))
 
     return chosen_models
+
+
+def ClassifyModel(filename, type='phoenix'):
+    """Get the effective temperature, log(g), and [Fe/H] of a stellar model from the filename
+
+    :param filename:
+    :param type: Currently, only phoenix type files are supported
+    :return:
+    """
+    if not isinstance(filename, basestring):
+        raise TypeError("Filename must be a string!")
+
+    if type.lower() == 'phoenix':
+        segments = re.split("-|\+", filename.split("/")[-1])
+        temp = int(segments[0].split("lte")[-1]) * 100
+        gravity = float(segments[1])
+        metallicity = float(segments[2][:3])
+        if not "+" in filename and metallicity > 0:
+            metallicity *= -1
+
+    else:
+        raise NotImplementedError("Sorry, the model type ({:s}) is not available!".format(type))
+
+    return temp, gravity, metallicity
 
 
 def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix'):
@@ -78,12 +97,7 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix'):
     processed = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(bool))))
     if type.lower() == 'phoenix':
         for fname in model_list:
-            segments = re.split("-|\+", fname.split("/")[-1])
-            temp = int(segments[0].split("lte")[-1]) * 100
-            gravity = float(segments[1])
-            metallicity = float(segments[2][:3])
-            if not "+" in fname and metallicity > 0:
-                metallicity *= -1
+            temp, gravity, metallicity = ClassifyModel(fname)
             print "Reading in file %s" % fname
             x, y = np.loadtxt(fname, usecols=(0, 1), unpack=True)
             model = DataStructures.xypoint(x=x * units.angstrom.to(units.nm), y=10 ** y)
