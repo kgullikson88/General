@@ -3,8 +3,8 @@ import os
 import sys
 import re
 from collections import defaultdict
-import numpy as np
 
+import numpy as np
 from astropy import units
 
 import HelperFunctions
@@ -44,7 +44,7 @@ def GetModelList(type='phoenix', metal=[-0.5, 0, 0.5], logg=[4.5, ], temperature
         raise ValueError("The metal, log, and temperature arguments must ALL be list-like!")
 
     if type.lower() == 'phoenix':
-        all_models = [f for f in os.listdir(model_directory) if 'phoenix' in f.lower()]
+        all_models = sorted([f for f in os.listdir(model_directory) if 'phoenix' in f.lower()])
         chosen_models = []
         for model in all_models:
             Teff, gravity, metallicity = ClassifyModel(model)
