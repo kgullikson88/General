@@ -8,6 +8,7 @@ It is called by several smaller scripts in each of the instrument-specific repos
 import FittingUtilities
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 import Correlate
 import HelperFunctions
@@ -65,14 +66,17 @@ def Process_Data(fname, badregions=[], extensions=True, trimsize=1):
             # Find outliers from e.g. bad telluric line or stellar spectrum removal.
             order.cont = FittingUtilities.Continuum(order.x, order.y, lowreject=3, highreject=3)
             outliers = HelperFunctions.FindOutliers(order, expand=10, numsiglow=5, numsighigh=5)
+            plt.plot(order.x, order.y / order.cont, 'k-')
             if len(outliers) > 0:
-                order.y[outliers] = 1.0
+                plt.plot(order.x[outliers], (order.y / order.cont)[outliers], 'r-')
+                order.y[outliers] = order.cont[outliers]
                 order.cont = FittingUtilities.Continuum(order.x, order.y, lowreject=3, highreject=3)
                 order.y[outliers] = order.cont[outliers]
 
             # Save this order
             orders[numorders - 1 - i] = order.copy()
 
+    plt.show()
     return orders
 
 
