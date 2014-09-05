@@ -15,7 +15,7 @@ def SmoothData(order, windowsize=91, smoothorder=5, lowreject=3, highreject=3, n
                                                numiters=numiters,
                                                expand=expand)
     if normalize:
-    denoised.y /= denoised.y.max()
+        denoised.y /= denoised.y.max()
     return denoised
 
 

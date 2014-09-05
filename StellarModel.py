@@ -26,7 +26,7 @@ else:
         modeldir = modeldir + "/"
 
 
-def GetModelList(type='phoenix', metal=[-0.5, 0, 0.5], logg=[4.5, ], temperature=range(3000, 6900, 100)):
+def GetModelList(type='phoenix', metal=[-0.5, 0, 0.5], logg=[4.5, ], temperature=range(3000, 6900, 100), model_directory=modeldir):
     """This function searches the model directory (hard coded in StellarModels.py) for stellar
        models with the appropriate parameters
 
@@ -44,12 +44,12 @@ def GetModelList(type='phoenix', metal=[-0.5, 0, 0.5], logg=[4.5, ], temperature
         raise ValueError("The metal, log, and temperature arguments must ALL be list-like!")
 
     if type.lower() == 'phoenix':
-        all_models = [f for f in os.listdir(modeldir) if 'phoenix' in f.lower()]
+        all_models = [f for f in os.listdir(model_directory) if 'phoenix' in f.lower()]
         chosen_models = []
         for model in all_models:
             Teff, gravity, metallicity = ClassifyModel(model)
             if Teff in temperature and gravity in logg and metallicity in metal:
-                chosen_models.append("{:s}{:s}".format(modeldir, model))
+                chosen_models.append("{:s}{:s}".format(model_directory, model))
 
 
 

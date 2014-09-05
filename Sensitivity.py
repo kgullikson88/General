@@ -116,6 +116,7 @@ def Analyze(fileList,
             badregions=[],
             trimsize=1,
             object_keyword="object",
+            modeldir="./",
             debug=False):
     # Define some constants to use
     lightspeed = constants.c.cgs.value * units.cm.to(units.km)
@@ -152,7 +153,7 @@ def Analyze(fileList,
     vsini_data = ascii.read(vsini_file)[vsini_skip:]
 
     # Now, start loop over the models:
-    model_list = StellarModel.GetModelList(metal=[0, ], temperature=range(3000, 6100, 100))
+    model_list = StellarModel.GetModelList(metal=[0, ], temperature=range(3000, 6100, 100), model_directory=modeldir)
     for modelnum, modelfile in enumerate(model_list):
         temp, gravity, metallicity = StellarModel.ClassifyModel(modelfile)
         print "Reading in file %s" % modelfile
@@ -164,6 +165,7 @@ def Analyze(fileList,
         model = FittingUtilities.RebinData(model, np.linspace(model.x[0], model.x[-1], model.size()))
         model = Broaden.RotBroad(model, vsini_secondary)
         model = Broaden.ReduceResolution2(model, resolution)
+
         modelfcn = interp(model.x, model.y / model.cont)
 
 
