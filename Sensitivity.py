@@ -1,11 +1,10 @@
-import numpy as np
 import os
 import sys
 import FittingUtilities
 from re import search
 
+import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as interp
-
 from astropy.io import fits
 from astropy.io import ascii
 from astropy import units, constants
@@ -152,7 +151,7 @@ def Analyze(fileList,
     vsini_data = ascii.read(vsini_file)[vsini_skip:]
 
     # Now, start loop over the models:
-    model_list = StellarModel.GetModelList(metal=[0, ], temperature=range(3000, 6100, 100))
+    model_list = sorted(StellarModel.GetModelList(metal=[0, ], temperature=range(3000, 6100, 100)))
     for modelnum, modelfile in enumerate(model_list):
         temp, gravity, metallicity = StellarModel.ClassifyModel(modelfile)
         print "Reading in file %s" % modelfile
