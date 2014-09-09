@@ -117,6 +117,7 @@ def Analyze(fileList,
             badregions=[],
             trimsize=1,
             object_keyword="object",
+	    modeldir="./",
             debug=False):
     # Define some constants to use
     lightspeed = constants.c.cgs.value * units.cm.to(units.km)

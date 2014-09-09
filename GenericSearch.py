@@ -66,9 +66,9 @@ def Process_Data(fname, badregions=[], extensions=True, trimsize=1):
             # Find outliers from e.g. bad telluric line or stellar spectrum removal.
             order.cont = FittingUtilities.Continuum(order.x, order.y, lowreject=3, highreject=3)
             outliers = HelperFunctions.FindOutliers(order, expand=10, numsiglow=5, numsighigh=5)
-            plt.plot(order.x, order.y / order.cont, 'k-')
+            #plt.plot(order.x, order.y / order.cont, 'k-')
             if len(outliers) > 0:
-                plt.plot(order.x[outliers], (order.y / order.cont)[outliers], 'r-')
+                #plt.plot(order.x[outliers], (order.y / order.cont)[outliers], 'r-')
                 order.y[outliers] = order.cont[outliers]
                 order.cont = FittingUtilities.Continuum(order.x, order.y, lowreject=3, highreject=3)
                 order.y[outliers] = order.cont[outliers]
@@ -76,7 +76,7 @@ def Process_Data(fname, badregions=[], extensions=True, trimsize=1):
             # Save this order
             orders[numorders - 1 - i] = order.copy()
 
-    plt.show()
+    #plt.show()
     return orders
 
 
