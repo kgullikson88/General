@@ -8,7 +8,6 @@ It is called by several smaller scripts in each of the instrument-specific repos
 import FittingUtilities
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 import Correlate
 import HelperFunctions
@@ -24,11 +23,14 @@ def Process_Data(fname, badregions=[], extensions=True, trimsize=1):
     :param trimsize: The amount to exclude from both ends of every order (where it is very noisy)
     :return:
     """
-    if extensions:
-        orders = HelperFunctions.ReadExtensionFits(fname)
-
+    if isinstance(fname, list) and isinstance(fname[0], DataStructures.xypoint):
+        orders = fname
     else:
-        orders = HelperFunctions.ReadFits(fname, errors=2)
+        if extensions:
+            orders = HelperFunctions.ReadExtensionFits(fname)
+
+        else:
+            orders = HelperFunctions.ReadFits(fname, errors=2)
 
     numorders = len(orders)
     for i, order in enumerate(orders[::-1]):
