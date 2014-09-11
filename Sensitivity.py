@@ -10,6 +10,7 @@ from astropy.io import ascii
 from astropy import units, constants
 
 import GenericSearch
+
 import StellarModel
 import DataStructures
 import SpectralTypeRelations
@@ -135,8 +136,8 @@ def Analyze(fileList,
             outfile = open(logfilenames[fname], "a")
 
             # Read in and process the data like I am about to look for a companion
-            # TODO: We should be removing the bad regions AFTER adding the model!
-            orders_original = GenericSearch.Process_Data(fname, badregions=badregions, trimsize=trimsize)
+            orders_original = HelperFunctions.ReadExtensionFits(fname)
+            # orders_original = GenericSearch.Process_Data(fname, badregions=badregions, trimsize=trimsize)
 
             #Find the vsini of the primary star with my spreadsheet
             starname = fits.getheader(fname)[object_keyword]
@@ -202,6 +203,12 @@ def Analyze(fileList,
                                                         numiters=10,
                                                         normalize=False)
                     order.y /= smoothed.y
+                    orders[ordernum] = order
+
+
+                # Trim the data now
+                orders = GenericSearch.Process_Data(orders, badregions=badregions, trimsize=trimsize)
+                for ordernum, order in enumerate(orders):
 
                     # log-space the data
                     start = np.log(order.x[0])
@@ -220,7 +227,7 @@ def Analyze(fileList,
 
                     # Save model order
                     model_orders.append(model)
-                    #orders[ordernum] = order.copy()
+                    orders[ordernum] = order
 
                 # Do the actual cross-correlation
                 print "Cross-correlating..."

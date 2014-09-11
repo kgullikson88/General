@@ -12,6 +12,7 @@ import numpy as np
 import Correlate
 import HelperFunctions
 import StellarModel
+import DataStructures
 
 
 def Process_Data(fname, badregions=[], extensions=True, trimsize=1):
