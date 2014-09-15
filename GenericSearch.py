@@ -91,7 +91,7 @@ def CompanionSearch(fileList,
                     vsini_values=[10, 20, 30, 40],
                     modeldir="models/",
                     debug=False):
-    model_list = StellarModel.GetModelList()
+    model_list = StellarModel.GetModelList(model_directory=modeldir)
     modeldict, processed = StellarModel.MakeModelDicts(model_list, vsini_values=vsini_values)
 
 
