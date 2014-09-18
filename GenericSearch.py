@@ -17,6 +17,15 @@ import pyraf
 from astropy.io import fits
 from astropy.time import Time
 
+pyraf.iraf.noao()
+pyraf.iraf.noao.rv()
+
+
+
+def convert(coord, delim=":"):
+    segments = coord.split(delim)
+    s = np.sign(float(segments[0]))
+    return s * (abs(float(segments[0])) + float(segments[1]) / 60.0 + float(segments[2]) / 3600.0)
 
 
 def HelCorr(header):
