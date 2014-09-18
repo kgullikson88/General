@@ -142,7 +142,7 @@ def CompanionSearch(fileList,
             for metallicity in sorted(modeldict[temp][gravity].keys()):
                 for vsini in vsini_values:
                     for fname in fileList:
-                        vbary = fits.getheader(fname)
+                        vbary = HelCorr(fits.getheader(fname))
                         orders = Process_Data(fname, badregions, extensions=extensions, trimsize=trimsize)
 
                         output_dir = "Cross_correlations/"
