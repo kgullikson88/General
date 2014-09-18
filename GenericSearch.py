@@ -13,6 +13,38 @@ import Correlate
 import HelperFunctions
 import StellarModel
 import DataStructures
+import pyraf
+from astropy.io import fits
+from astropy.time import Time
+
+
+
+def HelCorr(header):
+    """
+    Get the heliocentric correction for an observation
+    """
+    # Get the heliocentric correction
+    ra = convert(header['RA'])
+    dec = convert(header['DEC'])
+    #jd = getJD(header, rootdir=rootdir)
+    jd = header['jd']
+    t = Time(jd, format='jd', scale='utc')
+    dt = t.datetime
+    year = dt.year
+    month = dt.month
+    day = dt.day
+    time = dt.isoformat().split("T")[-1]
+    output = pyraf.iraf.noao.rv.rvcorrect(epoch=2000.0,
+                                          observatory='CTIO',
+                                          year=dt.year,
+                                          month=dt.month,
+                                          day=dt.day,
+                                          ut=header['ut'],
+                                          ra=header['ra'],
+                                          dec=header['dec'],
+                                          Stdout=1)
+    vbary = float(output[-1].split()[2])
+    return vbary
 
 
 def Process_Data(fname, badregions=[], extensions=True, trimsize=1):
@@ -92,7 +124,7 @@ def CompanionSearch(fileList,
                     modeldir="models/",
                     debug=False):
     model_list = StellarModel.GetModelList(model_directory=modeldir)
-    modeldict, processed = StellarModel.MakeModelDicts(model_list, vsini_values=vsini_values)
+    modeldict, processed = StellarModel.MakeModelDicts(model_list, vsini_values=vsini_values, vac2air=True)
 
 
     # Do the cross-correlation
@@ -101,6 +133,7 @@ def CompanionSearch(fileList,
             for metallicity in sorted(modeldict[temp][gravity].keys()):
                 for vsini in vsini_values:
                     for fname in fileList:
+                        vbary = fits.getheader(fname)
                         orders = Process_Data(fname, badregions, extensions=extensions, trimsize=trimsize)
 
                         output_dir = "Cross_correlations/"
@@ -132,7 +165,7 @@ def CompanionSearch(fileList,
                         outfilename = "%s%s.%.0fkps_%sK%+.1f%+.1f" % (
                             output_dir, outfilebase, vsini, temp, gravity, metallicity)
                         print "Outputting to ", outfilename, "\n"
-                        np.savetxt(outfilename, np.transpose((corr.x, corr.y)), fmt="%.10g")
+                        np.savetxt(outfilename, np.transpose((corr.x+vbary, corr.y)), fmt="%.10g")
 
 
                     #Delete the model. We don't need it anymore and it just takes up ram.

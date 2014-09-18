@@ -108,13 +108,14 @@ def ClassifyModel(filename, type='phoenix'):
     return temp, gravity, metallicity
 
 
-def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix'):
+def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', vac2air=True):
     """This will take a list of models, and output two dictionaries that are
     used by GenericSearch.py and Sensitivity.py
 
     :param model_list: A list of model filenames
     :param vsini_values: a list of vsini values to broaden the spectrum by (we do that later!)
     :param type: the type of models. Currently, only phoenix is implemented
+    :param vac2air: If true, assumes the model is in vacuum wavelengths and converts to air
     :return: A dictionary containing the model with keys of temperature, gravity, metallicity, and vsini,
              and another one with a processed flag with the same keys
     """
@@ -126,6 +127,9 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix'):
             temp, gravity, metallicity = ClassifyModel(fname)
             print "Reading in file %s" % fname
             x, y = np.loadtxt(fname, usecols=(0, 1), unpack=True)
+            if vac2air:
+                n = 1.0 + 2.735182e-4 + 131.4182 / x ** 2 + 2.76249e8 / x ** 4
+                x /= n
             model = DataStructures.xypoint(x=x * units.angstrom.to(units.nm), y=10 ** y)
             for vsini in vsini_values:
                 modeldict[temp][gravity][metallicity][vsini] = model
@@ -140,6 +144,9 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix'):
             temp, gravity, metallicity, a = ClassifyModel(fname)
             print "Reading in file %s" % fname
             x, y = np.loadtxt(fname, usecols=(0, 1), unpack=True)
+            if vac2air:
+                n = 1.0 + 2.735182e-4 + 131.4182 / x ** 2 + 2.76249e8 / x ** 4
+                x /= n
             model = DataStructures.xypoint(x=x * units.angstrom.to(units.nm), y=10 ** y)
             for vsini in vsini_values:
                 modeldict[temp][gravity][metallicity][a][vsini] = model
