@@ -76,8 +76,28 @@ def Analyze(fileList,
             badregions=[],
             trimsize=1,
             object_keyword="object",
-	    modeldir="./",
+	        modeldir="./",
             debug=False):
+
+    """
+      Perform the sensitivity analysis.
+    :param fileList:  The files to analyze
+    :param vsini_secondary:   The vsini of the secondary star
+    :param resolution: The detector resolution
+    :param smooth_factor: The factor to multiply the vsini of the primary by when smoothing
+    :param vel_list: The list of velocities to try
+    :param companion_file: A csv file giving the known companions to each primary star
+    :param vsini_file: A csv file giving the vsini of each primary star
+    :param vsini_skip: How many lines to skip in vsini_file
+    :param vsini_idx: What index the vsini is in in the vsini_file
+    :param tolerance: How far off the peak can be and still be counted as a detection (default: 5 km/s)
+    :param badregions: Regions to ignore. These should be the same as in Search!
+    :param trimsize: The number of pixels to cut out of each echelle order (from both sides)
+    :param object_keyword: The keyword of the object name in the fits header
+    :param modeldir: The directory storing the models
+    :param debug:
+    """
+
     # Define some constants to use
     lightspeed = constants.c.cgs.value * units.cm.to(units.km)
 
