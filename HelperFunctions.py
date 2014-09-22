@@ -13,8 +13,8 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from astropy.io import fits as pyfits
 import numpy as np
 from astropy import units, constants
-
 import DataStructures
+
 import pySIMBAD as sim
 import SpectralTypeRelations
 import readmultispec as multispec
@@ -150,10 +150,7 @@ def CheckMultiplicitySB9(starname):
             filt2 = segments[7]
             spt1 = segments[8]
             spt2 = segments[9]
-            if filt1 == "V":
-                companion["Magnitude"] = mag2
-            else:
-                companion["Magnitude"] = Unknown  #TODO: work out from blackbody
+            companion["Magnitude"] = mag2 if filt1 == "V" else "Unknown"
             companion["SpT"] = spt2
 
     #Finally, get orbit information for our star (Use the most recent publication)
