@@ -228,8 +228,8 @@ def Analyze(fileList,
 
                 # Trim the data now
                 orders = GenericSearch.Process_Data(orders, badregions=badregions, trimsize=trimsize)
+                orderweights = []
                 for ordernum, order in enumerate(orders):
-
                     # log-space the data
                     start = np.log(order.x[0])
                     end = np.log(order.x[-1])
@@ -248,10 +248,17 @@ def Analyze(fileList,
                     # Save model order
                     model_orders.append(model)
                     orders[ordernum] = order
+                    scale = GetFluxRatio(known_stars, temp, order.x)
+                    orderweights.append(scale.mean())
 
                 # Do the actual cross-correlation
                 print "Cross-correlating..."
-                corr = Correlate.Correlate(orders, model_orders, debug=debug, outputdir="Sensitivity_Testing/")
+                corr = Correlate.Correlate(orders,
+                                           model_orders,
+                                           debug=debug,
+                                           outputdir="Sensitivity_Testing/",
+                                           addmode="ML",
+                                           orderweights=orderweights)
 
                 # Check if we found the companion
                 idx = np.argmax(corr.y)
