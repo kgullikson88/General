@@ -9,7 +9,8 @@ from astropy import units
 
 import HelperFunctions
 import DataStructures
-
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
+import warnings
 
 """
 This code provides the GetModelList function.
@@ -199,7 +200,7 @@ class Kurucz():
 
                 print "Reading in file {:s}".format(fname)
                 x, y = np.loadtxt("{:s}/{:s}".format(modeldir, fname), usecols=(0, 3), unpack=True)
-                x *= u.angstrom.to(u.nm)
+                x *= units.angstrom.to(units.nm)
 
                 left = np.searchsorted(x, wavemin)
                 right = np.searchsorted(x, wavemax)
@@ -326,7 +327,7 @@ class KuruczGetter():
 
                 print "Reading in file {:s}".format(fname)
                 x, y = np.loadtxt("{:s}/{:s}".format(modeldir, fname), usecols=(0, 3), unpack=True)
-                x *= u.angstrom.to(u.nm)
+                x *= units.angstrom.to(units.nm)
 
                 left = np.searchsorted(x, wavemin)
                 right = np.searchsorted(x, wavemax)
