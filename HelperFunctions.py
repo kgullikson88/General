@@ -18,6 +18,7 @@ import DataStructures
 import pySIMBAD as sim
 import SpectralTypeRelations
 import readmultispec as multispec
+from lmfit import Model
 
 
 try:
@@ -741,3 +742,81 @@ def IsListlike(arg):
         # return '<' + ", ".join(srepr(x) for x in arg) + '>'
     except TypeError:  # catch when for loop fails
         return False
+
+
+class ListModel(Model):
+    """
+    Subclass of lmfit's Model, which can take a list of xypoints.
+    The fit method reforms the list into a single array, and then
+    passes off to the lmfit method.
+
+    This is very bare bones now (Sep 25, 2014). Will probably need to add more later.
+    """
+
+    def __init__(self, fcn, **kws):
+        Model.__init__(self, fcn, **kws)
+
+    def fit(self, data, fit_kws=None, **kws):
+        x = np.hstack([d.x for d in data])
+        y = np.hstack([d.y for d in data])
+        w = np.hstack([1.0 / d.err for d in data])
+        self.order_lengths = [d.size() for d in data]
+        kws['x'] = x
+        print "x = ", x
+        print kws
+        output = Model.fit(self, y, weights=w, fit_kws=fit_kws, **kws)
+
+        # Need to re-shape the best-fit
+        best_fit = []
+        length = 0
+        for i in range(len(data)):
+            best_fit.append(output.best_fit[length:length + data[i].size()])
+            length += data[i].size()
+        output.best_fit = best_fit
+        return output
+
+
+    def _residual(self, params, data, weights, **kwargs):
+        "default residual:  (data-model)*weights"
+        loglikelihood = []
+        model = Model.eval(self, params, **kwargs)
+        length = 0
+        for i, l in enumerate(self.order_lengths):
+            x = kwargs['x'][length:length + l]
+            y = data[length:length + l]
+            m = model[length:length + l]
+            ratio = y / m
+            cont = FittingUtilities.Continuum(x, ratio, fitorder=5, lowreject=2, highreject=2)
+            loglikelihood.append(y - cont * m)
+
+            length += l
+
+        loglikelihood = np.hstack(loglikelihood)
+        if weights is not None:
+            loglikelihood *= weights
+        print "X^2 = ", np.sum(loglikelihood ** 2) / float(loglikelihood.size)
+        return loglikelihood
+
+    def MCMC_fit(self, data, fitresult, fit_kws=None, **kws):
+        """
+        Do a fit using emcee
+
+        :param selfdata:
+        :param fit_kws:
+        :param kws:
+        :return:
+        """
+        x = np.hstack([d.x for d in data])
+        y = np.hstack([d.y for d in data])
+        e = np.hstack([d.err for d in data])
+        fulldata = DataStructures.xypoint(x=x, y=y, err=e)
+        self.order_lengths = [d.size() for d in data]
+
+        # Make priors from the errors in the maximum likelihood fit
+        var_map = fitresult.var_map
+        priors = [[fitresult.best_values[v], np.sqrt(fitresult.covar[i][i]) * 10] for i, v in enumerate(var_map)]
+
+        output = BayesFit(fulldata, self.func, priors, burn_in=500, nthreads=1, full_output=True)
+        return output
+
+
