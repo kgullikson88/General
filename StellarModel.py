@@ -9,7 +9,7 @@ from astropy import units
 
 import HelperFunctions
 import DataStructures
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
+from scipy.interpolate import InterpolatedUnivariateSpline as spline, LinearNDInterpolator, NearestNDInterpolator
 import warnings
 
 """

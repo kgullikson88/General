@@ -682,7 +682,7 @@ def BayesFit(data, model_fcn, priors, limits=None, burn_in=100, nwalkers=100, ns
         priors[i][1] = np.std(chain[:, i])
 
     if full_output:
-        return priors, chain
+        return priors, sampler
     return priors
 
 
@@ -816,7 +816,7 @@ class ListModel(Model):
         var_map = fitresult.var_map
         priors = [[fitresult.best_values[v], np.sqrt(fitresult.covar[i][i]) * 10] for i, v in enumerate(var_map)]
 
-        output = BayesFit(fulldata, self.func, priors, burn_in=500, nthreads=1, full_output=True)
+        output = BayesFit(fulldata, self.func, priors, burn_in=200, nsamples=500, nthreads=1, full_output=True)
         return output
 
 
