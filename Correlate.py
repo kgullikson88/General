@@ -135,12 +135,12 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1):
         right = min(right, model.size() - 2)
 
         # Figure out the log-spacing of the data
-        start = np.log(order.x[0])
-        end = np.log(order.x[-1])
-        xgrid = np.logspace(start, end, order.size() * oversample, base=np.e)
-        logspacing = np.log(xgrid[1] / xgrid[0])
+        logspacing = np.log(order.x[1] / order.x[0])
 
         # Finally, space the model segment with the same log-spacing
+        print model.x
+        print order.x
+        print left, right, '\n'
         start = np.log(model.x[left])
         end = np.log(model.x[right])
         xgrid = np.exp(np.arange(start, end + logspacing, logspacing))
@@ -184,16 +184,6 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
     if addmode.lower() == "weighted" and len(orderweights) != len(data):
         raise ValueError("orderweights must be a list-like object with the same size as data!")
 
-    # Process the model if necessary
-    if process_model:
-        model_orders = Process(model, data, vsini * units.km.to(units.cm), resolution, debug=debug,
-                               oversample=oversample)
-    elif isinstance(model, list) and isinstance(model[0], DataStructures.xypoint):
-        model_orders = model
-    else:
-        raise TypeError("model must be a list of DataStructures.xypoints if process=False!")
-
-
     # Re-sample all orders of the data to logspacing, if necessary
     if rebin_data:
         if debug:
@@ -206,6 +196,14 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
             neworder = FittingUtilities.RebinData(order, neworder.x)
             data[i] = neworder
 
+    # Process the model if necessary
+    if process_model:
+        model_orders = Process(model, data, vsini * units.km.to(units.cm), resolution, debug=debug,
+                               oversample=oversample)
+    elif isinstance(model, list) and isinstance(model[0], DataStructures.xypoint):
+        model_orders = model
+    else:
+        raise TypeError("model must be a list of DataStructures.xypoints if process=False!")
 
             # Now, cross-correlate the new data against the model
     corr = Correlate(data, model_orders, debug=debug, outputdir=outputdir, addmode=addmode, orderweights=orderweights)
