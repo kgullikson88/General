@@ -762,8 +762,6 @@ class ListModel(Model):
         w = np.hstack([1.0 / d.err for d in data])
         self.order_lengths = [d.size() for d in data]
         kws['x'] = x
-        print "x = ", x
-        print kws
         output = Model.fit(self, y, weights=w, fit_kws=fit_kws, **kws)
 
         # Need to re-shape the best-fit
@@ -794,7 +792,6 @@ class ListModel(Model):
         loglikelihood = np.hstack(loglikelihood)
         if weights is not None:
             loglikelihood *= weights
-        print "X^2 = ", np.sum(loglikelihood ** 2) / float(loglikelihood.size)
         return loglikelihood
 
     def MCMC_fit(self, data, fitresult, fit_kws=None, **kws):
@@ -820,3 +817,15 @@ class ListModel(Model):
         return output
 
 
+def mad(arr):
+    """
+    Median average deviation
+    :param arr: A list-like object
+    :return:
+    """
+    if not IsListlike(arr):
+        raise ValueError("The input to mad must be a list-like object!")
+
+    median = np.median(arr)
+    arr = np.array(arr)
+    return np.median(np.abs(arr - median))
