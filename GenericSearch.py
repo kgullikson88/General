@@ -21,21 +21,20 @@ pyraf.iraf.noao()
 pyraf.iraf.noao.rv()
 
 
-
 def convert(coord, delim=":"):
     segments = coord.split(delim)
     s = np.sign(float(segments[0]))
     return s * (abs(float(segments[0])) + float(segments[1]) / 60.0 + float(segments[2]) / 3600.0)
 
 
-def HelCorr(header):
+def HelCorr(header, observatory="CTIO"):
     """
     Get the heliocentric correction for an observation
     """
     # Get the heliocentric correction
     ra = convert(header['RA'])
     dec = convert(header['DEC'])
-    #jd = getJD(header, rootdir=rootdir)
+    # jd = getJD(header, rootdir=rootdir)
     jd = header['jd']
     t = Time(jd, format='jd', scale='utc')
     dt = t.datetime
@@ -44,7 +43,7 @@ def HelCorr(header):
     day = dt.day
     time = dt.isoformat().split("T")[-1]
     output = pyraf.iraf.noao.rv.rvcorrect(epoch=2000.0,
-                                          observatory='CTIO',
+                                          observatory=observatory,
                                           year=dt.year,
                                           month=dt.month,
                                           day=dt.day,
@@ -95,7 +94,7 @@ def Process_Data(fname, badregions=[], extensions=True, trimsize=1):
             order.err = np.delete(order.err, np.arange(left, right))
 
 
-        #Remove whole order if it is too small
+        # Remove whole order if it is too small
         remove = False
         if order.x.size <= 1:
             remove = True
@@ -120,7 +119,7 @@ def Process_Data(fname, badregions=[], extensions=True, trimsize=1):
             # Save this order
             orders[numorders - 1 - i] = order.copy()
 
-    #plt.show()
+    # plt.show()
     return orders
 
 
@@ -129,10 +128,15 @@ def CompanionSearch(fileList,
                     extensions=True,
                     resolution=60000,
                     trimsize=1,
-                    vsini_values=[10, 20, 30, 40],
+                    vsini_values=(10, 20, 30, 40),
+                    Tvalues=range(3000, 6900, 100),
+                    metal_values=(-0.5, 0.0, +0.5),
                     modeldir="models/",
+                    vbary_correct=True,
                     debug=False):
-    model_list = StellarModel.GetModelList(model_directory=modeldir)
+    model_list = StellarModel.GetModelList(model_directory=modeldir,
+                                           temperature=Tvalues,
+                                           metal=metal_values)
     modeldict, processed = StellarModel.MakeModelDicts(model_list, vsini_values=vsini_values, vac2air=True)
 
 
@@ -142,7 +146,8 @@ def CompanionSearch(fileList,
             for metallicity in sorted(modeldict[temp][gravity].keys()):
                 for vsini in vsini_values:
                     for fname in fileList:
-                        vbary = HelCorr(fits.getheader(fname))
+                        if vbary_correct:
+                            vbary = HelCorr(fits.getheader(fname))
                         orders = Process_Data(fname, badregions, extensions=extensions, trimsize=trimsize)
 
                         output_dir = "Cross_correlations/"
@@ -174,10 +179,12 @@ def CompanionSearch(fileList,
                         outfilename = "%s%s.%.0fkps_%sK%+.1f%+.1f" % (
                             output_dir, outfilebase, vsini, temp, gravity, metallicity)
                         print "Outputting to ", outfilename, "\n"
-                        np.savetxt(outfilename, np.transpose((corr.x+vbary, corr.y)), fmt="%.10g")
+                        if vbary_correct:
+                            corr.x += vbary
+                        np.savetxt(outfilename, np.transpose((corr.x, corr.y)), fmt="%.10g")
 
 
-                    #Delete the model. We don't need it anymore and it just takes up ram.
+                    # Delete the model. We don't need it anymore and it just takes up ram.
                     modeldict[temp][gravity][metallicity][vsini] = []
 
     return
