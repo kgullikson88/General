@@ -98,7 +98,7 @@ def ClassifyModel(filename, type='phoenix'):
         metallicity = float(fname[14:16]) / 10.0
         alpha = float(fname[18:20]) / 10.0
         if fname[13] == "m":
-            metal *= -1
+            metallicity *= -1
         if fname[17] == "m":
             alpha *= -1
         return temp, gravity, metallicity, alpha
@@ -354,10 +354,10 @@ class KuruczGetter():
                 spectra.append(y)
 
         # Scale the variables so they all have about the same range
-        self.T_scale = (np.median(Tvals), max(Tvals) - min(Tvals))
-        self.metal_scale = (np.median(metalvals), max(metalvals) - min(metalvals))
-        self.logg_scale = (np.median(loggvals), max(loggvals) - min(loggvals))
-        self.alpha_scale = (np.median(alphavals), max(alphavals) - min(alphavals))
+        self.T_scale = ((max(Tvals) + min(Tvals)) / 2.0, max(Tvals) - min(Tvals))
+        self.metal_scale = ((max(metalvals) + min(metalvals)) / 2.0, max(metalvals) - min(metalvals))
+        self.logg_scale = ((max(loggvals) + min(loggvals)) / 2.0, max(loggvals) - min(loggvals))
+        self.alpha_scale = ((max(alphavals) + min(alphavals)) / 2.0, max(alphavals) - min(alphavals))
         Tvals = (np.array(Tvals) - self.T_scale[0]) / self.T_scale[1]
         loggvals = (np.array(loggvals) - self.logg_scale[0]) / self.logg_scale[1]
         metalvals = (np.array(metalvals) - self.metal_scale[0]) / self.metal_scale[1]
@@ -386,6 +386,7 @@ class KuruczGetter():
         """
 
         # Scale the requested values
+        print T, logg, metal, alpha
         T = (T - self.T_scale[0]) / self.T_scale[1]
         logg = (logg - self.logg_scale[0]) / self.logg_scale[1]
         metal = (metal - self.metal_scale[0]) / self.metal_scale[1]
