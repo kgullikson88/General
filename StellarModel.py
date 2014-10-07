@@ -133,7 +133,8 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
                                    header=None,
                                    names=["wave", "flux"],
                                    usecols=(0, 1),
-                                   delim_whitespace=True)
+                                   sep=' ',
+				   skipinitialspace=True)
             x, y = data['wave'].values, data['flux'].values
             # x, y = np.loadtxt(fname, usecols=(0, 1), unpack=True)
             if vac2air:
@@ -156,7 +157,8 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
                                    header=None,
                                    names=["wave", "flux"],
                                    usecols=(0, 1),
-                                   delim_whitespace=True)
+                                   sep=' ',
+				   skipinitialspace=True)
             x, y = data['wave'].values, data['flux'].values
             #x, y = np.loadtxt(fname, usecols=(0, 1), unpack=True)
             if vac2air:
@@ -340,11 +342,12 @@ class KuruczGetter():
                             alpha_min <= alpha <= alpha_max):
 
                 print "Reading in file {:s}".format(fname)
-                data = pandas.read_csv("{:s}/{:s}".format(modeldir, fname),
+		data = pandas.read_csv("{:s}/{:s}".format(modeldir, fname),
                                        header=None,
                                        names=["wave", "norm"],
                                        usecols=(0, 3),
-                                       delim_whitespace=True)
+                                       sep=' ',
+				       skipinitialspace=True)
                 x, y = data['wave'].values, data['norm'].values
                 # x, y = np.loadtxt("{:s}/{:s}".format(modeldir, fname), usecols=(0, 3), unpack=True)
                 x *= units.angstrom.to(units.nm)
