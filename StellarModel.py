@@ -11,6 +11,8 @@ import HelperFunctions
 import DataStructures
 from scipy.interpolate import InterpolatedUnivariateSpline as spline, LinearNDInterpolator, NearestNDInterpolator
 import warnings
+import pandas
+
 
 """
 This code provides the GetModelList function.
@@ -326,7 +328,13 @@ class KuruczGetter():
                             alpha_min <= alpha <= alpha_max):
 
                 print "Reading in file {:s}".format(fname)
-                x, y = np.loadtxt("{:s}/{:s}".format(modeldir, fname), usecols=(0, 3), unpack=True)
+                data = pandas.read_csv("{:s}/{:s}".format(modeldir, fname),
+                                       header=None,
+                                       names=["wave", "norm"],
+                                       usecols=(0, 3),
+                                       delim_whitespace=True)
+                x, y = data['wave'].values, data['norm'].values
+                # x, y = np.loadtxt("{:s}/{:s}".format(modeldir, fname), usecols=(0, 3), unpack=True)
                 x *= units.angstrom.to(units.nm)
 
                 left = np.searchsorted(x, wavemin)
