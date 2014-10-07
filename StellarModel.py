@@ -129,7 +129,13 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
         for fname in model_list:
             temp, gravity, metallicity = ClassifyModel(fname)
             print "Reading in file %s" % fname
-            x, y = np.loadtxt(fname, usecols=(0, 1), unpack=True)
+            data = pandas.read_csv(fname,
+                                   header=None,
+                                   names=["wave", "flux"],
+                                   usecols=(0, 1),
+                                   delim_whitespace=True)
+            x, y = data['wave'].values, data['flux'].values
+            # x, y = np.loadtxt(fname, usecols=(0, 1), unpack=True)
             if vac2air:
                 n = 1.0 + 2.735182e-4 + 131.4182 / x ** 2 + 2.76249e8 / x ** 4
                 x /= n
@@ -146,7 +152,13 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
         for fname in model_list:
             temp, gravity, metallicity, a = ClassifyModel(fname)
             print "Reading in file %s" % fname
-            x, y = np.loadtxt(fname, usecols=(0, 1), unpack=True)
+            data = pandas.read_csv(fname,
+                                   header=None,
+                                   names=["wave", "flux"],
+                                   usecols=(0, 1),
+                                   delim_whitespace=True)
+            x, y = data['wave'].values, data['flux'].values
+            #x, y = np.loadtxt(fname, usecols=(0, 1), unpack=True)
             if vac2air:
                 n = 1.0 + 2.735182e-4 + 131.4182 / x ** 2 + 2.76249e8 / x ** 4
                 x /= n
