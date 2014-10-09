@@ -27,7 +27,7 @@ def convert(coord, delim=":"):
     return s * (abs(float(segments[0])) + float(segments[1]) / 60.0 + float(segments[2]) / 3600.0)
 
 
-def HelCorr(header, observatory="CTIO"):
+def HelCorr(header, observatory="CTIO", debug=False):
     """
     Get the heliocentric correction for an observation
     """
@@ -52,6 +52,9 @@ def HelCorr(header, observatory="CTIO"):
                                           dec=header['dec'],
                                           Stdout=1)
     vbary = float(output[-1].split()[2])
+    if debug:
+        for line in output:
+            print line
     return vbary
 
 
@@ -133,6 +136,7 @@ def CompanionSearch(fileList,
                     metal_values=(-0.5, 0.0, +0.5),
                     modeldir="models/",
                     vbary_correct=True,
+                    addmode="ML",
                     debug=False):
     model_list = StellarModel.GetModelList(model_directory=modeldir,
                                            temperature=Tvalues,
@@ -170,7 +174,8 @@ def CompanionSearch(fileList,
                                                    rebin_data=True,
                                                    process_model=pflag,
                                                    debug=False,
-                                                   outputdir=output_dir.split("Cross_corr")[0])
+                                                   outputdir=output_dir.split("Cross_corr")[0],
+                                                   addmode=addmode)
                         corr = retdict["CCF"]
                         if pflag:
                             processed[temp][gravity][metallicity][vsini] = True
