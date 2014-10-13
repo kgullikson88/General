@@ -310,7 +310,7 @@ class KuruczGetter():
         temperature, gravity, metallicity, and [alpha/Fe] value that
         falls within the grid
 
-        modeldir: The directory where the models are stored
+        modeldir: The directory where the models are stored. Can be a list of model directories too!
         rebin: If True, it will rebin the models to a constant x-spacing
         other args: The minimum and maximum values for the parameters to search.
                     You need to keep this as small as possible to avoid memory issues!
@@ -318,6 +318,73 @@ class KuruczGetter():
         """
 
         # First, read in the grid
+        if HelperFunctions.IsListlike(modeldir):
+            #There are several directories to combine
+            Tvals = []
+            loggvals = []
+            metalvals = []
+            alphavals = []
+            for i, md in enumerate(modeldir):
+                if i == 0:
+                    T,G,Z,A,S = self.read_grid(md, rebin=rebin, T_min=T_min, T_max=T_max, logg_min=logg_min,
+                                          logg_max=logg_max, metal_min=metal_min, metal_max=metal_max,
+                                          alpha_min=alpha_min, alpha_max=alpha_max, wavemin=wavemin, wavemax=wavemax,
+                                          xaxis=None)
+                    spectra = np.array(S)
+                else:
+                    T,G,Z,A,S = self.read_grid(md, rebin=rebin, T_min=T_min, T_max=T_max, logg_min=logg_min,
+                                          logg_max=logg_max, metal_min=metal_min, metal_max=metal_max,
+                                          alpha_min=alpha_min, alpha_max=alpha_max, wavemin=wavemin, wavemax=wavemax,
+                                          xaxis=self.xaxis)
+                    S = np.array(S)
+                    spectra = np.vstack((spectra, S))
+
+                Tvals = np.hstack((Tvals, T))
+                loggvals = np.hstack((loggvals, G))
+                metalvals = np.hstack((metalvals, Z))
+                alphavals = np.hstack((alphavals, A))
+        else:
+            Tvals, loggvals, metalvals, alphavals, spectra = self.read_grid(modeldir,
+                                                                            rebin=rebin,
+                                                                            T_min=T_min,
+                                                                            T_max=T_max,
+                                                                            logg_min=logg_min,
+                                                                            logg_max=logg_max,
+                                                                            metal_min=metal_min,
+                                                                            metal_max=metal_max,
+                                                                            alpha_min=alpha_min,
+                                                                            alpha_max=alpha_max,
+                                                                            wavemin=wavemin,
+                                                                            wavemax=wavemax,
+                                                                            xaxis=None)
+
+
+        # Scale the variables so they all have about the same range
+        self.T_scale = ((max(Tvals) + min(Tvals)) / 2.0, max(Tvals) - min(Tvals))
+        self.metal_scale = ((max(metalvals) + min(metalvals)) / 2.0, max(metalvals) - min(metalvals))
+        self.logg_scale = ((max(loggvals) + min(loggvals)) / 2.0, max(loggvals) - min(loggvals))
+        self.alpha_scale = ((max(alphavals) + min(alphavals)) / 2.0, max(alphavals) - min(alphavals))
+        Tvals = (np.array(Tvals) - self.T_scale[0]) / self.T_scale[1]
+        loggvals = (np.array(loggvals) - self.logg_scale[0]) / self.logg_scale[1]
+        metalvals = (np.array(metalvals) - self.metal_scale[0]) / self.metal_scale[1]
+        alphavals = (np.array(alphavals) - self.alpha_scale[0]) / self.alpha_scale[1]
+        print self.T_scale
+        print self.metal_scale
+        print self.logg_scale
+        print self.alpha_scale
+
+        # Make the grid and interpolator instances
+        self.grid = np.array((Tvals, loggvals, metalvals, alphavals)).T
+        self.spectra = np.array(spectra)
+        self.interpolator = LinearNDInterpolator(self.grid, self.spectra)  # , rescale=True)
+        self.NN_interpolator = NearestNDInterpolator(self.grid, self.spectra)  # , rescale=True)
+
+
+
+
+
+    def read_grid(self,modeldir, rebin=True, T_min=7000, T_max=9000, logg_min=3.5, logg_max=4.5, metal_min=-0.5,
+                 metal_max=0.5, alpha_min=0.0, alpha_max=0.4, wavemin=0, wavemax=np.inf, xaxis=None):
         Tvals = []
         loggvals = []
         metalvals = []
@@ -342,15 +409,16 @@ class KuruczGetter():
                             alpha_min <= alpha <= alpha_max):
 
                 print "Reading in file {:s}".format(fname)
-		data = pandas.read_csv("{:s}/{:s}".format(modeldir, fname),
+                data = pandas.read_csv("{:s}/{:s}".format(modeldir, fname),
                                        header=None,
                                        names=["wave", "norm"],
                                        usecols=(0, 3),
                                        sep=' ',
-				       skipinitialspace=True)
+                                       skipinitialspace=True)
                 x, y = data['wave'].values, data['norm'].values
                 # x, y = np.loadtxt("{:s}/{:s}".format(modeldir, fname), usecols=(0, 3), unpack=True)
                 x *= units.angstrom.to(units.nm)
+                y[np.isnan(y)] = 0.0
 
                 left = np.searchsorted(x, wavemin)
                 right = np.searchsorted(x, wavemax)
@@ -364,7 +432,10 @@ class KuruczGetter():
                     y = fcn(xgrid)
 
                 if firstkeeper:
-                    self.xaxis = x
+                    if xaxis is None:
+                        self.xaxis = x
+                    else:
+                        self.xaxis = xaxis
                     firstkeeper = False
                 elif np.max(np.abs(self.xaxis - x) > 1e-4):
                     warnings.warn("x-axis for file {:s} is different from the master one! Not saving!".format(fname))
@@ -376,25 +447,9 @@ class KuruczGetter():
                 alphavals.append(alpha)
                 spectra.append(y)
 
-        # Scale the variables so they all have about the same range
-        self.T_scale = ((max(Tvals) + min(Tvals)) / 2.0, max(Tvals) - min(Tvals))
-        self.metal_scale = ((max(metalvals) + min(metalvals)) / 2.0, max(metalvals) - min(metalvals))
-        self.logg_scale = ((max(loggvals) + min(loggvals)) / 2.0, max(loggvals) - min(loggvals))
-        self.alpha_scale = ((max(alphavals) + min(alphavals)) / 2.0, max(alphavals) - min(alphavals))
-        Tvals = (np.array(Tvals) - self.T_scale[0]) / self.T_scale[1]
-        loggvals = (np.array(loggvals) - self.logg_scale[0]) / self.logg_scale[1]
-        metalvals = (np.array(metalvals) - self.metal_scale[0]) / self.metal_scale[1]
-        alphavals = (np.array(alphavals) - self.alpha_scale[0]) / self.alpha_scale[1]
-        print self.T_scale
-        print self.metal_scale
-        print self.logg_scale
-        print self.alpha_scale
+        return Tvals, loggvals, metalvals, alphavals, spectra
 
-        # Make the grid and interpolator instances
-        self.grid = np.array((Tvals, loggvals, metalvals, alphavals)).T
-        self.spectra = np.array(spectra)
-        self.interpolator = LinearNDInterpolator(self.grid, self.spectra)  # , rescale=True)
-        self.NN_interpolator = NearestNDInterpolator(self.grid, self.spectra)  # , rescale=True)
+
 
 
     def __call__(self, T, logg, metal, alpha, return_xypoint=True):
