@@ -756,6 +756,7 @@ class ListModel(Model):
     def __init__(self, fcn, **kws):
         Model.__init__(self, fcn, **kws)
 
+
     def fit(self, data, fit_kws=None, **kws):
         x = np.hstack([d.x for d in data])
         y = np.hstack([d.y for d in data])
