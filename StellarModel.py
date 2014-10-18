@@ -12,6 +12,7 @@ import DataStructures
 from scipy.interpolate import InterpolatedUnivariateSpline as spline, LinearNDInterpolator, NearestNDInterpolator
 import warnings
 import pandas
+import Broaden
 
 
 """
@@ -175,129 +176,7 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
     return modeldict, processed
 
 
-class Kurucz():
-    def __init__(self, modeldir, rebin=True, T_min=7000, T_max=9000, logg_min=3.5, logg_max=4.5, metal_min=-0.5,
-                 metal_max=0.5, alpha_min=0.0, alpha_max=0.4, wavemin=0, wavemax=np.inf):
-        """
-        This class will read in a directory with Kurucz models
 
-        The associated methods can be used to interpolate a model at any
-        temperature, gravity, metallicity, and [alpha/Fe] value that
-        falls within the grid
-
-        modeldir: The directory where the models are stored
-        rebin: If True, it will rebin the models to a constant x-spacing
-        other args: The minimum and maximum values for the parameters to search.
-                    You need to keep this as small as possible to avoid memory issues!
-                    The whole grid would take about 36 GB of RAM!
-        """
-
-        # First, read in the grid
-        Tvals = []
-        loggvals = []
-        metalvals = []
-        alphavals = []
-        spectra = []
-        firstkeeper = True
-        modelfiles = GetModelList(model_directory=modeldir,
-                                  type='kurucz',
-                                  temperature=[T_min, T_max],
-                                  logg=[logg_min, logg_max],
-                                  metal=[metal_min, metal_max],
-                                  alpha=[alpha_min, alpha_max])
-        for i, fname in enumerate(modelfiles):
-            T, logg, metal, alpha = ClassifyModel(fname, type='kurucz')
-
-            # Read in and save file if it falls in the correct parameter range
-            if (T_min <= T <= T_max and
-                            logg_min <= logg <= logg_max and
-                            metal_min <= metal <= metal_max and
-                            alpha_min <= alpha <= alpha_max):
-
-                print "Reading in file {:s}".format(fname)
-                x, y = np.loadtxt("{:s}/{:s}".format(modeldir, fname), usecols=(0, 3), unpack=True)
-                x *= units.angstrom.to(units.nm)
-
-                left = np.searchsorted(x, wavemin)
-                right = np.searchsorted(x, wavemax)
-                x = x[left:right]
-                y = y[left:right]
-
-                if rebin:
-                    xgrid = np.linspace(x[0], x[-1], x.size)
-                    fcn = spline(x, y)
-                    x = xgrid
-                    y = fcn(xgrid)
-
-                if firstkeeper:
-                    self.xaxis = x
-                    firstkeeper = False
-                elif np.max(np.abs(self.xaxis - x) > 1e-4):
-                    warnings.warn("x-axis for file {:s} is different from the master one! Not saving!".format(fname))
-                    continue
-
-                Tvals.append(T)
-                loggvals.append(logg)
-                metalvals.append(metal)
-                alphavals.append(alpha)
-                spectra.append(y)
-
-        # Save the grid as a class variable
-        self.grid = np.array((Tvals, loggvals, metalvals, alphavals)).T
-        self.spectra = np.array(spectra)
-
-        # Make the interpolator instance
-        self.interpolator = LinearNDInterpolator(self.grid, self.spectra, rescale=True)
-        self.NN_interpolator = NearestNDInterpolator(self.grid, self.spectra, rescale=True)
-
-
-    def __call__(self, T, logg, metal, alpha, return_xypoint=True):
-        """
-        Given parameters, return an interpolated spectrum
-
-        If return_xypoint is False, then it will only return
-          a numpy.ndarray with the spectrum
-
-        Before interpolating, we will do some error checking to make
-        sure the requested values fall within the grid
-        """
-
-        # Get the minimum and maximum values in the grid
-        T_min = min(self.grid[:, 0])
-        T_max = max(self.grid[:, 0])
-        logg_min = min(self.grid[:, 1])
-        logg_max = max(self.grid[:, 1])
-        metal_min = min(self.grid[:, 2])
-        metal_max = max(self.grid[:, 2])
-        alpha_min = min(self.grid[:, 3])
-        alpha_max = max(self.grid[:, 3])
-
-        # Check to make sure the requested values fall within the grid
-        if (T_min <= T <= T_max and
-                        logg_min <= logg <= logg_max and
-                        metal_min <= metal <= metal_max and
-                        alpha_min <= alpha <= alpha_max):
-
-            y = self.interpolator((T, logg, metal, alpha))
-        else:
-            warnings.warn("The requested parameters fall outside the model grid. Results may be unreliable!")
-            print T, T_min, T_max
-            print logg, logg_min, logg_max
-            print metal, metal_min, metal_max
-            print alpha, alpha_min, alpha_max
-            y = self.interpolator((T, logg, metal, alpha))
-
-        # Test to make sure the result is valid. If the requested point is
-        # outside the Delaunay triangulation, it will return NaN's
-        if np.any(np.isnan(y)):
-            warnings.warn("Found NaNs in the interpolated spectrum! Falling back to Nearest Neighbor")
-            y = self.NN_interpolator((T, logg, metal, alpha))
-
-        #Return the appropriate object
-        if return_xypoint:
-            return DataStructures.xypoint(x=self.xaxis, y=y)
-        else:
-            return y
 
 
 class KuruczGetter():
@@ -310,14 +189,88 @@ class KuruczGetter():
         temperature, gravity, metallicity, and [alpha/Fe] value that
         falls within the grid
 
-        modeldir: The directory where the models are stored
+        modeldir: The directory where the models are stored. Can be a list of model directories too!
         rebin: If True, it will rebin the models to a constant x-spacing
         other args: The minimum and maximum values for the parameters to search.
                     You need to keep this as small as possible to avoid memory issues!
                     The whole grid would take about 36 GB of RAM!
         """
+        self.rebin = rebin
 
         # First, read in the grid
+        if HelperFunctions.IsListlike(modeldir):
+            #There are several directories to combine
+            Tvals = []
+            loggvals = []
+            metalvals = []
+            alphavals = []
+            for i, md in enumerate(modeldir):
+                if i == 0:
+                    T,G,Z,A,S = self.read_grid(md, rebin=rebin, T_min=T_min, T_max=T_max, logg_min=logg_min,
+                                          logg_max=logg_max, metal_min=metal_min, metal_max=metal_max,
+                                          alpha_min=alpha_min, alpha_max=alpha_max, wavemin=wavemin, wavemax=wavemax,
+                                          xaxis=None)
+                    spectra = np.array(S)
+                else:
+                    T,G,Z,A,S = self.read_grid(md, rebin=rebin, T_min=T_min, T_max=T_max, logg_min=logg_min,
+                                          logg_max=logg_max, metal_min=metal_min, metal_max=metal_max,
+                                          alpha_min=alpha_min, alpha_max=alpha_max, wavemin=wavemin, wavemax=wavemax,
+                                          xaxis=self.xaxis)
+                    S = np.array(S)
+                    spectra = np.vstack((spectra, S))
+
+                Tvals = np.hstack((Tvals, T))
+                loggvals = np.hstack((loggvals, G))
+                metalvals = np.hstack((metalvals, Z))
+                alphavals = np.hstack((alphavals, A))
+        else:
+            Tvals, loggvals, metalvals, alphavals, spectra = self.read_grid(modeldir,
+                                                                            rebin=rebin,
+                                                                            T_min=T_min,
+                                                                            T_max=T_max,
+                                                                            logg_min=logg_min,
+                                                                            logg_max=logg_max,
+                                                                            metal_min=metal_min,
+                                                                            metal_max=metal_max,
+                                                                            alpha_min=alpha_min,
+                                                                            alpha_max=alpha_max,
+                                                                            wavemin=wavemin,
+                                                                            wavemax=wavemax,
+                                                                            xaxis=None)
+
+
+        # Scale the variables so they all have about the same range
+        self.T_scale = ((max(Tvals) + min(Tvals)) / 2.0, max(Tvals) - min(Tvals))
+        self.metal_scale = ((max(metalvals) + min(metalvals)) / 2.0, max(metalvals) - min(metalvals))
+        self.logg_scale = ((max(loggvals) + min(loggvals)) / 2.0, max(loggvals) - min(loggvals))
+        self.alpha_scale = ((max(alphavals) + min(alphavals)) / 2.0, max(alphavals) - min(alphavals))
+        self.vsini_scale = (150.0, 300.0)
+        Tvals = (np.array(Tvals) - self.T_scale[0]) / self.T_scale[1]
+        loggvals = (np.array(loggvals) - self.logg_scale[0]) / self.logg_scale[1]
+        metalvals = (np.array(metalvals) - self.metal_scale[0]) / self.metal_scale[1]
+        alphavals = (np.array(alphavals) - self.alpha_scale[0]) / self.alpha_scale[1]
+        print self.T_scale
+        print self.metal_scale
+        print self.logg_scale
+        print self.alpha_scale
+
+        # Make the grid and interpolator instances
+        self.grid = np.array((Tvals, loggvals, metalvals, alphavals)).T
+        self.spectra = np.array(spectra)
+        self.interpolator = LinearNDInterpolator(self.grid, self.spectra)  # , rescale=True)
+        self.NN_interpolator = NearestNDInterpolator(self.grid, self.spectra)  # , rescale=True)
+
+        # Set up arrays for things already interpolated
+        self.Tvals = list(Tvals)
+        self.loggvals = list(loggvals)
+        self.metalvals = list(metalvals)
+        self.alphavals = list(alphavals)
+        self.vsinivals = [-0.5] * len(Tvals)
+        self.spec = list(self.spectra)
+
+
+    def read_grid(self,modeldir, rebin=True, T_min=7000, T_max=9000, logg_min=3.5, logg_max=4.5, metal_min=-0.5,
+                 metal_max=0.5, alpha_min=0.0, alpha_max=0.4, wavemin=0, wavemax=np.inf, xaxis=None):
         Tvals = []
         loggvals = []
         metalvals = []
@@ -347,10 +300,11 @@ class KuruczGetter():
                                        names=["wave", "norm"],
                                        usecols=(0, 3),
                                        sep=' ',
-				       skipinitialspace=True)
+                                       skipinitialspace=True)
                 x, y = data['wave'].values, data['norm'].values
                 # x, y = np.loadtxt("{:s}/{:s}".format(modeldir, fname), usecols=(0, 3), unpack=True)
                 x *= units.angstrom.to(units.nm)
+                y[np.isnan(y)] = 0.0
 
                 left = np.searchsorted(x, wavemin)
                 right = np.searchsorted(x, wavemax)
@@ -364,7 +318,10 @@ class KuruczGetter():
                     y = fcn(xgrid)
 
                 if firstkeeper:
-                    self.xaxis = x
+                    if xaxis is None:
+                        self.xaxis = x
+                    else:
+                        self.xaxis = xaxis
                     firstkeeper = False
                 elif np.max(np.abs(self.xaxis - x) > 1e-4):
                     warnings.warn("x-axis for file {:s} is different from the master one! Not saving!".format(fname))
@@ -376,78 +333,99 @@ class KuruczGetter():
                 alphavals.append(alpha)
                 spectra.append(y)
 
-        # Scale the variables so they all have about the same range
-        self.T_scale = ((max(Tvals) + min(Tvals)) / 2.0, max(Tvals) - min(Tvals))
-        self.metal_scale = ((max(metalvals) + min(metalvals)) / 2.0, max(metalvals) - min(metalvals))
-        self.logg_scale = ((max(loggvals) + min(loggvals)) / 2.0, max(loggvals) - min(loggvals))
-        self.alpha_scale = ((max(alphavals) + min(alphavals)) / 2.0, max(alphavals) - min(alphavals))
-        Tvals = (np.array(Tvals) - self.T_scale[0]) / self.T_scale[1]
-        loggvals = (np.array(loggvals) - self.logg_scale[0]) / self.logg_scale[1]
-        metalvals = (np.array(metalvals) - self.metal_scale[0]) / self.metal_scale[1]
-        alphavals = (np.array(alphavals) - self.alpha_scale[0]) / self.alpha_scale[1]
-        print self.T_scale
-        print self.metal_scale
-        print self.logg_scale
-        print self.alpha_scale
-
-        # Make the grid and interpolator instances
-        self.grid = np.array((Tvals, loggvals, metalvals, alphavals)).T
-        self.spectra = np.array(spectra)
-        self.interpolator = LinearNDInterpolator(self.grid, self.spectra)  # , rescale=True)
-        self.NN_interpolator = NearestNDInterpolator(self.grid, self.spectra)  # , rescale=True)
+        return Tvals, loggvals, metalvals, alphavals, spectra
 
 
-    def __call__(self, T, logg, metal, alpha, return_xypoint=True):
+    def make_vsini_interpolator(self):
+        """
+        Makes an interpolator that uses the values already interpolated between
+        :return: The interpolator
+        """
+        grid = np.array((self.Tvals, self.loggvals, self.metalvals, self.alphavals, self.vsinivals)).T
+        spectra = np.array(self.spec)
+        interpolator = LinearNDInterpolator(grid, spectra)
+        return interpolator
+
+
+    def __call__(self, T, logg, metal, alpha, vsini=0.0, return_xypoint=True, first_interpolator=None):
         """
         Given parameters, return an interpolated spectrum
 
         If return_xypoint is False, then it will only return
           a numpy.ndarray with the spectrum
 
+        if first_interpolator is given, it will try to interpolate with that first and check for NaNs
+
         Before interpolating, we will do some error checking to make
         sure the requested values fall within the grid
         """
 
         # Scale the requested values
-        print T, logg, metal, alpha
+        print T, logg, metal, alpha, vsini
         T = (T - self.T_scale[0]) / self.T_scale[1]
         logg = (logg - self.logg_scale[0]) / self.logg_scale[1]
         metal = (metal - self.metal_scale[0]) / self.metal_scale[1]
         alpha = (alpha - self.alpha_scale[0]) / self.alpha_scale[1]
+        vsini = (vsini - self.vsini_scale[0]) / self.vsini_scale[1]
 
-        # Get the minimum and maximum values in the grid
-        T_min = min(self.grid[:, 0])
-        T_max = max(self.grid[:, 0])
-        logg_min = min(self.grid[:, 1])
-        logg_max = max(self.grid[:, 1])
-        metal_min = min(self.grid[:, 2])
-        metal_max = max(self.grid[:, 2])
-        alpha_min = min(self.grid[:, 3])
-        alpha_max = max(self.grid[:, 3])
+        # Try first_interpolator
+        fallback = True
+        if first_interpolator is not None:
+            y = first_interpolator((T, logg, metal, alpha, vsini))
+            if np.all(-np.isnan(y)):
+                fallback = False
 
-        # Check to make sure the requested values fall within the grid
-        if (T_min <= T <= T_max and
-                        logg_min <= logg <= logg_max and
-                        metal_min <= metal <= metal_max and
-                        alpha_min <= alpha <= alpha_max):
+        if fallback:
+            #savespectrum = False
+            #if (T not in self.Tvals and logg not in self.loggvals and metal not in self.metalvals and
+            #            alpha not in self.metalvals and vsini not in self.vsinivals):
+            #    self.Tvals.append(T)
+            #    self.loggvals.append(logg)
+            #    self.metalvals.append(metal)
+            #    self.alphavals.append(alpha)
+            #    self.vsinivals.append(vsini)
+            #    savespectrum = True
 
-            y = self.interpolator((T, logg, metal, alpha))
-        else:
-            warnings.warn("The requested parameters fall outside the model grid. Results may be unreliable!")
-            print T, T_min, T_max
-            print logg, logg_min, logg_max
-            print metal, metal_min, metal_max
-            print alpha, alpha_min, alpha_max
-            y = self.NN_interpolator((T, logg, metal, alpha))
+            # Get the minimum and maximum values in the grid
+            T_min = min(self.grid[:, 0])
+            T_max = max(self.grid[:, 0])
+            logg_min = min(self.grid[:, 1])
+            logg_max = max(self.grid[:, 1])
+            metal_min = min(self.grid[:, 2])
+            metal_max = max(self.grid[:, 2])
+            alpha_min = min(self.grid[:, 3])
+            alpha_max = max(self.grid[:, 3])
 
-        # Test to make sure the result is valid. If the requested point is
-        # outside the Delaunay triangulation, it will return NaN's
-        if np.any(np.isnan(y)):
-            warnings.warn("Found NaNs in the interpolated spectrum! Falling back to Nearest Neighbor")
-            y = self.NN_interpolator((T, logg, metal, alpha))
+            # Check to make sure the requested values fall within the grid
+            if (T_min <= T <= T_max and
+                            logg_min <= logg <= logg_max and
+                            metal_min <= metal <= metal_max and
+                            alpha_min <= alpha <= alpha_max):
+
+                y = self.interpolator((T, logg, metal, alpha))
+            else:
+                warnings.warn("The requested parameters fall outside the model grid. Results may be unreliable!")
+                print T, T_min, T_max
+                print logg, logg_min, logg_max
+                print metal, metal_min, metal_max
+                print alpha, alpha_min, alpha_max
+                y = self.NN_interpolator((T, logg, metal, alpha))
+
+            # Test to make sure the result is valid. If the requested point is
+            # outside the Delaunay triangulation, it will return NaN's
+            if np.any(np.isnan(y)):
+                warnings.warn("Found NaNs in the interpolated spectrum! Falling back to Nearest Neighbor")
+                y = self.NN_interpolator((T, logg, metal, alpha))
+
+        model = DataStructures.xypoint(x=self.xaxis, y=y)
+        vsini = (vsini * self.vsini_scale[1] + self.vsini_scale[0]) * units.km.to(units.cm)
+        model = Broaden.RotBroad(model, vsini, linear=self.rebin)
+
+        #if fallback and savespectrum:
+        #    self.spec.append(model.y)
 
         #Return the appropriate object
         if return_xypoint:
-            return DataStructures.xypoint(x=self.xaxis, y=y)
+            return model
         else:
-            return y
+            return model.y

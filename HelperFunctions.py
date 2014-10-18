@@ -249,7 +249,7 @@ def ReadExtensionFits(datafile):
                     errors="error")
 
 
-def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None, debug=False):
+def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None, return_aps=False, debug=False):
     """
     Read a fits file. If extensions=False, it assumes IRAF's multispec format.
     Otherwise, it assumes the file consists of several fits extensions with
@@ -311,7 +311,8 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
             numorders = data.shape[-2]
             wave = np.array([np.arange(numpixels) for i in range(numorders)])
             retdict = {'flux': data,
-                       'wavelen': wave}
+                       'wavelen': wave,
+                       'wavefields': np.zeros(data.shape)}
 
         #Check if wavelength units are in angstroms (common, but I like nm)
         hdulist = pyfits.open(datafile)
@@ -346,6 +347,9 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
                 err = retdict['flux'][errors][i]
             cont = FittingUtilities.Continuum(wave, flux, lowreject=2, highreject=4)
             orders.append(DataStructures.xypoint(x=wave, y=flux, err=err, cont=cont))
+        if return_aps:
+            # Return the aperture wavefields too
+            orders = [orders, retdict['wavefields']]
     return orders
 
 
@@ -755,6 +759,7 @@ class ListModel(Model):
 
     def __init__(self, fcn, **kws):
         Model.__init__(self, fcn, **kws)
+
 
     def fit(self, data, fit_kws=None, **kws):
         x = np.hstack([d.x for d in data])
