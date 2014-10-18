@@ -261,10 +261,10 @@ class KuruczGetter():
         self.NN_interpolator = NearestNDInterpolator(self.grid, self.spectra)  # , rescale=True)
 
         # Set up arrays for things already interpolated
-        self.Tvals = Tvals
-        self.loggvals = loggvals
-        self.metalvals = metalvals
-        self.alphavals = alphavals
+        self.Tvals = list(Tvals)
+        self.loggvals = list(loggvals)
+        self.metalvals = list(metalvals)
+        self.alphavals = list(alphavals)
         self.vsinivals = [-0.5] * len(Tvals)
         self.spec = list(self.spectra)
 
@@ -371,20 +371,20 @@ class KuruczGetter():
         # Try first_interpolator
         fallback = True
         if first_interpolator is not None:
-            y = self.interpolator((T, logg, metal, alpha, vsini))
+            y = first_interpolator((T, logg, metal, alpha, vsini))
             if np.all(-np.isnan(y)):
                 fallback = False
 
         if fallback:
-            savespectrum = False
-            if (T not in self.Tvals and logg not in self.loggvals and metal not in self.metalvals and
-                        alpha not in self.metalvals and vsini not in self.vsinivals):
-                self.Tvals.append(T)
-                self.loggvals.append(logg)
-                self.metalvals.append(metal)
-                self.alphavals.append(alpha)
-                self.vsinivals.append(vsini)
-                savespectrum = True
+            #savespectrum = False
+            #if (T not in self.Tvals and logg not in self.loggvals and metal not in self.metalvals and
+            #            alpha not in self.metalvals and vsini not in self.vsinivals):
+            #    self.Tvals.append(T)
+            #    self.loggvals.append(logg)
+            #    self.metalvals.append(metal)
+            #    self.alphavals.append(alpha)
+            #    self.vsinivals.append(vsini)
+            #    savespectrum = True
 
             # Get the minimum and maximum values in the grid
             T_min = min(self.grid[:, 0])
@@ -418,11 +418,11 @@ class KuruczGetter():
                 y = self.NN_interpolator((T, logg, metal, alpha))
 
         model = DataStructures.xypoint(x=self.xaxis, y=y)
-        vsini = (vsini * self.vsini_scale[1] + self.vsini_scale[0]) * u.km.to(u.cm)
+        vsini = (vsini * self.vsini_scale[1] + self.vsini_scale[0]) * units.km.to(units.cm)
         model = Broaden.RotBroad(model, vsini, linear=self.rebin)
 
-        if fallback and savespectrum:
-            self.spec.append(model.y)
+        #if fallback and savespectrum:
+        #    self.spec.append(model.y)
 
         #Return the appropriate object
         if return_xypoint:
