@@ -16,6 +16,7 @@ import DataStructures
 import pyraf
 from astropy.io import fits
 from astropy.time import Time
+import subprocess
 
 pyraf.iraf.noao()
 pyraf.iraf.noao.rv()
@@ -27,7 +28,7 @@ def convert(coord, delim=":"):
     return s * (abs(float(segments[0])) + float(segments[1]) / 60.0 + float(segments[2]) / 3600.0)
 
 
-def HelCorr(header, observatory="CTIO", debug=False):
+def HelCorr_IRAF(header, observatory="CTIO", debug=False):
     """
     Get the heliocentric correction for an observation
     """
@@ -56,6 +57,25 @@ def HelCorr(header, observatory="CTIO", debug=False):
         for line in output:
             print line
     return vbary
+
+
+def HelCorr(header, observatory="CTIO", idlpath="/Applications/itt/idl/bin/idl", debug=False):
+    ra = convert(header['RA'])
+    dec = convert(header['DEC'])
+    jd = header['jd']
+
+    command = '{:s} -d "print, barycorr({:f}, {:f}, {:f}, 0, obsname=\'{:s}\')'.format(idlpath,
+                                                                                       ra,
+                                                                                       dec,
+                                                                                       observatory)
+    if debug:
+        print command
+
+    output = subprocess.check_output(command, shell=True).split("\n")
+    return float(output[-1])
+
+
+
 
 
 def Process_Data(fname, badregions=[], extensions=True, trimsize=1):
