@@ -13,13 +13,18 @@ import Correlate
 import HelperFunctions
 import StellarModel
 import DataStructures
-import pyraf
+try:
+    import pyraf
+    pyraf_import = True
+except ImportError:
+    pyraf_import = False
 from astropy.io import fits
 from astropy.time import Time
 import subprocess
 
-pyraf.iraf.noao()
-pyraf.iraf.noao.rv()
+if pyraf_import:
+    pyraf.iraf.noao()
+    pyraf.iraf.noao.rv()
 
 
 def convert(coord, delim=":"):
@@ -27,37 +32,32 @@ def convert(coord, delim=":"):
     s = np.sign(float(segments[0]))
     return s * (abs(float(segments[0])) + float(segments[1]) / 60.0 + float(segments[2]) / 3600.0)
 
-
-def HelCorr_IRAF(header, observatory="CTIO", debug=False):
-    """
-    Get the heliocentric correction for an observation
-    """
-    # Get the heliocentric correction
-    ra = convert(header['RA'])
-    dec = convert(header['DEC'])
-    # jd = getJD(header, rootdir=rootdir)
-    jd = header['jd']
-    t = Time(jd, format='jd', scale='utc')
-    dt = t.datetime
-    year = dt.year
-    month = dt.month
-    day = dt.day
-    time = dt.isoformat().split("T")[-1]
-    output = pyraf.iraf.noao.rv.rvcorrect(epoch=2000.0,
-                                          observatory=observatory,
-                                          year=dt.year,
-                                          month=dt.month,
-                                          day=dt.day,
-                                          ut=header['ut'],
-                                          ra=header['ra'],
-                                          dec=header['dec'],
-                                          Stdout=1)
-    vbary = float(output[-1].split()[2])
-    if debug:
-        for line in output:
-            print line
-    return vbary
-
+if pyraf_import:
+    def HelCorr_IRAF(header, observatory="CTIO", debug=False):
+        """
+        Get the heliocentric correction for an observation
+        """
+        jd = header['jd']
+        t = Time(jd, format='jd', scale='utc')
+        dt = t.datetime
+        output = pyraf.iraf.noao.rv.rvcorrect(epoch=2000.0,
+                                              observatory=observatory,
+                                              year=dt.year,
+                                              month=dt.month,
+                                              day=dt.day,
+                                              ut=header['ut'],
+                                              ra=header['ra'],
+                                              dec=header['dec'],
+                                              Stdout=1)
+        vbary = float(output[-1].split()[2])
+        if debug:
+            for line in output:
+                print line
+        return vbary
+else:
+    def HelCorr_IRAF(header, observatory="CTIO", debug=False):
+        print "pyraf is not installed! Trying to use the idl version!"
+        return 1e-3 * HelCorr(header, observatory=observatory, debug=debug)
 
 def HelCorr(header, observatory="CTIO", idlpath="/Applications/itt/idl/bin/idl", debug=False):
     ra = convert(header['RA'])
