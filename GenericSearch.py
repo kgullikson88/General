@@ -59,20 +59,26 @@ else:
         print "pyraf is not installed! Trying to use the idl version!"
         return 1e-3 * HelCorr(header, observatory=observatory, debug=debug)
 
+
 def HelCorr(header, observatory="CTIO", idlpath="/Applications/itt/idl/bin/idl", debug=False):
-    ra = convert(header['RA'])
+    ra = 15.0 * convert(header['RA'])
     dec = convert(header['DEC'])
-    jd = header['jd']
+    jd = float(header['jd'])
 
-    command = '{:s} -d "print, barycorr({:f}, {:f}, {:f}, 0, obsname=\'{:s}\')'.format(idlpath,
-                                                                                       ra,
-                                                                                       dec,
-                                                                                       observatory)
+    cmd_list = [idlpath,
+                '-e',
+                ("print, barycorr({:.8f}, {:.8f}, {:.8f}, 0,"
+                 " obsname='CTIO')".format(jd, ra, dec)),
+    ]
     if debug:
-        print command
-
-    output = subprocess.check_output(command, shell=True).split("\n")
-    return float(output[-1])
+        print "RA: ", ra
+        print "DEC: ", dec
+        print "JD: ", jd
+    output = subprocess.check_output(cmd_list).split("\n")
+    if debug:
+        for line in output:
+            print line
+    return float(output[-2])
 
 
 

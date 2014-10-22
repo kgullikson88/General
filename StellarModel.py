@@ -238,35 +238,36 @@ class KuruczGetter():
                                                                             wavemax=wavemax,
                                                                             xaxis=None)
 
+        # Check if there are actually two different values of alpha/Fe
+        alpha_varies = True if max(alphavals) - min(alphavals) > 0.1 else False
 
         # Scale the variables so they all have about the same range
         self.T_scale = ((max(Tvals) + min(Tvals)) / 2.0, max(Tvals) - min(Tvals))
         self.metal_scale = ((max(metalvals) + min(metalvals)) / 2.0, max(metalvals) - min(metalvals))
         self.logg_scale = ((max(loggvals) + min(loggvals)) / 2.0, max(loggvals) - min(loggvals))
-        self.alpha_scale = ((max(alphavals) + min(alphavals)) / 2.0, max(alphavals) - min(alphavals))
-        self.vsini_scale = (150.0, 300.0)
+        if alpha_varies:
+            self.alpha_scale = ((max(alphavals) + min(alphavals)) / 2.0, max(alphavals) - min(alphavals))
         Tvals = (np.array(Tvals) - self.T_scale[0]) / self.T_scale[1]
         loggvals = (np.array(loggvals) - self.logg_scale[0]) / self.logg_scale[1]
         metalvals = (np.array(metalvals) - self.metal_scale[0]) / self.metal_scale[1]
-        alphavals = (np.array(alphavals) - self.alpha_scale[0]) / self.alpha_scale[1]
+        if alpha_varies:
+            alphavals = (np.array(alphavals) - self.alpha_scale[0]) / self.alpha_scale[1]
         print self.T_scale
         print self.metal_scale
         print self.logg_scale
-        print self.alpha_scale
+        if alpha_varies:
+            print self.alpha_scale
 
         # Make the grid and interpolator instances
-        self.grid = np.array((Tvals, loggvals, metalvals, alphavals)).T
+        if alpha_varies:
+            self.grid = np.array((Tvals, loggvals, metalvals, alphavals)).T
+        else:
+            self.grid = np.array((Tvals, loggvals, metalvals)).T
         self.spectra = np.array(spectra)
         self.interpolator = LinearNDInterpolator(self.grid, self.spectra)  # , rescale=True)
         self.NN_interpolator = NearestNDInterpolator(self.grid, self.spectra)  # , rescale=True)
+        self.alpha_varies = alpha_varies
 
-        # Set up arrays for things already interpolated
-        self.Tvals = list(Tvals)
-        self.loggvals = list(loggvals)
-        self.metalvals = list(metalvals)
-        self.alphavals = list(alphavals)
-        self.vsinivals = [-0.5] * len(Tvals)
-        self.spec = list(self.spectra)
 
 
     def read_grid(self,modeldir, rebin=True, T_min=7000, T_max=9000, logg_min=3.5, logg_max=4.5, metal_min=-0.5,
@@ -336,25 +337,12 @@ class KuruczGetter():
         return Tvals, loggvals, metalvals, alphavals, spectra
 
 
-    def make_vsini_interpolator(self):
-        """
-        Makes an interpolator that uses the values already interpolated between
-        :return: The interpolator
-        """
-        grid = np.array((self.Tvals, self.loggvals, self.metalvals, self.alphavals, self.vsinivals)).T
-        spectra = np.array(self.spec)
-        interpolator = LinearNDInterpolator(grid, spectra)
-        return interpolator
-
-
-    def __call__(self, T, logg, metal, alpha, vsini=0.0, return_xypoint=True, first_interpolator=None):
+    def __call__(self, T, logg, metal, alpha, vsini=0.0, return_xypoint=True):
         """
         Given parameters, return an interpolated spectrum
 
         If return_xypoint is False, then it will only return
           a numpy.ndarray with the spectrum
-
-        if first_interpolator is given, it will try to interpolate with that first and check for NaNs
 
         Before interpolating, we will do some error checking to make
         sure the requested values fall within the grid
@@ -365,64 +353,49 @@ class KuruczGetter():
         T = (T - self.T_scale[0]) / self.T_scale[1]
         logg = (logg - self.logg_scale[0]) / self.logg_scale[1]
         metal = (metal - self.metal_scale[0]) / self.metal_scale[1]
-        alpha = (alpha - self.alpha_scale[0]) / self.alpha_scale[1]
-        vsini = (vsini - self.vsini_scale[0]) / self.vsini_scale[1]
+        if self.alpha_varies:
+            alpha = (alpha - self.alpha_scale[0]) / self.alpha_scale[1]
 
-        # Try first_interpolator
-        fallback = True
-        if first_interpolator is not None:
-            y = first_interpolator((T, logg, metal, alpha, vsini))
-            if np.all(-np.isnan(y)):
-                fallback = False
 
-        if fallback:
-            #savespectrum = False
-            #if (T not in self.Tvals and logg not in self.loggvals and metal not in self.metalvals and
-            #            alpha not in self.metalvals and vsini not in self.vsinivals):
-            #    self.Tvals.append(T)
-            #    self.loggvals.append(logg)
-            #    self.metalvals.append(metal)
-            #    self.alphavals.append(alpha)
-            #    self.vsinivals.append(vsini)
-            #    savespectrum = True
+        # Get the minimum and maximum values in the grid
+        T_min = min(self.grid[:, 0])
+        T_max = max(self.grid[:, 0])
+        logg_min = min(self.grid[:, 1])
+        logg_max = max(self.grid[:, 1])
+        metal_min = min(self.grid[:, 2])
+        metal_max = max(self.grid[:, 2])
+        alpha_min = min(self.grid[:, 3])
+        alpha_max = max(self.grid[:, 3])
+        if self.alpha_varies:
+            input_list = (T, logg, metal, alpha)
+        else:
+            input_list = (T, logg, metal)
 
-            # Get the minimum and maximum values in the grid
-            T_min = min(self.grid[:, 0])
-            T_max = max(self.grid[:, 0])
-            logg_min = min(self.grid[:, 1])
-            logg_max = max(self.grid[:, 1])
-            metal_min = min(self.grid[:, 2])
-            metal_max = max(self.grid[:, 2])
-            alpha_min = min(self.grid[:, 3])
-            alpha_max = max(self.grid[:, 3])
+        # Check to make sure the requested values fall within the grid
+        if (T_min <= T <= T_max and
+                        logg_min <= logg <= logg_max and
+                        metal_min <= metal <= metal_max and
+                (not self.alpha_varies or alpha_min <= alpha <= alpha_max)):
 
-            # Check to make sure the requested values fall within the grid
-            if (T_min <= T <= T_max and
-                            logg_min <= logg <= logg_max and
-                            metal_min <= metal <= metal_max and
-                            alpha_min <= alpha <= alpha_max):
+            y = self.interpolator(input_list)
+        else:
+            warnings.warn("The requested parameters fall outside the model grid. Results may be unreliable!")
+            print T, T_min, T_max
+            print logg, logg_min, logg_max
+            print metal, metal_min, metal_max
+            print alpha, alpha_min, alpha_max
+            y = self.NN_interpolator(input_list)
 
-                y = self.interpolator((T, logg, metal, alpha))
-            else:
-                warnings.warn("The requested parameters fall outside the model grid. Results may be unreliable!")
-                print T, T_min, T_max
-                print logg, logg_min, logg_max
-                print metal, metal_min, metal_max
-                print alpha, alpha_min, alpha_max
-                y = self.NN_interpolator((T, logg, metal, alpha))
-
-            # Test to make sure the result is valid. If the requested point is
-            # outside the Delaunay triangulation, it will return NaN's
-            if np.any(np.isnan(y)):
-                warnings.warn("Found NaNs in the interpolated spectrum! Falling back to Nearest Neighbor")
-                y = self.NN_interpolator((T, logg, metal, alpha))
+        # Test to make sure the result is valid. If the requested point is
+        # outside the Delaunay triangulation, it will return NaN's
+        if np.any(np.isnan(y)):
+            warnings.warn("Found NaNs in the interpolated spectrum! Falling back to Nearest Neighbor")
+            y = self.NN_interpolator(input_list)
 
         model = DataStructures.xypoint(x=self.xaxis, y=y)
-        vsini = (vsini * self.vsini_scale[1] + self.vsini_scale[0]) * units.km.to(units.cm)
+        vsini *= units.km.to(units.cm)
         model = Broaden.RotBroad(model, vsini, linear=self.rebin)
 
-        #if fallback and savespectrum:
-        #    self.spec.append(model.y)
 
         #Return the appropriate object
         if return_xypoint:

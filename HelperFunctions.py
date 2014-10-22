@@ -19,7 +19,7 @@ import pySIMBAD as sim
 import SpectralTypeRelations
 import readmultispec as multispec
 from lmfit import Model
-
+from astropy.time import Time
 
 try:
     import emcee
@@ -834,3 +834,109 @@ def mad(arr):
     median = np.median(arr)
     arr = np.array(arr)
     return np.median(np.abs(arr - median))
+
+
+def radec2altaz(ra, dec, obstime, lat=None, long=None, debug=False):
+    """
+    calculates the altitude and azimuth, given an ra, dec, time, and observatory location
+    :param ra: right ascension of the target (in degrees)
+    :param dec: declination of the target (in degrees)
+    :param obstime: an astropy.time.Time object containing the time of the observation.
+                    Can also contain the observatory location
+    :param lat: The latitude of the observatory. Not needed if given in the obstime object
+    :param long: The longitude of the observatory. Not needed if given in the obstime object
+    :return:
+    """
+
+    if lat is None:
+        lat = obstime.lat.degree
+    if long is None:
+        long = obstime.lon.degree
+    obstime = Time(obstime.isot, format='isot', scale='utc', location=(long, lat))
+
+    # Find the number of days since J2000
+    j2000 = Time("2000-01-01T12:00:00.0", format='isot', scale='utc')
+    dt = (obstime - j2000).value  # number of days since J2000 epoch
+
+    # get the UT time
+    tstring = obstime.isot.split("T")[-1]
+    segments = tstring.split(":")
+    ut = float(segments[0]) + float(segments[1]) / 60.0 + float(segments[2]) / 3600
+
+    # Calculate Local Sidereal Time
+    lst = obstime.sidereal_time('mean').deg
+
+    # Calculate the hour angle
+    HA = lst - ra
+    while HA < 0.0 or HA > 360.0:
+        s = -np.sign(HA)
+        HA += s * 360.0
+
+    # convert everything to radians
+    dec *= np.pi / 180.0
+    ra *= np.pi / 180.0
+    lat *= np.pi / 180.0
+    long *= np.pi / 180.0
+    HA *= np.pi / 180.0
+
+    # Calculate the altitude
+    alt = np.arcsin(np.sin(dec) * np.sin(lat) + np.cos(dec) * np.cos(lat) * np.cos(HA))
+
+    # calculate the azimuth
+    az = np.arccos((np.sin(dec) - np.sin(alt) * np.sin(lat)) / (np.cos(alt) * np.cos(lat)))
+    if np.sin(HA) > 0:
+        az = 2.0 * np.pi - az
+
+    if debug:
+        print "UT: ", ut
+        print "LST: ", lst
+        print "HA: ", HA * 180.0 / np.pi
+
+    return alt * 180.0 / np.pi, az * 180.0 / np.pi
+
+
+def convert_hex_string(string, delimiter=":"):
+    """
+    Converts a hex coordinate string to a decimal
+    :param string: The string to convert
+    :param delimiter: The delimiter
+    :return: the decimal number
+    """
+    segments = string.split(delimiter)
+    s = np.sign(float(segments[0]))
+    return s * (abs(float(segments[0])) + float(segments[1]) / 60.0 + float(segments[2]) / 3600.0)
+
+
+def GetZenithDistance(header=None, date=None, ut=None, ra=None, dec=None, lat=None, long=None, debug=False):
+    """
+    Function to get the zenith distance to an object
+    :param header: the fits header (or a dictionary with the keys 'date-obs', 'ra', and 'dec')
+    :param date: The UT date of the observation (only used if header not given)
+    :param ut: The UTC time of the observation (only used if header not given)
+    :param ra: The right ascension of the observation, in degrees (only used if header not given)
+    :param dec: The declination of the observation, in degrees (only used if header not given)
+    :param lat: The latitude of the observatory, in degrees
+    :param long: The longitude of the observatory, in degrees
+    :return: The zenith distance of the object, in degrees
+    """
+
+    if header is None:
+        obstime = Time("{}T{}".format(date, ut), format='isot', scale='utc', location=(long, lat))
+    else:
+        obstime = Time(header['date-obs'], format='isot', scale='utc', location=(long, lat))
+        delimiter = ":" if ":" in header['ra'] else " "
+        ra = 15.0 * convert_hex_string(header['ra'], delimiter=delimiter)
+        dec = convert_hex_string(header['dec'], delimiter=delimiter)
+
+    if debug:
+        print ra, dec
+    alt, az = radec2altaz(ra, dec, obstime, debug=debug)
+    return 90.0 - alt
+
+
+
+
+
+
+
+
