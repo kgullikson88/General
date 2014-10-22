@@ -364,8 +364,8 @@ class KuruczGetter():
         logg_max = max(self.grid[:, 1])
         metal_min = min(self.grid[:, 2])
         metal_max = max(self.grid[:, 2])
-        alpha_min = min(self.grid[:, 3])
-        alpha_max = max(self.grid[:, 3])
+        alpha_min = min(self.grid[:, 3]) if self.alpha_varies else 0.0
+        alpha_max = max(self.grid[:, 3]) if self.alpha_varies else 0.0
         if self.alpha_varies:
             input_list = (T, logg, metal, alpha)
         else:
