@@ -29,7 +29,7 @@ if pyraf_import:
 
 def convert(coord, delim=":"):
     segments = coord.split(delim)
-    s = np.sign(float(segments[0]))
+    s = -1.0 if "-" in segments[0] else 1.0
     return s * (abs(float(segments[0])) + float(segments[1]) / 60.0 + float(segments[2]) / 3600.0)
 
 if pyraf_import:
@@ -40,7 +40,8 @@ if pyraf_import:
         jd = header['jd']
         t = Time(jd, format='jd', scale='utc')
         dt = t.datetime
-        output = pyraf.iraf.noao.rv.rvcorrect(epoch=2000.0,
+        output = pyraf.iraf.noao.rv.rvcorrect(epoch='INDEF',
+                                              epoch_vsun='INDEF',
                                               observatory=observatory,
                                               year=dt.year,
                                               month=dt.month,
@@ -48,6 +49,9 @@ if pyraf_import:
                                               ut=header['ut'],
                                               ra=header['ra'],
                                               dec=header['dec'],
+                                              files="",
+                                              images="",
+                                              input='no',
                                               Stdout=1)
         vbary = float(output[-1].split()[2])
         if debug:
@@ -160,13 +164,15 @@ def CompanionSearch(fileList,
                     vsini_values=(10, 20, 30, 40),
                     Tvalues=range(3000, 6900, 100),
                     metal_values=(-0.5, 0.0, +0.5),
+                    logg_values=(4.5,),
                     modeldir="models/",
                     vbary_correct=True,
                     addmode="ML",
                     debug=False):
     model_list = StellarModel.GetModelList(model_directory=modeldir,
                                            temperature=Tvalues,
-                                           metal=metal_values)
+                                           metal=metal_values,
+                                           logg=logg_values)
     modeldict, processed = StellarModel.MakeModelDicts(model_list, vsini_values=vsini_values, vac2air=True)
 
 
@@ -199,7 +205,7 @@ def CompanionSearch(fileList,
                                                    vsini=vsini,
                                                    rebin_data=True,
                                                    process_model=pflag,
-                                                   debug=False,
+                                                   debug=debug,
                                                    outputdir=output_dir.split("Cross_corr")[0],
                                                    addmode=addmode)
                         corr = retdict["CCF"]

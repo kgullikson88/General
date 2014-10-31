@@ -135,7 +135,7 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
                                    names=["wave", "flux"],
                                    usecols=(0, 1),
                                    sep=' ',
-				   skipinitialspace=True)
+                                   skipinitialspace=True)
             x, y = data['wave'].values, data['flux'].values
             # x, y = np.loadtxt(fname, usecols=(0, 1), unpack=True)
             if vac2air:
