@@ -85,14 +85,12 @@ def HelCorr(header, observatory="CTIO", idlpath="/Applications/itt/idl/bin/idl",
     return float(output[-2])
 
 
-
-
-
-def Process_Data(fname, badregions=[], extensions=True, trimsize=1):
+def Process_Data(fname, badregions=[], interp_regions=[], extensions=True, trimsize=1):
     """
 
     :param fname: The filename to read in (should be a fits file)
     :param badregions: a list of regions to exclude (contains strong telluric or stellar line residuals)
+    :param interp_regions: a list of regions to interpolate over
     :param extensions: A boolean flag for whether the fits file is separated into extensions
     :param trimsize: The amount to exclude from both ends of every order (where it is very noisy)
     :return:
@@ -126,6 +124,12 @@ def Process_Data(fname, badregions=[], extensions=True, trimsize=1):
             order.cont = np.delete(order.cont, np.arange(left, right))
             order.err = np.delete(order.err, np.arange(left, right))
 
+        # Interpolate over interp_regions:
+        for region in interp_regions:
+            left = np.searchsorted(order.x, region[0])
+            right = np.searchsorted(order.x, region[1])
+            order.y[left:right] = order.cont[left:right]
+
 
         # Remove whole order if it is too small
         remove = False
@@ -158,6 +162,7 @@ def Process_Data(fname, badregions=[], extensions=True, trimsize=1):
 
 def CompanionSearch(fileList,
                     badregions=[],
+                    interp_regions=[],
                     extensions=True,
                     resolution=60000,
                     trimsize=1,
@@ -184,7 +189,8 @@ def CompanionSearch(fileList,
                     for fname in fileList:
                         if vbary_correct:
                             vbary = HelCorr(fits.getheader(fname))
-                        orders = Process_Data(fname, badregions, extensions=extensions, trimsize=trimsize)
+                        orders = Process_Data(fname, badregions, interp_regions=interp_regions,
+                                              extensions=extensions, trimsize=trimsize)
 
                         output_dir = "Cross_correlations/"
                         outfilebase = fname.split(".fits")[0]
