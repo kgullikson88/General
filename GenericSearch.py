@@ -180,6 +180,8 @@ def CompanionSearch(fileList,
                                            logg=logg_values)
     modeldict, processed = StellarModel.MakeModelDicts(model_list, vsini_values=vsini_values, vac2air=True)
 
+    get_weights = True if addmode.lower() == "weighted" else False
+    orderweights = None
 
     # Do the cross-correlation
     for temp in sorted(modeldict.keys()):
@@ -205,6 +207,8 @@ def CompanionSearch(fileList,
 
                         model = modeldict[temp][gravity][metallicity][vsini]
                         pflag = not processed[temp][gravity][metallicity][vsini]
+                        if pflat:
+                            orderweights = None
                         retdict = Correlate.GetCCF(orders,
                                                    model,
                                                    resolution=resolution,
@@ -213,11 +217,14 @@ def CompanionSearch(fileList,
                                                    process_model=pflag,
                                                    debug=debug,
                                                    outputdir=output_dir.split("Cross_corr")[0],
-                                                   addmode=addmode)
+                                                   addmode=addmode,
+                                                   orderweights=orderweights,
+                                                   get_weights=get_weights)
                         corr = retdict["CCF"]
                         if pflag:
                             processed[temp][gravity][metallicity][vsini] = True
                             modeldict[temp][gravity][metallicity][vsini] = retdict["model"]
+                            orderweights = retdict['weights']
 
                         outfilename = "%s%s.%.0fkps_%sK%+.1f%+.1f" % (
                             output_dir, outfilebase, vsini, temp, gravity, metallicity)

@@ -82,7 +82,7 @@ for fname in model_list:
 """
 
 
-def Process(model, data, vsini, resolution, debug=False, oversample=1):
+def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weights=False):
     # Read in the model if necessary
     if isinstance(model, str):
         if debug:
@@ -121,6 +121,7 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1):
 
     # Rebin subsets of the model to the same spacing as the data
     model_orders = []
+    weights = []
     if debug:
         model.output("Test_model.dat")
 
@@ -149,12 +150,21 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1):
         segment.cont = FittingUtilities.Continuum(segment.x, segment.y, lowreject=1.5, highreject=5, fitorder=2)
         model_orders.append(segment)
 
+        # Measure the information content in the model, if get_weights is true
+        if get_weights:
+            slopes = [(segment.y[i + 1] / segment.cont[i + 1] - segment.y[i - 1] / segment.cont[i - 1]) /
+                      (segment.x[i + 1] - segment.x[i - 1]) for i in range(1, segments.size() - 1)]
+            weights.append(np.sum(np.array(slopes) ** 2))
+
+
     print "\n"
+    if get_weights:
+        return model_orders, np.array(weights) / np.sum(weights)
     return model_orders
 
 
 def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_data=True, debug=False, outputdir="./",
-           addmode="ML", oversample=1, orderweights=None):
+           addmode="ML", oversample=1, orderweights=None, get_weights=False):
     """
     This is the main function. CALL THIS ONE!
     data: a list of xypoint instances with the data
@@ -175,11 +185,16 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
                better for determining parameters from the CCF (such as vsini)
     oversample: If rebin_data = True, this is the factor by which to over-sample
                 the data while rebinning it. Ignored if rebin_data = False
+    orderweights: Weights to apply to each order. Only used if addmode="weighted"
+    get_weights: If true, and process_model=True, then the Process functions will
+                 return both the model orders and weights for each function.In
+                 addition, the weights will be returned in the output dictionary.
+                 The weights are only used if addmode="weighted"
     """
     # Some error checking
     if addmode.lower() not in ["ml", "simple", "weighted"]:
         sys.exit("Invalid add mode given to Correlate.GetCCF: %s" % addmode)
-    if addmode.lower() == "weighted" and orderweights is None:
+    if addmode.lower() == "weighted" and orderweights is None and not get_weights:
         raise ValueError("Must give orderweights if addmode == weighted")
     if addmode.lower() == "weighted" and len(orderweights) != len(data):
         raise ValueError("orderweights must be a list-like object with the same size as data!")
@@ -199,7 +214,9 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
     # Process the model if necessary
     if process_model:
         model_orders = Process(model, data, vsini * units.km.to(units.cm), resolution, debug=debug,
-                               oversample=oversample)
+                               oversample=oversample, get_weights=get_weights)
+        if get_weights:
+            model_orders, orderweights = model_orders
     elif isinstance(model, list) and isinstance(model[0], DataStructures.xypoint):
         model_orders = model
     else:
@@ -210,7 +227,8 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
 
     retdict = {"CCF": corr,
                "model": model_orders,
-               "data": data}
+               "data": data,
+               "weights": orderweights}
     return retdict
 
 
