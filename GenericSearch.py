@@ -207,7 +207,7 @@ def CompanionSearch(fileList,
 
                         model = modeldict[temp][gravity][metallicity][vsini]
                         pflag = not processed[temp][gravity][metallicity][vsini]
-                        if pflat:
+                        if pflag:
                             orderweights = None
                         retdict = Correlate.GetCCF(orders,
                                                    model,
