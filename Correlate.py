@@ -112,7 +112,7 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weigh
         model = RotBroad.Broaden(model, vsini, linear=True)
 
 
-    #Reduce resolution
+    # Reduce resolution
     if debug:
         print "Convolving to the detector resolution of %g" % resolution
     if resolution > 5000 and resolution < 500000:
@@ -153,12 +153,12 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weigh
         # Measure the information content in the model, if get_weights is true
         if get_weights:
             slopes = [(segment.y[i + 1] / segment.cont[i + 1] - segment.y[i - 1] / segment.cont[i - 1]) /
-                      (segment.x[i + 1] - segment.x[i - 1]) for i in range(1, segments.size() - 1)]
+                      (segment.x[i + 1] - segment.x[i - 1]) for i in range(1, segment.size() - 1)]
             weights.append(np.sum(np.array(slopes) ** 2))
-
 
     print "\n"
     if get_weights:
+        print "Weights: ", np.array(weights) / np.sum(weights)
         return model_orders, np.array(weights) / np.sum(weights)
     return model_orders
 
@@ -196,7 +196,7 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
         sys.exit("Invalid add mode given to Correlate.GetCCF: %s" % addmode)
     if addmode.lower() == "weighted" and orderweights is None and not get_weights:
         raise ValueError("Must give orderweights if addmode == weighted")
-    if addmode.lower() == "weighted" and len(orderweights) != len(data):
+    if addmode.lower() == "weighted" and not get_weights and len(orderweights) != len(data):
         raise ValueError("orderweights must be a list-like object with the same size as data!")
 
     # Re-sample all orders of the data to logspacing, if necessary
@@ -222,7 +222,7 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
     else:
         raise TypeError("model must be a list of DataStructures.xypoints if process=False!")
 
-            # Now, cross-correlate the new data against the model
+        # Now, cross-correlate the new data against the model
     corr = Correlate(data, model_orders, debug=debug, outputdir=outputdir, addmode=addmode, orderweights=orderweights)
 
     retdict = {"CCF": corr,
@@ -290,7 +290,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML", ord
         if np.any(np.isnan(corr.y)):
             warnings.warn("NaNs found in correlation from order %i\n" % (ordernum + 1))
             continue
-        #print "\n"
+        # print "\n"
         normalization += float(order.size())
         corrlist.append(corr.copy())
 
