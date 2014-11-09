@@ -317,6 +317,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML", ord
         master_corr = total.copy()
     elif addmode.lower() == "weighted":
         # Weight the ccf by orderweights
+
         total.y = np.ones(total.size())
         for i, corr in enumerate(corrlist):
             w = orderweights[i] / np.sum(orderweights)
@@ -325,6 +326,16 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML", ord
             total.y *= np.power(w * (1.0 - correlation(total.x) ** 2), float(N) / normalization)
         master_corr = total.copy()
         master_corr.y = np.sqrt(1.0 - total.y)
+        """
+        total.y = np.zeros(total.size())
+        for i, corr in enumerate(corrlist):
+            w = orderweights[i] / np.sum(orderweights)
+            correlation = spline(corr.x, corr.y, k=1)
+            N = data[i].size()
+            total.y += w*correlation(total.x)**2
+        master_corr = total.copy()
+        """
+
 
     return master_corr
 
