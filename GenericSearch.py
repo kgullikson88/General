@@ -8,12 +8,15 @@ It is called by several smaller scripts in each of the instrument-specific repos
 import FittingUtilities
 
 import numpy as np
+import DataStructures
+
 import Correlate
 import HelperFunctions
 import StellarModel
-import DataStructures
+
 try:
     import pyraf
+
     pyraf_import = True
 except ImportError:
     pyraf_import = False
@@ -34,6 +37,7 @@ def convert(coord, delim=":"):
     segments = coord.split(delim)
     s = -1.0 if "-" in segments[0] else 1.0
     return s * (abs(float(segments[0])) + float(segments[1]) / 60.0 + float(segments[2]) / 3600.0)
+
 
 if pyraf_import:
     def HelCorr_IRAF(header, observatory="CTIO", debug=False):
@@ -149,7 +153,7 @@ def Process_Data(fname, badregions=[], interp_regions=[], extensions=True, trims
             # Find outliers from e.g. bad telluric line or stellar spectrum removal.
             order.cont = FittingUtilities.Continuum(order.x, order.y, lowreject=3, highreject=3)
             outliers = HelperFunctions.FindOutliers(order, expand=10, numsiglow=5, numsighigh=5)
-            #plt.plot(order.x, order.y / order.cont, 'k-')
+            # plt.plot(order.x, order.y / order.cont, 'k-')
             if len(outliers) > 0:
                 #plt.plot(order.x[outliers], (order.y / order.cont)[outliers], 'r-')
                 order.y[outliers] = order.cont[outliers]
@@ -191,13 +195,18 @@ def CompanionSearch(fileList,
     # Do the cross-correlation
     datadict = defaultdict(list)
     temperature_dict = defaultdict(float)
+    vbary_dict = defaultdict(float)
     for temp in sorted(modeldict.keys()):
         for gravity in sorted(modeldict[temp].keys()):
             for metallicity in sorted(modeldict[temp][gravity].keys()):
                 for vsini in vsini_values:
                     for fname in fileList:
                         if vbary_correct:
-                            vbary = HelCorr_IRAF(fits.getheader(fname))
+                            if fname in vbary_dict:
+                                vbary = vbary_dict[fname]
+                            else:
+                                vbary = HelCorr_IRAF(fits.getheader(fname))
+                                vbary_dict[fname] = vbar
                         process_data = False if fname in datadict else True
                         if process_data:
                             orders = Process_Data(fname, badregions, interp_regions=interp_regions,
@@ -208,7 +217,7 @@ def CompanionSearch(fileList,
                             if match is None:
                                 spt = spt[0] + "5"
                             else:
-                                spt = spt[:match.start()+1]
+                                spt = spt[:match.start() + 1]
                             temperature_dict[fname] = MS.Interpolate(MS.Temperature, spt)
                         else:
                             orders = datadict[fname]
@@ -226,7 +235,7 @@ def CompanionSearch(fileList,
 
                         model = modeldict[temp][gravity][metallicity][vsini]
                         pflag = not processed[temp][gravity][metallicity][vsini]
-                        #if pflag:
+                        # if pflag:
                         #    orderweights = None
                         retdict = Correlate.GetCCF(orders,
                                                    model,
