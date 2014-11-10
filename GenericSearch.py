@@ -206,7 +206,7 @@ def CompanionSearch(fileList,
                                 vbary = vbary_dict[fname]
                             else:
                                 vbary = HelCorr_IRAF(fits.getheader(fname))
-                                vbary_dict[fname] = vbar
+                                vbary_dict[fname] = vbary
                         process_data = False if fname in datadict else True
                         if process_data:
                             orders = Process_Data(fname, badregions, interp_regions=interp_regions,
