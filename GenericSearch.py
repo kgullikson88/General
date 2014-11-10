@@ -8,7 +8,6 @@ It is called by several smaller scripts in each of the instrument-specific repos
 import FittingUtilities
 
 import numpy as np
-
 import Correlate
 import HelperFunctions
 import StellarModel
@@ -21,6 +20,10 @@ except ImportError:
 from astropy.io import fits
 from astropy.time import Time
 import subprocess
+from collections import defaultdict
+import StarData
+import SpectralTypeRelations
+import re
 
 if pyraf_import:
     pyraf.iraf.noao()
@@ -183,16 +186,32 @@ def CompanionSearch(fileList,
     get_weights = True if addmode.lower() == "weighted" else False
     orderweights = None
 
+    MS = SpectralTypeRelations.MainSequence()
+
     # Do the cross-correlation
+    datadict = defaultdict(list)
+    temperature_dict = defaultdict(float)
     for temp in sorted(modeldict.keys()):
         for gravity in sorted(modeldict[temp].keys()):
             for metallicity in sorted(modeldict[temp][gravity].keys()):
                 for vsini in vsini_values:
                     for fname in fileList:
                         if vbary_correct:
-                            vbary = HelCorr(fits.getheader(fname))
-                        orders = Process_Data(fname, badregions, interp_regions=interp_regions,
-                                              extensions=extensions, trimsize=trimsize)
+                            vbary = HelCorr_IRAF(fits.getheader(fname))
+                        process_data = False if fname in datadict else True
+                        if process_data:
+                            orders = Process_Data(fname, badregions, interp_regions=interp_regions,
+                                                  extensions=extensions, trimsize=trimsize)
+                            header = fits.getheader(fname)
+                            spt = StarData.GetData(header['object']).spectype
+                            match = re.search('[0-9]', spt)
+                            if match is None:
+                                spt = spt[0] + "5"
+                            else:
+                                spt = spt[:match.start()+1]
+                            temperature_dict[fname] = MS.Interpolate(MS.Temperature, spt)
+                        else:
+                            orders = datadict[fname]
 
                         output_dir = "Cross_correlations/"
                         outfilebase = fname.split(".fits")[0]
@@ -207,24 +226,27 @@ def CompanionSearch(fileList,
 
                         model = modeldict[temp][gravity][metallicity][vsini]
                         pflag = not processed[temp][gravity][metallicity][vsini]
-                        if pflag:
-                            orderweights = None
+                        #if pflag:
+                        #    orderweights = None
                         retdict = Correlate.GetCCF(orders,
                                                    model,
                                                    resolution=resolution,
                                                    vsini=vsini,
-                                                   rebin_data=True,
+                                                   rebin_data=process_data,
                                                    process_model=pflag,
                                                    debug=debug,
                                                    outputdir=output_dir.split("Cross_corr")[0],
                                                    addmode=addmode,
                                                    orderweights=orderweights,
-                                                   get_weights=get_weights)
+                                                   get_weights=get_weights,
+                                                   prim_teff=temperature_dict[fname])
                         corr = retdict["CCF"]
                         if pflag:
                             processed[temp][gravity][metallicity][vsini] = True
                             modeldict[temp][gravity][metallicity][vsini] = retdict["model"]
-                            orderweights = retdict['weights']
+                            #orderweights = retdict['weights']
+                        if process_data:
+                            datadict[fname] = retdict['data']
 
                         outfilename = "%s%s.%.0fkps_%sK%+.1f%+.1f" % (
                             output_dir, outfilebase, vsini, temp, gravity, metallicity)

@@ -1,19 +1,17 @@
 import sys
 import os
 import warnings
-import numpy as np
 import FittingUtilities
 import RotBroad_Fast as RotBroad
 
+import numpy as np
 from scipy.interpolate import UnivariateSpline
-
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import scipy.signal
 from astropy import units, constants
-
 import DataStructures
-
 import HelperFunctions
+from PlotBlackbodies import Planck
 
 
 currentdir = os.getcwd() + "/"
@@ -82,7 +80,7 @@ for fname in model_list:
 """
 
 
-def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weights=False):
+def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weights=False, prim_teff=10000.0):
     # Read in the model if necessary
     if isinstance(model, str):
         if debug:
@@ -122,6 +120,7 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weigh
     # Rebin subsets of the model to the same spacing as the data
     model_orders = []
     weights = []
+    flux_ratio = []
     if debug:
         model.output("Test_model.dat")
 
@@ -151,20 +150,25 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weigh
         model_orders.append(segment)
 
         # Measure the information content in the model, if get_weights is true
-        if get_weights:
-            slopes = [(segment.y[i + 1] / segment.cont[i + 1] - segment.y[i - 1] / segment.cont[i - 1]) /
-                      (segment.x[i + 1] - segment.x[i - 1]) for i in range(1, segment.size() - 1)]
-            weights.append(np.sum(np.array(slopes) ** 2))
+        #if get_weights:
+        #    slopes = [(segment.y[i + 1] / segment.cont[i + 1] - segment.y[i - 1] / segment.cont[i - 1]) /
+        #              (segment.x[i + 1] - segment.x[i - 1]) for i in range(1, segment.size() - 1)]
+        #    prim_flux = Planck(segment.x*units.nm.to(units.cm), prim_teff)
+        #    lines = FittingUtilities.FindLines(segment)
+        #    sec_flux = np.median(segment.cont[lines] - segment.y[lines])
+        #    flux_ratio.append(np.median(sec_flux) / np.median(prim_flux))
+        #    weights.append(np.sum(np.array(slopes) ** 2))
 
     print "\n"
-    if get_weights:
-        print "Weights: ", np.array(weights) / np.sum(weights)
-        return model_orders, np.array(weights) / np.sum(weights)
+    #if get_weights:
+    #    weights = np.array(weights) * np.array(flux_ratio)
+    #    print "Weights: ", np.array(weights) / np.sum(weights)
+    #    return model_orders, np.array(weights) / np.sum(weights)
     return model_orders
 
 
 def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_data=True, debug=False, outputdir="./",
-           addmode="ML", oversample=1, orderweights=None, get_weights=False):
+           addmode="ML", oversample=1, orderweights=None, get_weights=False, prim_teff=10000.0):
     """
     This is the main function. CALL THIS ONE!
     data: a list of xypoint instances with the data
@@ -190,6 +194,9 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
                  return both the model orders and weights for each function.In
                  addition, the weights will be returned in the output dictionary.
                  The weights are only used if addmode="weighted"
+    prim_teff:   The effective temperature of the primary star. Used to determine the
+                 flux ratio, which in turn is used to make the weights. Ignored if
+                 addmode is not "weighted" or get_weights is False.
     """
     # Some error checking
     if addmode.lower() not in ["ml", "simple", "weighted"]:
@@ -214,16 +221,17 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
     # Process the model if necessary
     if process_model:
         model_orders = Process(model, data, vsini * units.km.to(units.cm), resolution, debug=debug,
-                               oversample=oversample, get_weights=get_weights)
-        if get_weights:
-            model_orders, orderweights = model_orders
+                               oversample=oversample, get_weights=get_weights, prim_teff=prim_teff)
+        #if get_weights:
+        #    model_orders, orderweights = model_orders
     elif isinstance(model, list) and isinstance(model[0], DataStructures.xypoint):
         model_orders = model
     else:
         raise TypeError("model must be a list of DataStructures.xypoints if process=False!")
 
         # Now, cross-correlate the new data against the model
-    corr = Correlate(data, model_orders, debug=debug, outputdir=outputdir, addmode=addmode, orderweights=orderweights)
+    corr = Correlate(data, model_orders, debug=debug, outputdir=outputdir, addmode=addmode,
+                     orderweights=orderweights, get_weights=get_weights, prim_teff=prim_teff)
 
     retdict = {"CCF": corr,
                "model": model_orders,
@@ -237,16 +245,27 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
 """
 
 
-def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML", orderweights=None):
+def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
+              orderweights=None, get_weights=False, prim_teff=10000.0):
     # Error checking
-    if addmode.lower() == "weighted" and orderweights is None:
+    if addmode.lower() == "weighted" and orderweights is None and not get_weights:
         raise ValueError("Must give orderweights if addmode == weighted")
 
     corrlist = []
     normalization = 0.0
+    info_content = []
+    flux_ratio = []
     for ordernum, order in enumerate(data):
-        # print "Cross-correlating order %i" %(ordernum+1)
         model = model_orders[ordernum]
+        if get_weights:
+            slopes = [(model.y[i + 1] / model.cont[i + 1] - model.y[i - 1] / model.cont[i - 1]) /
+                      (model.x[i + 1] - model.x[i - 1]) for i in range(1, model.size() - 1)]
+            prim_flux = Planck(model.x*units.nm.to(units.cm), prim_teff)
+            lines = FittingUtilities.FindLines(model)
+            sec_flux = np.median(model.cont[lines] - model.y[lines])
+            flux_ratio.append(np.median(sec_flux) / np.median(prim_flux))
+            info_content.append(np.sum(np.array(slopes) ** 2))
+
         reduceddata = order.y
         reducedmodel = model.y / model.cont
         meandata = reduceddata.mean()
@@ -294,6 +313,11 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML", ord
         normalization += float(order.size())
         corrlist.append(corr.copy())
 
+    if get_weights:
+        orderweights = np.array(info_content) * np.array(flux_ratio)
+        orderweights /= orderweights.sum()
+        print "Weights = "
+        print orderweights
 
     # Add up the individual CCFs
     total = corrlist[0].copy()
@@ -326,6 +350,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML", ord
             total.y *= np.power(w * (1.0 - correlation(total.x) ** 2), float(N) / normalization)
         master_corr = total.copy()
         master_corr.y = np.sqrt(1.0 - total.y)
+        master_corr.y -= np.median(master_corr.y)
         """
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
