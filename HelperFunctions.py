@@ -934,9 +934,18 @@ def GetZenithDistance(header=None, date=None, ut=None, ra=None, dec=None, lat=No
     return 90.0 - alt
 
 
-
-
-
+def get_max_velocity(p_spt, s_temp):
+    MS = SpectralTypeRelations.MainSequence()
+    s_spt = MS.GetSpectralType(MS.Temperature, s_temp, interpolate=True)
+    R1 = MS.Interpolate(MS.Radius, p_spt)
+    T1 = MS.Interpolate(MS.Temperature, p_spt)
+    M1 = MS.Interpolate(MS.Mass, p_spt)
+    M2 = MS.Interpolate(MS.Mass, s_spt)
+    G = constants.G.cgs.value
+    Msun = constants.M_sun.cgs.value
+    Rsun = constants.R_sun.cgs.value
+    v2 = 2.0 * G * Msun * (M1 + M2) / (Rsun * R1 * (T1 / s_temp) ** 2)
+    return np.sqrt(v2) * units.cm.to(units.km)
 
 
 

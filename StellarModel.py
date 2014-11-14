@@ -87,7 +87,7 @@ def ClassifyModel(filename, type='phoenix'):
 
     if type.lower() == 'phoenix':
         segments = re.split("-|\+", filename.split("/")[-1])
-        temp = int(segments[0].split("lte")[-1]) * 100
+        temp = float(segments[0].split("lte")[-1]) * 100
         gravity = float(segments[1])
         metallicity = float(segments[2][:3])
         if not "+" in filename and metallicity > 0:
@@ -398,6 +398,180 @@ class KuruczGetter():
 
 
         #Return the appropriate object
+        if return_xypoint:
+            return model
+        else:
+            return model.y
+
+
+"""
+=======================================================================
+=======================================================================
+=======================================================================
+"""
+
+
+class PhoenixGetter():
+    def __init__(self, modeldir, rebin=True, T_min=3000, T_max=6800, metal_min=-0.5,
+                 metal_max=0.5, wavemin=0, wavemax=np.inf):
+        """
+        This class will read in a directory with Phoenix models
+
+        The associated methods can be used to interpolate a model at any
+        temperature, and metallicity value that
+        falls within the grid
+
+        modeldir: The directory where the models are stored. Can be a list of model directories too!
+        rebin: If True, it will rebin the models to a constant x-spacing
+        other args: The minimum and maximum values for the parameters to search.
+                    You need to keep this as small as possible to avoid memory issues!
+        """
+        self.rebin = rebin
+
+        # First, read in the grid
+        if HelperFunctions.IsListlike(modeldir):
+            # There are several directories to combine
+            Tvals = []
+            metalvals = []
+            for i, md in enumerate(modeldir):
+                if i == 0:
+                    T, Z, S = self.read_grid(md, rebin=rebin, T_min=T_min, T_max=T_max,
+                                             metal_min=metal_min, metal_max=metal_max,
+                                             wavemin=wavemin, wavemax=wavemax, xaxis=None)
+                    spectra = np.array(S)
+                else:
+                    T, Z, S = self.read_grid(md, rebin=rebin, T_min=T_min, T_max=T_max,
+                                             metal_min=metal_min, metal_max=metal_max,
+                                             wavemin=wavemin, wavemax=wavemax, xaxis=self.xaxis)
+                    S = np.array(S)
+                    spectra = np.vstack((spectra, S))
+
+                Tvals = np.hstack((Tvals, T))
+                metalvals = np.hstack((metalvals, Z))
+        else:
+            Tvals, metalvals, spectra = self.read_grid(modeldir, rebin=rebin,
+                                                       T_min=T_min, T_max=T_max,
+                                                       metal_min=metal_min, metal_max=metal_max,
+                                                       wavemin=wavemin, wavemax=wavemax, xaxis=None)
+
+        # Scale the variables so they all have about the same range
+        self.T_scale = ((max(Tvals) + min(Tvals)) / 2.0, max(Tvals) - min(Tvals))
+        self.metal_scale = ((max(metalvals) + min(metalvals)) / 2.0, max(metalvals) - min(metalvals))
+        Tvals = (np.array(Tvals) - self.T_scale[0]) / self.T_scale[1]
+        metalvals = (np.array(metalvals) - self.metal_scale[0]) / self.metal_scale[1]
+        print self.T_scale
+        print self.metal_scale
+
+        # Make the grid and interpolator instances
+        self.grid = np.array((Tvals, metalvals)).T
+        self.spectra = np.array(spectra)
+        self.interpolator = LinearNDInterpolator(self.grid, self.spectra)  # , rescale=True)
+        self.NN_interpolator = NearestNDInterpolator(self.grid, self.spectra)  # , rescale=True)
+
+
+    def read_grid(self, modeldir, rebin=True, T_min=3000, T_max=6800, metal_min=-0.5,
+                  metal_max=0.5, wavemin=0, wavemax=np.inf, xaxis=None):
+        Tvals = []
+        metalvals = []
+        spectra = []
+        firstkeeper = True
+        modelfiles = [f for f in os.listdir(modeldir) if
+                      f.startswith("lte") and "PHOENIX" in f and f.endswith(".sorted")]
+        for i, fname in enumerate(modelfiles):
+            T, logg, metal = ClassifyModel(fname)
+
+            # Read in and save file if it falls in the correct parameter range
+            if (T_min <= T <= T_max and
+                            metal_min <= metal <= metal_max and
+                        logg == 4.5):
+
+                print "Reading in file {:s}".format(fname)
+                data = pandas.read_csv("{:s}{:s}".format(modeldir, fname),
+                                       header=None,
+                                       names=["wave", "flux", "continuum"],
+                                       usecols=(0, 1, 2),
+                                       sep=' ',
+                                       skipinitialspace=True)
+                x, y, c = data['wave'].values, data['flux'].values, data['continuum'].values
+                n = 1.0 + 2.735182e-4 + 131.4182 / x ** 2 + 2.76249e8 / x ** 4
+                x /= n
+                x *= units.angstrom.to(units.nm)
+                y = 10 ** y / 10 ** c
+
+                left = np.searchsorted(x, wavemin)
+                right = np.searchsorted(x, wavemax)
+                x = x[left:right]
+                y = y[left:right]
+
+                if rebin:
+                    xgrid = np.linspace(x[0], x[-1], x.size) if firstkeeper else self.xaxis
+                    fcn = spline(x, y)
+                    x = xgrid
+                    y = fcn(xgrid)
+
+                if firstkeeper:
+                    if xaxis is None:
+                        self.xaxis = x
+                    else:
+                        self.xaxis = xaxis
+                    firstkeeper = False
+                elif np.max(np.abs(self.xaxis - x) > 1e-4):
+                    warnings.warn("x-axis for file {:s} is different from the master one! Not saving!".format(fname))
+                    continue
+
+                Tvals.append(T)
+                metalvals.append(metal)
+                spectra.append(y)
+
+        return Tvals, metalvals, spectra
+
+
+    def __call__(self, T, metal, vsini=0.0, return_xypoint=True):
+        """
+        Given parameters, return an interpolated spectrum
+
+        If return_xypoint is False, then it will only return
+          a numpy.ndarray with the spectrum
+
+        Before interpolating, we will do some error checking to make
+        sure the requested values fall within the grid
+        """
+
+        # Scale the requested values
+        print T, metal, vsini
+        T = (T - self.T_scale[0]) / self.T_scale[1]
+        metal = (metal - self.metal_scale[0]) / self.metal_scale[1]
+
+        # Get the minimum and maximum values in the grid
+        T_min = min(self.grid[:, 0])
+        T_max = max(self.grid[:, 0])
+        metal_min = min(self.grid[:, 1])
+        metal_max = max(self.grid[:, 1])
+        input_list = (T, metal)
+
+        # Check to make sure the requested values fall within the grid
+        if (T_min <= T <= T_max and
+                        metal_min <= metal <= metal_max):
+
+            y = self.interpolator(input_list)
+        else:
+            warnings.warn("The requested parameters fall outside the model grid. Results may be unreliable!")
+            print T, T_min, T_max
+            print metal, metal_min, metal_max
+            y = self.NN_interpolator(input_list)
+
+        # Test to make sure the result is valid. If the requested point is
+        # outside the Delaunay triangulation, it will return NaN's
+        if np.any(np.isnan(y)):
+            warnings.warn("Found NaNs in the interpolated spectrum! Falling back to Nearest Neighbor")
+            y = self.NN_interpolator(input_list)
+
+        model = DataStructures.xypoint(x=self.xaxis, y=y)
+        vsini *= units.km.to(units.cm)
+        model = Broaden.RotBroad(model, vsini, linear=self.rebin)
+
+
+        # Return the appropriate object
         if return_xypoint:
             return model
         else:

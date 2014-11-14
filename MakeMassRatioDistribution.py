@@ -11,7 +11,7 @@ from matplotlib import rc
 import pySIMBAD as sim
 
 # rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
-## for Palatino and other serif fonts use:
+# # for Palatino and other serif fonts use:
 #rc('font',**{'family':'serif','serif':['Palatino']})
 #rc('text', usetex=True)
 import matplotlib.pyplot as plt
@@ -23,6 +23,7 @@ import StarData
 from astropy import units, constants
 from astropy.io import ascii
 from re import search
+from astropy.modeling import models, fitting
 
 
 """
@@ -210,7 +211,7 @@ def MakeDistribution():
                 print "What do you want to do?"
                 for i in range(1, len(known_systems[name])):
                     print "  [%i]: Replace %s companion with new detection (%i K)" % (
-                    i, known_systems[name][i][0], NewDetections[name])
+                        i, known_systems[name][i][0], NewDetections[name])
                 print "  [a]: Add new detection to system"
                 inp = raw_input(" ")
                 if inp.lower() == "a":
@@ -311,6 +312,18 @@ if __name__ == "__main__":
                 ecolor='0.0',
                 elinewidth=2,
                 capsize=5)
+
+    #Power law fit
+    p_init = models.PowerLaw1D(amplitude=0.2, x_0=1.0, alpha=0.4)
+    fitter = fitting.LevMarLSQFitter()
+    error = np.array([(u - l) / 2.0 for u, l in zip(upper, lower)])
+    weights = 1.0 / error ** 2
+    weights = weights[2:]
+    p_fit = fitter(p_init, bins[2:-1] + dq / 2.0, nobs[2:] / float(numstars))  #, weights=weights/weights.sum())
+    print p_fit
+    x = np.arange(0.01, 1.0, 0.01)
+    y = p_fit(x)
+    ax.plot(x, y, 'k-', lw=3)
 
 
     #Add the histogram from Bate 2014 binaries with M > 1.5Msun
