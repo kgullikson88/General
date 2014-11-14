@@ -761,12 +761,13 @@ class ListModel(Model):
         Model.__init__(self, fcn, **kws)
 
 
-    def fit(self, data, fit_kws=None, **kws):
+    def fit(self, data, fitcont=True, fit_kws=None, **kws):
         x = np.hstack([d.x for d in data])
         y = np.hstack([d.y for d in data])
         w = np.hstack([1.0 / d.err for d in data])
         self.order_lengths = [d.size() for d in data]
         kws['x'] = x
+        self.fitcont = fitcont
         output = Model.fit(self, y, weights=w, fit_kws=fit_kws, **kws)
 
         # Need to re-shape the best-fit
@@ -789,7 +790,10 @@ class ListModel(Model):
             y = data[length:length + l]
             m = model[length:length + l]
             ratio = y / m
-            cont = FittingUtilities.Continuum(x, ratio, fitorder=5, lowreject=2, highreject=2)
+            if self.fitcont:
+                cont = FittingUtilities.Continuum(x, ratio, fitorder=5, lowreject=2, highreject=2)
+            else:
+                cont = np.ones(x.size)
             loglikelihood.append(y - cont * m)
 
             length += l
