@@ -25,13 +25,13 @@ def get_isochrone(iso, age, warn=True):
     :return: A pandas DataFrame containing only the requested age
     """
     age = np.log10(age)
-    ages = iso['logAge'].drop_duplicates()
+    ages = iso['logAge'].drop_duplicates().dropna()
     idx = np.argmin(abs(ages - age))
-    if warn and abs(ages[idx] - age) > 1e-5:
+    if warn and abs(ages.iloc[idx] - age) > 1e-5:
         warnings.warn("The requested age ({:.1f} Myr) is not available. "
                       "Returning the next-closest age ({:.1f} Myr)".format(10**age / 1e6,
-                                                                           10**ages[idx] / 1e6))
+                                                                           10**ages.iloc[idx] / 1e6))
 
-    return iso[iso['logAge'] == ages[idx]]
+    return iso[iso['logAge'] == ages.iloc[idx]]
 
 

@@ -642,7 +642,7 @@ def BayesFit(data, model_fcn, priors, limits=None, burn_in=100, nwalkers=100, ns
     priors = np.array(priors)
 
     # Define the likelihood, prior, and posterior probability functions
-    likelihood = lambda pars, data, model_fcn: np.sum(-(data.y - model_fcn(data.x, pars)) ** 2 / (2.0 * data.err ** 2))
+    likelihood = lambda pars, data, model_fcn: np.sum(-(data.y - model_fcn(data.x, *pars)) ** 2 / (2.0 * data.err ** 2))
     if limits == None:
         prior = lambda pars, priors: np.sum(-(pars - priors[:, 0]) ** 2 / (2.0 * priors[:, 1] ** 2))
         posterior = lambda pars, data, model_fcn, priors: likelihood(pars, data, model_fcn) + prior(pars, priors)
@@ -803,7 +803,7 @@ class ListModel(Model):
             loglikelihood *= weights
         return loglikelihood
 
-    def MCMC_fit(self, data, fitresult, fit_kws=None, **kws):
+    def MCMC_fit(self, data, fitresult, fitcont=True, fit_kws=None, **kws):
         """
         Do a fit using emcee
 
@@ -817,6 +817,7 @@ class ListModel(Model):
         e = np.hstack([d.err for d in data])
         fulldata = DataStructures.xypoint(x=x, y=y, err=e)
         self.order_lengths = [d.size() for d in data]
+        self.fitcont = fitcont
 
         # Make priors from the errors in the maximum likelihood fit
         var_map = fitresult.var_map

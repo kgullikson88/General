@@ -538,7 +538,6 @@ class PhoenixGetter():
         """
 
         # Scale the requested values
-        print T, metal, vsini
         T = (T - self.T_scale[0]) / self.T_scale[1]
         metal = (metal - self.metal_scale[0]) / self.metal_scale[1]
 
