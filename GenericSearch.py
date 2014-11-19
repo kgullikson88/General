@@ -179,6 +179,7 @@ def CompanionSearch(fileList,
                     logg_values=(4.5,),
                     modeldir="models/",
                     vbary_correct=True,
+                    observatory="CTIO",
                     addmode="ML",
                     debug=False):
     model_list = StellarModel.GetModelList(model_directory=modeldir,
@@ -205,7 +206,7 @@ def CompanionSearch(fileList,
                             if fname in vbary_dict:
                                 vbary = vbary_dict[fname]
                             else:
-                                vbary = HelCorr_IRAF(fits.getheader(fname))
+                                vbary = HelCorr_IRAF(fits.getheader(fname), observatory=observatory)
                                 vbary_dict[fname] = vbary
                         process_data = False if fname in datadict else True
                         if process_data:
