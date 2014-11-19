@@ -312,16 +312,19 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         corrlist.append(corr.copy())
 
     if get_weights:
-        for i, f, o, s in zip(info_content, flux_ratio, data, snr):
-            print np.median(o.x), i, f, s
+        if debug:
+            print "Weight components: "
+            print "lam_0  info  flux ratio,  S/N"
+            for i, f, o, s in zip(info_content, flux_ratio, data, snr):
+                print np.median(o.x), i, f, s
         info_content = (np.array(info_content) - min(info_content)) / (max(info_content) - min(info_content))
         flux_ratio = (np.array(flux_ratio) - min(flux_ratio)) / (max(flux_ratio) - min(flux_ratio))
         snr = (np.array(snr) - min(snr)) / (max(snr) - min(snr))
         orderweights = (1.0 * info_content + 1.0 * flux_ratio + 1.0 * snr)
-        # orderweights = np.array(info_content) * np.array(flux_ratio)
         orderweights /= orderweights.sum()
-        print "Weights = "
-        print orderweights
+        if debug:
+            print "Weights = "
+            print orderweights
 
     # Add up the individual CCFs
     total = corrlist[0].copy()
