@@ -5,11 +5,11 @@ import FittingUtilities
 import RotBroad_Fast as RotBroad
 
 import numpy as np
-from scipy.interpolate import UnivariateSpline
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import scipy.signal
 from astropy import units, constants
 import DataStructures
+
 import HelperFunctions
 from PlotBlackbodies import Planck
 
@@ -138,9 +138,6 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weigh
         logspacing = np.log(order.x[1] / order.x[0])
 
         # Finally, space the model segment with the same log-spacing
-        print model.x
-        print order.x
-        print left, right, '\n'
         start = np.log(model.x[left])
         end = np.log(model.x[right])
         xgrid = np.exp(np.arange(start, end + logspacing, logspacing))
@@ -199,7 +196,7 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
                  addmode is not "weighted" or get_weights is False.
     """
     # Some error checking
-    if addmode.lower() not in ["ml", "simple", "weighted"]:
+    if addmode.lower() not in ["ml", "simple", "dc", "weighted"]:
         sys.exit("Invalid add mode given to Correlate.GetCCF: %s" % addmode)
     if addmode.lower() == "weighted" and orderweights is None and not get_weights:
         raise ValueError("Must give orderweights if addmode == weighted")
@@ -255,6 +252,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
     normalization = 0.0
     info_content = []
     flux_ratio = []
+    snr = []
     for ordernum, order in enumerate(data):
         model = model_orders[ordernum]
         if get_weights:
@@ -262,9 +260,10 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
                       (model.x[i + 1] - model.x[i - 1]) for i in range(1, model.size() - 1)]
             prim_flux = Planck(model.x*units.nm.to(units.cm), prim_teff)
             lines = FittingUtilities.FindLines(model)
-            sec_flux = np.median(model.cont[lines] - model.y[lines])
+            sec_flux = np.median(model.y.max() - model.y[lines])
             flux_ratio.append(np.median(sec_flux) / np.median(prim_flux))
             info_content.append(np.sum(np.array(slopes) ** 2))
+            snr.append(1.0 / np.std(order.y))
 
         reduceddata = order.y
         reducedmodel = model.y / model.cont
@@ -309,12 +308,17 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         if np.any(np.isnan(corr.y)):
             warnings.warn("NaNs found in correlation from order %i\n" % (ordernum + 1))
             continue
-        # print "\n"
         normalization += float(order.size())
         corrlist.append(corr.copy())
 
     if get_weights:
-        orderweights = np.array(info_content) * np.array(flux_ratio)
+        for i, f, o, s in zip(info_content, flux_ratio, data, snr):
+            print np.median(o.x), i, f, s
+        info_content = (np.array(info_content) - min(info_content)) / (max(info_content) - min(info_content))
+        flux_ratio = (np.array(flux_ratio) - min(flux_ratio)) / (max(flux_ratio) - min(flux_ratio))
+        snr = (np.array(snr) - min(snr)) / (max(snr) - min(snr))
+        orderweights = (1.0 * info_content + 1.0 * flux_ratio + 1.0 * snr)
+        # orderweights = np.array(info_content) * np.array(flux_ratio)
         orderweights /= orderweights.sum()
         print "Weights = "
         print orderweights
@@ -334,34 +338,54 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         # do a simple addition
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
-            corr.cont = FittingUtilities.Continuum(corr.x, corr.y, fitorder=2, lowreject=5, highreject=2)
+            #corr.cont = FittingUtilities.Continuum(corr.x, corr.y, fitorder=2, lowreject=5, highreject=2)
             correlation = spline(corr.x, corr.y, k=1)
             total.y += correlation(total.x)
         total.y /= float(len(corrlist))
         master_corr = total.copy()
-    elif addmode.lower() == "weighted":
-        # Weight the ccf by orderweights
-
-        total.y = np.ones(total.size())
-        for i, corr in enumerate(corrlist):
-            w = orderweights[i] / np.sum(orderweights)
-            correlation = spline(corr.x, corr.y, k=1)
-            N = data[i].size()
-            total.y *= np.power(w * (1.0 - correlation(total.x) ** 2), float(N) / normalization)
-        master_corr = total.copy()
-        master_corr.y = np.sqrt(1.0 - total.y)
-        master_corr.y -= np.median(master_corr.y)
-        """
+    elif addmode.lower() == "dc":
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
+            N = data[i].size()
+            correlation = spline(corr.x, corr.y, k=1)
+            total.y += float(N) * correlation(total.x) ** 2 / normalization
+        master_corr = total.copy()
+        master_corr.y = np.sqrt(master_corr.y)
+    elif addmode.lower() == "weighted":
+        """
+        # Weight the ccf by orderweights
+        total.y = np.ones(total.size())
+        #orderweights = 1.0/np.array(orderweights)
+        for i, corr in enumerate(corrlist):
             w = orderweights[i] / np.sum(orderweights)
             correlation = spline(corr.x, corr.y, k=1)
             N = data[i].size()
-            total.y += w*correlation(total.x)**2
+            print "\n"
+            print np.power(10**(-w) * (1.0 - max(correlation(total.x)) ** 2), float(N) / normalization)
+            print np.power(w * (1.0 - max(correlation(total.x)) ** 2), 1.0)#float(N) / normalization)
+            print max(corr.y)
+            print w, 10**(-w), float(N)/normalization
+            ##total.y *= np.power(10.0, (N*np.log10(1-correlation(total.x)**2) - w) / normalization)
+            #total.y *= np.power(10**(-w) * (1.0 - correlation(total.x) ** 2), float(N) / normalization)
+            ##total.y *= np.power((1.0 - (w*correlation(total.x)) ** 2), float(N) / normalization)
+            total.y *= np.power(w * (1.0 - correlation(total.x) ** 2), float(N) / normalization)
+
+            print total.y
         master_corr = total.copy()
+        master_corr.y = np.sqrt(1.0 - total.y)
         """
 
+        total.y = np.zeros(total.size())
+        for i, corr in enumerate(corrlist):
+            N = data[i].size()
+            w = orderweights[i] / np.sum(orderweights)
+            correlation = spline(corr.x, corr.y, k=1)
+            # total.y += w * float(N) * correlation(total.x)**2 / normalization
+            total.y += w * correlation(total.x) ** 2  #* float(N) / normalization
+        master_corr = total.copy()
+        master_corr.y = np.sqrt(master_corr.y)
 
+    #master_corr.y -= np.median(master_corr.y)
     return master_corr
 
 

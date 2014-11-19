@@ -8,11 +8,10 @@ from scipy.interpolate import InterpolatedUnivariateSpline as interp
 from astropy.io import fits
 from astropy.io import ascii
 from astropy import units, constants
+import DataStructures
 
 import GenericSearch
-
 import StellarModel
-import DataStructures
 import SpectralTypeRelations
 from PlotBlackbodies import Planck
 import GenericSmooth
@@ -77,6 +76,7 @@ def Analyze(fileList,
             trimsize=1,
             object_keyword="object",
 	        modeldir="./",
+            addmode="ml",
             debug=False):
 
     """
@@ -257,8 +257,9 @@ def Analyze(fileList,
                                            model_orders,
                                            debug=debug,
                                            outputdir="Sensitivity_Testing/",
-                                           addmode="ML",
-                                           orderweights=orderweights)
+                                           addmode=addmode,
+                                           prim_teff=primary_temp,
+                                           get_weights=True)
 
                 # Check if we found the companion
                 idx = np.argmax(corr.y)
