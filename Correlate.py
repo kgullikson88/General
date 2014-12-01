@@ -147,7 +147,7 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weigh
         model_orders.append(segment)
 
         # Measure the information content in the model, if get_weights is true
-        #if get_weights:
+        # if get_weights:
         #    slopes = [(segment.y[i + 1] / segment.cont[i + 1] - segment.y[i - 1] / segment.cont[i - 1]) /
         #              (segment.x[i + 1] - segment.x[i - 1]) for i in range(1, segment.size() - 1)]
         #    prim_flux = Planck(segment.x*units.nm.to(units.cm), prim_teff)
@@ -157,7 +157,7 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weigh
         #    weights.append(np.sum(np.array(slopes) ** 2))
 
     print "\n"
-    #if get_weights:
+    # if get_weights:
     #    weights = np.array(weights) * np.array(flux_ratio)
     #    print "Weights: ", np.array(weights) / np.sum(weights)
     #    return model_orders, np.array(weights) / np.sum(weights)
@@ -219,21 +219,27 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
     if process_model:
         model_orders = Process(model, data, vsini * units.km.to(units.cm), resolution, debug=debug,
                                oversample=oversample, get_weights=get_weights, prim_teff=prim_teff)
-        #if get_weights:
+        # if get_weights:
         #    model_orders, orderweights = model_orders
     elif isinstance(model, list) and isinstance(model[0], DataStructures.xypoint):
         model_orders = model
     else:
         raise TypeError("model must be a list of DataStructures.xypoints if process=False!")
 
-        # Now, cross-correlate the new data against the model
-    corr = Correlate(data, model_orders, debug=debug, outputdir=outputdir, addmode=addmode,
-                     orderweights=orderweights, get_weights=get_weights, prim_teff=prim_teff)
+    # Now, cross-correlate the new data against the model
+    if debug:
+        corr, ccf_orders = Correlate(data, model_orders, debug=debug, outputdir=outputdir, addmode=addmode,
+                                     orderweights=orderweights, get_weights=get_weights, prim_teff=prim_teff)
+    else:
+        corr = Correlate(data, model_orders, debug=debug, outputdir=outputdir, addmode=addmode,
+                         orderweights=orderweights, get_weights=get_weights, prim_teff=prim_teff)
 
     retdict = {"CCF": corr,
                "model": model_orders,
                "data": data,
                "weights": orderweights}
+    if debug:
+        retdict['CCF_orders'] = ccf_orders
     return retdict
 
 
@@ -258,7 +264,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         if get_weights:
             slopes = [(model.y[i + 1] / model.cont[i + 1] - model.y[i - 1] / model.cont[i - 1]) /
                       (model.x[i + 1] - model.x[i - 1]) for i in range(1, model.size() - 1)]
-            prim_flux = Planck(model.x*units.nm.to(units.cm), prim_teff)
+            prim_flux = Planck(model.x * units.nm.to(units.cm), prim_teff)
             lines = FittingUtilities.FindLines(model)
             sec_flux = np.median(model.y.max() - model.y[lines])
             flux_ratio.append(np.median(sec_flux) / np.median(prim_flux))
@@ -341,7 +347,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         # do a simple addition
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
-            #corr.cont = FittingUtilities.Continuum(corr.x, corr.y, fitorder=2, lowreject=5, highreject=2)
+            # corr.cont = FittingUtilities.Continuum(corr.x, corr.y, fitorder=2, lowreject=5, highreject=2)
             correlation = spline(corr.x, corr.y, k=1)
             total.y += correlation(total.x)
         total.y /= float(len(corrlist))
@@ -384,11 +390,13 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
             w = orderweights[i] / np.sum(orderweights)
             correlation = spline(corr.x, corr.y, k=1)
             # total.y += w * float(N) * correlation(total.x)**2 / normalization
-            total.y += w * correlation(total.x) ** 2  #* float(N) / normalization
+            total.y += w * correlation(total.x) ** 2  # * float(N) / normalization
         master_corr = total.copy()
         master_corr.y = np.sqrt(master_corr.y)
 
-    #master_corr.y -= np.median(master_corr.y)
+    # master_corr.y -= np.median(master_corr.y)
+    if debug:
+        return master_corr, corrlist
     return master_corr
 
 

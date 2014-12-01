@@ -3,15 +3,15 @@ import os
 import sys
 import re
 from collections import defaultdict
+import warnings
 
 import numpy as np
 from astropy import units
-
-import HelperFunctions
 import DataStructures
 from scipy.interpolate import InterpolatedUnivariateSpline as spline, LinearNDInterpolator, NearestNDInterpolator
-import warnings
 import pandas
+
+import HelperFunctions
 import Broaden
 
 
@@ -134,7 +134,7 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
                                    header=None,
                                    names=["wave", "flux"],
                                    usecols=(0, 1),
-                                   sep=' ',
+                                   sep='\s',
                                    skipinitialspace=True)
             x, y = data['wave'].values, data['flux'].values
             # x, y = np.loadtxt(fname, usecols=(0, 1), unpack=True)
@@ -159,9 +159,9 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
                                    names=["wave", "flux"],
                                    usecols=(0, 1),
                                    sep=' ',
-				   skipinitialspace=True)
+                                   skipinitialspace=True)
             x, y = data['wave'].values, data['flux'].values
-            #x, y = np.loadtxt(fname, usecols=(0, 1), unpack=True)
+            # x, y = np.loadtxt(fname, usecols=(0, 1), unpack=True)
             if vac2air:
                 n = 1.0 + 2.735182e-4 + 131.4182 / x ** 2 + 2.76249e8 / x ** 4
                 x /= n
@@ -174,9 +174,6 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
         raise NotImplementedError("Sorry, the model type ({:s}) is not available!".format(type))
 
     return modeldict, processed
-
-
-
 
 
 class KuruczGetter():
@@ -199,23 +196,25 @@ class KuruczGetter():
 
         # First, read in the grid
         if HelperFunctions.IsListlike(modeldir):
-            #There are several directories to combine
+            # There are several directories to combine
             Tvals = []
             loggvals = []
             metalvals = []
             alphavals = []
             for i, md in enumerate(modeldir):
                 if i == 0:
-                    T,G,Z,A,S = self.read_grid(md, rebin=rebin, T_min=T_min, T_max=T_max, logg_min=logg_min,
-                                          logg_max=logg_max, metal_min=metal_min, metal_max=metal_max,
-                                          alpha_min=alpha_min, alpha_max=alpha_max, wavemin=wavemin, wavemax=wavemax,
-                                          xaxis=None)
+                    T, G, Z, A, S = self.read_grid(md, rebin=rebin, T_min=T_min, T_max=T_max, logg_min=logg_min,
+                                                   logg_max=logg_max, metal_min=metal_min, metal_max=metal_max,
+                                                   alpha_min=alpha_min, alpha_max=alpha_max, wavemin=wavemin,
+                                                   wavemax=wavemax,
+                                                   xaxis=None)
                     spectra = np.array(S)
                 else:
-                    T,G,Z,A,S = self.read_grid(md, rebin=rebin, T_min=T_min, T_max=T_max, logg_min=logg_min,
-                                          logg_max=logg_max, metal_min=metal_min, metal_max=metal_max,
-                                          alpha_min=alpha_min, alpha_max=alpha_max, wavemin=wavemin, wavemax=wavemax,
-                                          xaxis=self.xaxis)
+                    T, G, Z, A, S = self.read_grid(md, rebin=rebin, T_min=T_min, T_max=T_max, logg_min=logg_min,
+                                                   logg_max=logg_max, metal_min=metal_min, metal_max=metal_max,
+                                                   alpha_min=alpha_min, alpha_max=alpha_max, wavemin=wavemin,
+                                                   wavemax=wavemax,
+                                                   xaxis=self.xaxis)
                     S = np.array(S)
                     spectra = np.vstack((spectra, S))
 
@@ -269,9 +268,8 @@ class KuruczGetter():
         self.alpha_varies = alpha_varies
 
 
-
-    def read_grid(self,modeldir, rebin=True, T_min=7000, T_max=9000, logg_min=3.5, logg_max=4.5, metal_min=-0.5,
-                 metal_max=0.5, alpha_min=0.0, alpha_max=0.4, wavemin=0, wavemax=np.inf, xaxis=None):
+    def read_grid(self, modeldir, rebin=True, T_min=7000, T_max=9000, logg_min=3.5, logg_max=4.5, metal_min=-0.5,
+                  metal_max=0.5, alpha_min=0.0, alpha_max=0.4, wavemin=0, wavemax=np.inf, xaxis=None):
         Tvals = []
         loggvals = []
         metalvals = []
@@ -397,7 +395,7 @@ class KuruczGetter():
         model = Broaden.RotBroad(model, vsini, linear=self.rebin)
 
 
-        #Return the appropriate object
+        # Return the appropriate object
         if return_xypoint:
             return model
         else:

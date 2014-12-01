@@ -155,7 +155,7 @@ def Process_Data(fname, badregions=[], interp_regions=[], extensions=True, trims
             outliers = HelperFunctions.FindOutliers(order, expand=10, numsiglow=5, numsighigh=5)
             # plt.plot(order.x, order.y / order.cont, 'k-')
             if len(outliers) > 0:
-                #plt.plot(order.x[outliers], (order.y / order.cont)[outliers], 'r-')
+                # plt.plot(order.x[outliers], (order.y / order.cont)[outliers], 'r-')
                 order.y[outliers] = order.cont[outliers]
                 order.cont = FittingUtilities.Continuum(order.x, order.y, lowreject=3, highreject=3)
                 order.y[outliers] = order.cont[outliers]
@@ -237,7 +237,7 @@ def CompanionSearch(fileList,
                         model = modeldict[temp][gravity][metallicity][vsini]
                         pflag = not processed[temp][gravity][metallicity][vsini]
                         # if pflag:
-                        #    orderweights = None
+                        # orderweights = None
                         retdict = Correlate.GetCCF(orders,
                                                    model,
                                                    resolution=resolution,
@@ -258,12 +258,42 @@ def CompanionSearch(fileList,
                         if process_data:
                             datadict[fname] = retdict['data']
 
-                        outfilename = "%s%s.%.0fkps_%sK%+.1f%+.1f" % (
-                            output_dir, outfilebase, vsini, temp, gravity, metallicity)
+                        outfilename = "{0:s}{1:s}.{2:.0f}kps_{3:.1f}K{4:+.1f}{5:+.1f}".format(output_dir, outfilebase,
+                                                                                              vsini, temp, gravity,
+                                                                                              metallicity)
                         print "Outputting to ", outfilename, "\n"
                         if vbary_correct:
                             corr.x += vbary
                         np.savetxt(outfilename, np.transpose((corr.x, corr.y)), fmt="%.10g")
+
+                        if debug:
+                            # Save the individual spectral inputs and CCF orders (unweighted)
+                            output_dir2 = output_dir.replace("Cross_correlations", "CCF_inputs")
+                            HelperFunctions.ensure_dir(output_dir2)
+                            HelperFunctions.ensure_dir("%sCross_correlations/" % (output_dir2))
+
+                            for i, (o, m, c) in enumerate(
+                                    zip(retdict['data'], retdict['model'], retdict['CCF_orders'])):
+                                print "Saving CCF inputs for order {}".format(i + 1)
+                                outfilename = "{0:s}Cross_correlations/{1:s}.{2:.0f}kps_{3:.1f}K{4:+.1f}{5:+.1f}.order{6:d}".format(
+                                    output_dir2,
+                                    outfilebase, vsini,
+                                    temp, gravity,
+                                    metallicity, i + 1)
+                                c.output(outfilename)
+                                outfilename = "{0:s}{1:s}.{2:.0f}kps_{3:.1f}K{4:+.1f}{5:+.1f}.data.order{6:d}".format(
+                                    output_dir2,
+                                    outfilebase, vsini,
+                                    temp, gravity,
+                                    metallicity, i + 1)
+                                o.output(outfilename)
+                                outfilename = "{0:s}{1:s}.{2:.0f}kps_{3:.1f}K{4:+.1f}{5:+.1f}.model.order{6:d}".format(
+                                    output_dir2,
+                                    outfilebase, vsini,
+                                    temp, gravity,
+                                    metallicity, i + 1)
+                                m.output(outfilename)
+
 
 
                     # Delete the model. We don't need it anymore and it just takes up ram.
