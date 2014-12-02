@@ -5,7 +5,8 @@ import sys
 from scipy.interpolate import UnivariateSpline, griddata
 
 import DataStructures
-
+import pandas
+import os
 
 
 # Provides relations temperature, luminosity, radius, and mass for varius spectral types
@@ -18,6 +19,15 @@ import DataStructures
          call instance.Interpolate(instance.dict, SpT) where dict is the name of the dictionary you want to interpolate (Temperature, Radius, or Mass) and SpT is the spectral type of what you wish to interpolate to.
 """
 
+def fill_dict(row, d, key, makefloat=True):
+    val = row[key].strip()
+    if makefloat:
+        if val != '':
+            d[row['SpT'].strip()[:-1]] = float(val)
+    else:
+        d[row['SpT'].strip()[:-1]] = val
+
+
 
 class MainSequence:
     def __init__(self):
@@ -28,11 +38,29 @@ class MainSequence:
         self.BC = defaultdict(float)
         self.BmV = defaultdict(float)  #B-V color
         self.UmV = defaultdict(float)  #U-V color
+        self.VmR = defaultdict(float)  #V-R color
+        self.VmI = defaultdict(float)  #V-I color
         self.VmJ = defaultdict(float)  #V-J color
         self.VmH = defaultdict(float)  #V-H color
         self.VmK = defaultdict(float)  #V-K color
         self.AbsMag = defaultdict(float)  #Absolute Magnitude in V band
 
+
+        # Read in the data from Pecaut & Mamajek 2013 for Teff and color indices
+        pfilename = "{:s}/Dropbox/School/Research/Databases/SpT_Relations/Pecaut2013.tsv".format(os.environ['HOME'])
+        pdata = pandas.read_csv(pfilename, skiprows=55, sep="|")[2:-1]
+        pdata.apply(fill_dict, axis=1, args=(self.Temperature, 'Teff', True))
+        pdata.apply(fill_dict, axis=1, args=(self.UmV, 'U-B', True))
+        pdata.apply(fill_dict, axis=1, args=(self.BmV, 'B-V', True))
+        pdata.apply(fill_dict, axis=1, args=(self.VmR, 'V-Rc', True))
+        pdata.apply(fill_dict, axis=1, args=(self.VmI, 'V-Ic', True))
+        pdata.apply(fill_dict, axis=1, args=(self.VmJ, 'V-J', True))
+        pdata.apply(fill_dict, axis=1, args=(self.VmH, 'V-H', True))
+        pdata.apply(fill_dict, axis=1, args=(self.VmK, 'V-Ks', True))
+
+
+
+        """
         #From Allen's astrophysical quantities or Caroll and Ostlie (marked CO)
         self.Temperature['O5'] = 42000  #CO
         self.Temperature['O6'] = 39500  #CO
@@ -77,6 +105,7 @@ class MainSequence:
         self.Temperature['M4'] = 3180
         self.Temperature['M5'] = 3030
         self.Temperature['M6'] = 2850
+        """
 
         self.Radius['O5'] = 13.4
         self.Radius['O6'] = 12.2
@@ -155,6 +184,7 @@ class MainSequence:
         self.Lifetime['A8.4'] = 1800
         self.Lifetime['F2.6'] = 2700
 
+        """
         #From Kenyon & Hartmann 1995
         self.BmV['B0'] = -0.3
         self.BmV['B1'] = -0.26
@@ -439,6 +469,7 @@ class MainSequence:
         self.VmK['M4'] = 5.26
         self.VmK['M5'] = 6.12
         self.VmK['M6'] = 7.30
+        """
 
         #From Allen's Astrophysical Quantities and Binney & Merrifield (marked with 'BM')
         self.AbsMag['O5'] = -5.7
@@ -466,6 +497,8 @@ class MainSequence:
         self.AbsMag['M0'] = 8.8
         self.AbsMag['M2'] = 9.9
         self.AbsMag['M5'] = 12.3
+
+
 
 
     def SpT_To_Number(self, SpT):
@@ -543,18 +576,18 @@ class MainSequence:
         if spnum > 0:
             return RELATION(spnum)
         else:
-            return spnum
+            return np.nan
 
     def GetAbsoluteMagnitude(self, spt, color='V'):
         Vmag = self.Interpolate(self.AbsMag, spt)
-        if color == "V":
+        if color.upper() == "V":
             return Vmag
         else:
-            if color == "U" or color == "B":
+            if color.upper() in ['U', 'B']:
                 string = "color_diff = self.Interpolate(self.%smV, spt)" % color
                 exec (string)
                 return color_diff + Vmag
-            elif color == "J" or color == "H" or color == "K":
+            elif color.upper() in ['R', 'I', 'J', 'H', 'K']:
                 string = "color_diff = self.Interpolate(self.Vm%s, spt)" % color
                 exec (string)
                 return Vmag - color_diff
