@@ -298,17 +298,6 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         if max(corr.y) > 1.0:
             corr.y /= max(corr.y)
 
-        if debug:
-            HelperFunctions.ensure_dir("%sCross_correlations/" % (outputdir))
-            outfilename = "%sCross_correlations/CCF_order%i.dat" % (outputdir, ordernum + 1)
-            print "Saving ccf for order %i to %s" % (ordernum + 1, outfilename)
-            corr.output(outfilename)
-            print "Saving ccf inputs to CCF_Inputs/order%i_data.dat and CCF_Inputs/order%i_model.dat" % (
-                ordernum + 1, ordernum + 1)
-            HelperFunctions.ensure_dir("%sCCF_Inputs/" % (outputdir))
-            order.output("%sCCF_Inputs/order%i_data.dat" % (outputdir, ordernum + 1))
-            model.output("%sCCF_Inputs/order%i_model.dat" % (outputdir, ordernum + 1))
-
 
         # Save correlation
         if np.any(np.isnan(corr.y)):

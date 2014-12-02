@@ -21,7 +21,7 @@ It is used in GenericSearch.py and SensitivityAnalysis.py
 """
 
 if "darwin" in sys.platform:
-    modeldir = "/Volumes/DATADRIVE/Stellar_Models/PHOENIX/Stellar/Vband/"
+    modeldir = "/Volumes/DATADRIVE/Stellar_Models/Sorted/Stellar/Vband/"
 elif "linux" in sys.platform:
     modeldir = "/media/FreeAgent_Drive/SyntheticSpectra/Sorted/Stellar/Vband/"
 else:
@@ -134,7 +134,7 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
                                    header=None,
                                    names=["wave", "flux"],
                                    usecols=(0, 1),
-                                   sep='\s',
+                                   sep=' ',
                                    skipinitialspace=True)
             x, y = data['wave'].values, data['flux'].values
             # x, y = np.loadtxt(fname, usecols=(0, 1), unpack=True)
@@ -174,6 +174,9 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
         raise NotImplementedError("Sorry, the model type ({:s}) is not available!".format(type))
 
     return modeldict, processed
+
+
+
 
 
 class KuruczGetter():
