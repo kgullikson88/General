@@ -8,8 +8,8 @@ import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import scipy.signal
 from astropy import units, constants
-import DataStructures
 
+import DataStructures
 import HelperFunctions
 from PlotBlackbodies import Planck
 
@@ -315,7 +315,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         info_content = (np.array(info_content) - min(info_content)) / (max(info_content) - min(info_content))
         flux_ratio = (np.array(flux_ratio) - min(flux_ratio)) / (max(flux_ratio) - min(flux_ratio))
         snr = (np.array(snr) - min(snr)) / (max(snr) - min(snr))
-        orderweights = (1.0 * info_content + 1.0 * flux_ratio + 1.0 * snr)
+        orderweights = (1.0 * info_content ** 2 + 1.0 * flux_ratio ** 2 + 1.0 * snr ** 2)
         orderweights /= orderweights.sum()
         if debug:
             print "Weights = "
