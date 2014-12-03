@@ -792,7 +792,7 @@ class ListModel(Model):
             parnames = list(self.param_names)
             d = {name: value for name, value in zip(parnames, params)}
             print d
-            params = self.make_params(d)
+            params = self.make_params(**d)
         #print params
 
         model = Model.eval(self, params, **kwargs)
