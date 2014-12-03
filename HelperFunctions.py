@@ -846,7 +846,7 @@ class ListModel(Model):
             lp = lnprior(pars, priors)
             if not np.isfinite(lp):
                 return -np.inf
-            return lp + self._residual(pars, data, weights, kwargs)
+            return lp + self._residual(pars, data, weights, **kwargs)
 
 
         # Set up the emcee sampler
