@@ -14,12 +14,13 @@ from astropy.io import fits as pyfits
 import numpy as np
 from astropy import units, constants
 import DataStructures
+from lmfit import Model
+from astropy.time import Time
 
 import pySIMBAD as sim
 import SpectralTypeRelations
 import readmultispec as multispec
-from lmfit import Model
-from astropy.time import Time
+
 
 try:
     import emcee
@@ -794,7 +795,7 @@ class ListModel(Model):
                 cont = FittingUtilities.Continuum(x, ratio, fitorder=5, lowreject=2, highreject=2)
             else:
                 cont = np.ones(x.size)
-            loglikelihood.append(y - cont * m)
+            loglikelihood.append((y - cont * m) ** 2)
 
             length += l
 
@@ -803,28 +804,67 @@ class ListModel(Model):
             loglikelihood *= weights
         return loglikelihood
 
-    def MCMC_fit(self, data, fitresult, fitcont=True, fit_kws=None, **kws):
+    def MCMC_fit(self, data, priors, prior_type='flat', fitcont=True):
         """
         Do a fit using emcee
 
-        :param selfdata:
+        :param data: list of xypoints
+        :param priors: list of priors (each value must be a 2-D list)
+        :keyword prior_type: The type of prior. Choices are 'flat' or 'gaussian'
+        :keyword fitcont: Should we fit the continuum in each step?
         :param fit_kws:
         :param kws:
         :return:
         """
         x = np.hstack([d.x for d in data])
         y = np.hstack([d.y for d in data])
+        c = np.hstack([d.cont for d in data])
         e = np.hstack([d.err for d in data])
-        fulldata = DataStructures.xypoint(x=x, y=y, err=e)
+        fulldata = DataStructures.xypoint(x=x, y=y, err=e, cont=c)
+        weights = 1.0 / e ** 2
         self.order_lengths = [d.size() for d in data]
         self.fitcont = fitcont
 
-        # Make priors from the errors in the maximum likelihood fit
-        var_map = fitresult.var_map
-        priors = [[fitresult.best_values[v], np.sqrt(fitresult.covar[i][i]) * 10] for i, v in enumerate(var_map)]
+        # Define the prior functions
+        priors = np.array(priors)
+        if prior_type.lower() == 'gauss':
+            lnprior = lambda pars, prior_vals: np.sum(-(pars - prior_vals[:, 0]) ** 2 / (2.0 * prior_vals[:, 1] ** 2))
+            guess = [p[0] for p in priors]
+            scale = [p[1] / 10.0 for p in priors]
+        elif prior_type.lower() == 'flat':
+            def lnprior(pars, prior_vals):
+                tmp = [prior_vals[i][0] < pars[i] < prior_vals[i][1] for i in range(len(pars))]
+                return 0.0 if all(tmp) else -np.inf
 
-        output = BayesFit(fulldata, self.func, priors, burn_in=200, nsamples=500, nthreads=1, full_output=True)
+            guess = [(p[0] + p[1]) / 2.0 for p in priors]
+            scale = [(p[1] - p[0]) / 10.0 for p in priors]
+        else:
+            raise ValueError("prior_type must be one of 'gauss' or 'flat'")
+
+        # Define the full probability functions
+        def lnprob(pars, data, weights, **kwargs):
+            lp = lnprior(pars)
+            if not np.isfinite(lp):
+                return -np.inf
+            return lp + self._residual(pars, data, weights, kwargs)
+
+
+        # Set up the emcee sampler
+        ndim, nwalkers = 5, 100
+        pars = np.array(guess)
+        pos = [pars + scale * np.random.randn(ndim) for i in range(nwalkers)]
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(fulldata, fulldata.err, model_getter))
+
+        return sampler, pos
+        """
+
+        # Run the sampler
+        mcmc_output = sampler.run_mcmc(pos, 300)
+
+
+        #output = BayesFit(fulldata, self.func, priors, burn_in=200, nsamples=500, nthreads=1, full_output=True)
         return output
+        """
 
 
 def mad(arr):
