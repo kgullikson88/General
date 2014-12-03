@@ -804,7 +804,7 @@ class ListModel(Model):
             loglikelihood *= weights
         return loglikelihood
 
-    def MCMC_fit(self, data, priors, prior_type='flat', fitcont=True):
+    def MCMC_fit(self, data, priors, prior_type='flat', fitcont=True, model_getter=None):
         """
         Do a fit using emcee
 
@@ -854,6 +854,8 @@ class ListModel(Model):
         nwalkers = 100
         pars = np.array(guess)
         pos = [pars + scale * np.random.randn(ndim) for i in range(nwalkers)]
+        if model_getter is None:
+            model_getter = self.opts['model_getter']
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(fulldata, fulldata.err, model_getter))
 
         return sampler, pos
