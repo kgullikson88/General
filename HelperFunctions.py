@@ -789,7 +789,6 @@ class ListModel(Model):
                 parnames = kwargs['names']
             else:
                 raise KeyError ("Must give the parameter names if the params are just list instances!")
-            parnames = list(self.param_names)
             d = {name: value for name, value in zip(parnames, params)}
             print params
             print d
