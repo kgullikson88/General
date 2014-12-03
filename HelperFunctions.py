@@ -14,7 +14,7 @@ from astropy.io import fits as pyfits
 import numpy as np
 from astropy import units, constants
 import DataStructures
-from lmfit import Model
+from lmfit import Model, Parameters
 from astropy.time import Time
 
 import pySIMBAD as sim
@@ -781,13 +781,21 @@ class ListModel(Model):
         return output
 
 
-    def _residual(self, params, data, weights, **kwargs):
+    def _residual(self, params, data, weights=None, **kwargs):
         "default residual:  (data-model)*weights"
-        loglikelihood = []
-        print params
-        print kwargs
+        #Make sure the parameters are in the right format
+        if not isinstance(params, Parameters):
+            if 'names' in kwargs:
+                parnames = kwargs['names']
+            else:
+                raise KeyError ("Must give the parameter names if the params are just list instances!")
+            parnames = list(self.param_names)
+            params = self.make_params({name: value for name, value in zip(parnames, params)})
+        #print params
+
         model = Model.eval(self, params, **kwargs)
         length = 0
+        loglikelihood = []
         for i, l in enumerate(self.order_lengths):
             x = kwargs['x'][length:length + l]
             y = data[length:length + l]
@@ -806,12 +814,13 @@ class ListModel(Model):
             loglikelihood *= weights
         return loglikelihood
 
-    def MCMC_fit(self, data, priors, prior_type='flat', fitcont=True, model_getter=None):
+    def MCMC_fit(self, data, priors, names, prior_type='flat', fitcont=True, model_getter=None):
         """
         Do a fit using emcee
 
         :param data: list of xypoints
         :param priors: list of priors (each value must be a 2-D list)
+        :param names: The names of the variables, in the same order as the priors list
         :keyword prior_type: The type of prior. Choices are 'flat' or 'gaussian'
         :keyword fitcont: Should we fit the continuum in each step?
         :param fit_kws:
@@ -859,7 +868,7 @@ class ListModel(Model):
         if model_getter is None:
             model_getter = self.opts['model_getter']
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(priors, fulldata, fulldata.err),
-                                        kwargs={'model_getter': model_getter})
+                                        kwargs={'model_getter': model_getter, 'names': names})
 
         return sampler, pos
         """
