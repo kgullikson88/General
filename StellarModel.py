@@ -338,7 +338,7 @@ class KuruczGetter():
         return Tvals, loggvals, metalvals, alphavals, spectra
 
 
-    def __call__(self, T, logg, metal, alpha, vsini=0.0, return_xypoint=True):
+    def __call__(self, T, logg, metal, alpha, vsini=0.0, return_xypoint=True, **kwargs):
         """
         Given parameters, return an interpolated spectrum
 
@@ -527,7 +527,7 @@ class PhoenixGetter():
         return Tvals, metalvals, spectra
 
 
-    def __call__(self, T, metal, vsini=0.0, return_xypoint=True):
+    def __call__(self, T, metal, vsini=0.0, return_xypoint=True, **kwargs):
         """
         Given parameters, return an interpolated spectrum
 
