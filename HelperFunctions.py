@@ -784,6 +784,8 @@ class ListModel(Model):
     def _residual(self, params, data, weights, **kwargs):
         "default residual:  (data-model)*weights"
         loglikelihood = []
+        print params
+        print kwargs
         model = Model.eval(self, params, **kwargs)
         length = 0
         for i, l in enumerate(self.order_lengths):
