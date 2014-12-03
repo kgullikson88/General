@@ -790,8 +790,6 @@ class ListModel(Model):
             else:
                 raise KeyError ("Must give the parameter names if the params are just list instances!")
             d = {name: value for name, value in zip(parnames, params)}
-            print params
-            print d
             params = self.make_params(**d)
         #print params
 
