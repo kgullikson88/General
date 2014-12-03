@@ -850,7 +850,8 @@ class ListModel(Model):
 
 
         # Set up the emcee sampler
-        ndim, nwalkers = 5, 100
+        ndim = len(priors)
+        nwalkers = 100
         pars = np.array(guess)
         pos = [pars + scale * np.random.randn(ndim) for i in range(nwalkers)]
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(fulldata, fulldata.err, model_getter))
