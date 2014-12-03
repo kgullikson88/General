@@ -381,10 +381,10 @@ class KuruczGetter():
             y = self.interpolator(input_list)
         else:
             warnings.warn("The requested parameters fall outside the model grid. Results may be unreliable!")
-            print T, T_min, T_max
-            print logg, logg_min, logg_max
-            print metal, metal_min, metal_max
-            print alpha, alpha_min, alpha_max
+            # print T, T_min, T_max
+            #print logg, logg_min, logg_max
+            #print metal, metal_min, metal_max
+            #print alpha, alpha_min, alpha_max
             y = self.NN_interpolator(input_list)
 
         # Test to make sure the result is valid. If the requested point is
