@@ -842,8 +842,8 @@ class ListModel(Model):
             raise ValueError("prior_type must be one of 'gauss' or 'flat'")
 
         # Define the full probability functions
-        def lnprob(pars, data, weights, **kwargs):
-            lp = lnprior(pars)
+        def lnprob(pars, priors, data, weights, **kwargs):
+            lp = lnprior(pars, priors)
             if not np.isfinite(lp):
                 return -np.inf
             return lp + self._residual(pars, data, weights, kwargs)
@@ -856,7 +856,7 @@ class ListModel(Model):
         pos = [pars + scale * np.random.randn(ndim) for i in range(nwalkers)]
         if model_getter is None:
             model_getter = self.opts['model_getter']
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(fulldata, fulldata.err),
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(priors, fulldata, fulldata.err),
                                         kwargs={'model_getter': model_getter})
 
         return sampler, pos
