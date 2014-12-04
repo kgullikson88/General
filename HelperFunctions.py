@@ -78,7 +78,7 @@ def CheckMultiplicityWDS(starname):
     if WDSname == "":
         return False
 
-    #Get absolute magnitude of the primary star, so that we can determine
+    # Get absolute magnitude of the primary star, so that we can determine
     #   the temperature of the secondary star from the magnitude difference
     MS = SpectralTypeRelations.MainSequence()
     print star.SpectralType()[:2]
@@ -129,10 +129,10 @@ def CheckMultiplicitySB9(starname):
         if starname == name:
             index = int(segments[0])
     if index < 0:
-        #Star not in SB9
+        # Star not in SB9
         return False
 
-    #Now, get summary information for our star
+    # Now, get summary information for our star
     infile = open("%s/Main.dta" % SB9_location)
     lines = infile.readlines()
     infile.close()
@@ -263,7 +263,7 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
 
     if extensions:
         # This means the data is in fits extensions, with one order per extension
-        #At least x and y should be given (and should be strings to identify the field in the table record array)
+        # At least x and y should be given (and should be strings to identify the field in the table record array)
         if type(x) != str:
             x = raw_input("Give name of the field which contains the x array: ")
         if type(y) != str:
@@ -300,7 +300,7 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
 
     else:
         # Data is in multispec format rather than in fits extensions
-        #Call Rick White's script
+        # Call Rick White's script
         try:
             retdict = multispec.readmultispec(datafile, quiet=not debug)
         except ValueError:
@@ -390,7 +390,6 @@ def OutputFitsFileExtensions(column_dicts, template, outfilename, mode="append",
         for key in primary_header:
             hdulist[0].header[key] = primary_header[key]
 
-
     for i in range(len(column_dicts)):
         column_dict = column_dicts[i]
         header_info = headers_info[i]
@@ -400,7 +399,7 @@ def OutputFitsFileExtensions(column_dicts, template, outfilename, mode="append",
         cols = pyfits.ColDefs(columns)
         tablehdu = pyfits.BinTableHDU.from_columns(cols)
 
-        #Add keywords to extension header
+        # Add keywords to extension header
         num_keywords = len(header_info)
         header = tablehdu.header
         for i in range(num_keywords):
@@ -437,10 +436,10 @@ def LowPassFilter(data, vel, width=5, linearize=False):
         data = linear
 
     # Figure out cutoff frequency from the velocity.
-    featuresize = data.x.mean() * vel / constants.c.cgs.value  #vel MUST be given in units of cm
-    dlam = data.x[1] - data.x[0]  #data.x MUST have constant x-spacing
+    featuresize = data.x.mean() * vel / constants.c.cgs.value  # vel MUST be given in units of cm
+    dlam = data.x[1] - data.x[0]  # data.x MUST have constant x-spacing
     Npix = featuresize / dlam
-    cutoff_hz = 1.0 / Npix  #Cutoff frequency of the filter
+    cutoff_hz = 1.0 / Npix  # Cutoff frequency of the filter
     cutoff_hz = 1.0 / featuresize
 
     nsamples = data.size()
@@ -457,7 +456,7 @@ def LowPassFilter(data, vel, width=5, linearize=False):
     # Use firwin with a Kaiser window to create a lowpass FIR filter.
     taps = firwin(N, cutoff_hz / nyq_rate, window=('kaiser', beta))
 
-    #Extend data to prevent edge effects
+    # Extend data to prevent edge effects
     y = np.r_[data.y[::-1], data.y, data.y[::-1]]
 
     # Use lfilter to filter data with the FIR filter.
@@ -533,15 +532,15 @@ def HighPassFilter(data, vel, width=5, linearize=False):
         data = linear
 
     # Figure out cutoff frequency from the velocity.
-    featuresize = 2 * data.x.mean() * vel / constants.c.cgs.value  #vel MUST be given in units of cm
-    dlam = data.x[1] - data.x[0]  #data.x MUST have constant x-spacing
+    featuresize = 2 * data.x.mean() * vel / constants.c.cgs.value  # vel MUST be given in units of cm
+    dlam = data.x[1] - data.x[0]  # data.x MUST have constant x-spacing
     Npix = featuresize / dlam
 
     nsamples = data.size()
     sample_rate = 1.0 / dlam
     nyq_rate = sample_rate / 2.0  # The Nyquist rate of the signal.
     width /= nyq_rate
-    cutoff_hz = min(1.0 / featuresize, nyq_rate - width * nyq_rate / 2.0)  #Cutoff frequency of the filter
+    cutoff_hz = min(1.0 / featuresize, nyq_rate - width * nyq_rate / 2.0)  # Cutoff frequency of the filter
 
     # The desired attenuation in the stop band, in dB.
     ripple_db = 60.0
@@ -554,7 +553,7 @@ def HighPassFilter(data, vel, width=5, linearize=False):
     # Use firwin with a Kaiser window to create a lowpass FIR filter.
     taps = firwin(N, cutoff_hz / nyq_rate, window=('kaiser', beta), pass_zero=False)
 
-    #Extend data to prevent edge effects
+    # Extend data to prevent edge effects
     y = np.r_[data.y[::-1], data.y, data.y[::-1]]
 
     # Use lfilter to filter data with the FIR filter.
@@ -593,7 +592,7 @@ def Denoise(data):
         sum2 += phi ** 2
     a = -sum1 / sum2
 
-    #Adjust all wavelet coefficients
+    # Adjust all wavelet coefficients
     WC = WC + a * WC * np.exp(-WC ** 2 / (12 * sigma ** 2))
 
     #Now, do a soft threshold
@@ -681,7 +680,7 @@ def BayesFit(data, model_fcn, priors, limits=None, burn_in=100, nwalkers=100, ns
     print "Acceptance fraction = %f" % np.mean(sampler.acceptance_fraction)
     maxprob_indice = np.argmax(prob)
     priors[:, 0] = pos[maxprob_indice]
-    #Get the parameter estimates
+    # Get the parameter estimates
     chain = sampler.flatchain
     for i in range(ndim):
         priors[i][1] = np.std(chain[:, i])
@@ -727,7 +726,7 @@ def FindOutliers(data, numsiglow=6, numsighigh=3, numiters=10, expand=0):
         for i in range(max(0, outlier - expand), min(outlier + expand + 1, data.size())):
             exclude.append(i)
 
-    #Remove duplicates from 'exclude'
+    # Remove duplicates from 'exclude'
     temp = []
     [temp.append(i) for i in exclude if not i in temp]
     return np.array(temp)
@@ -783,12 +782,12 @@ class ListModel(Model):
 
     def _residual(self, params, data, weights=None, **kwargs):
         "default residual:  (data-model)*weights"
-        #Make sure the parameters are in the right format
+        # Make sure the parameters are in the right format
         if not isinstance(params, Parameters):
             if 'names' in kwargs:
                 parnames = kwargs['names']
             else:
-                raise KeyError ("Must give the parameter names if the params are just list instances!")
+                raise KeyError("Must give the parameter names if the params are just list instances!")
             d = {name: value for name, value in zip(parnames, params)}
             params = self.make_params(**d)
         #print params
@@ -857,7 +856,7 @@ class ListModel(Model):
             lp = lnprior(pars, priors)
             if not np.isfinite(lp):
                 return -np.inf
-            return lp + self._residual(pars, data, weights, **kwargs)
+            return lp + np.sum(self._residual(pars, data, weights, **kwargs))
 
 
         # Set up the emcee sampler
