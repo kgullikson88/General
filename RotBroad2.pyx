@@ -83,6 +83,8 @@ def Broaden_old(model, vsini, epsilon=0.5, linear=False, findcont=False):
   if not linear:
       x = np.linspace(model.x[0], model.x[-1], model.size())
       model = FittingUtilities.RebinData(model, x)
+  else:
+      x = model.x
   if findcont:
         model.cont = FittingUtilities.Continuum(model.x, model.y, lowreject=1.5, highreject=10)
 
