@@ -1,13 +1,14 @@
-import numpy
+import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
-cimport numpy
+cimport numpy as np
 cimport cython
 from libc.math cimport sqrt
 from astropy import constants, units
 import FittingUtilities
+from scipy.signal import fftconvolve
 
-DTYPE = numpy.float64
-ctypedef numpy.float64_t DTYPE_t
+DTYPE = np.float64
+ctypedef np.float64_t DTYPE_t
 
 
 """
@@ -18,8 +19,8 @@ ctypedef numpy.float64_t DTYPE_t
 """
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef numpy.ndarray[DTYPE_t, ndim=1] convolve(numpy.ndarray[DTYPE_t, ndim=1] y,
-                                             numpy.ndarray[DTYPE_t, ndim=1] ys,
+cdef np.ndarray[DTYPE_t, ndim=1] convolve(np.ndarray[DTYPE_t, ndim=1] y,
+                                             np.ndarray[DTYPE_t, ndim=1] ys,
                                              long num,
                                              long nd,
                                              double st,
@@ -70,7 +71,7 @@ cdef numpy.ndarray[DTYPE_t, ndim=1] convolve(numpy.ndarray[DTYPE_t, ndim=1] y,
   This is the wrapper function. The user should call this!
 """
 
-def Broaden(model, vsini, epsilon=0.5, linear=False, findcont=False):  
+def Broaden_old(model, vsini, epsilon=0.5, linear=False, findcont=False):
   """
     model:           xypoint instance with the data (or model) to be broadened
     vsini:           the velocity (times sin(i) ) of the star, in cm/s
@@ -79,23 +80,16 @@ def Broaden(model, vsini, epsilon=0.5, linear=False, findcont=False):
     findcont:        flag to decide if the continuum needs to be found
   """
 
-  if not findcont:
-    cont_fcn = InterpolatedUnivariateSpline(model.x, model.cont)
-
   if not linear:
-    x = numpy.linspace(model.x[0], model.x[-1], model.size())
-    model = FittingUtilities.RebinData(model, x)
-    if not findcont:
-      model.cont = cont_fcn(model.x)
-    else:
-      model.cont = FittingUtilities.Continuum(model.x, model.y, lowreject=1.5, highreject=10)
-  elif findcont:
-    model.cont = FittingUtilities.Continuum(model.x, model.y, lowreject=1.5, highreject=10)
+      x = np.linspace(model.x[0], model.x[-1], model.size())
+      model = FittingUtilities.RebinData(model, x)
+  if findcont:
+        model.cont = FittingUtilities.Continuum(model.x, model.y, lowreject=1.5, highreject=10)
 
   #Need to prepare a few more variables before calling 'convolve'
   broadened = model.copy()
   num = model.size()
-  ys = numpy.ones(num)
+  ys = np.ones(num)
   start = model.x[0]
   dwave = model.x[1] - model.x[0]
 
@@ -105,3 +99,36 @@ def Broaden(model, vsini, epsilon=0.5, linear=False, findcont=False):
 
   broadened.y = convolve(model.y, ys, num, nd, start, dwave, vsini, epsilon)
   return broadened
+
+
+
+def Broaden(model, vsini, epsilon=0.5, linear=False, findcont=False):
+    """
+      model:           xypoint instance with the data (or model) to be broadened
+      vsini:           the velocity (times sin(i) ) of the star, in cm/s
+      epsilon:          Linear limb darkening. I(u) = 1-epsilon + epsilon*u
+      linear:          flag for if the x-spacing is already linear in log-spacing. If true, we don't need to linearize
+      findcont:        flag to decide if the continuum needs to be found
+    """
+    c = constants.c.cgs.value
+
+    if not linear:
+        x0 = model.x[0]
+        x1 = model.x[-1]
+        x = np.logspace(np.log10(x0), np.log10(x1), model.size())
+        model = FittingUtilities.RebinData(model, x)
+    if findcont:
+        model.cont = FittingUtilities.Continuum(model.x, model.y, lowreject=1.5, highreject=10)
+
+    # Make the broadening kernel
+    dx = np.log10(x[1]/x[0])
+    lim = vsini/c
+    d_logx = np.arange(-lim, lim, dx*np.log10(200.0))  # I really couldn't tell you where the NECESSARY factor of log(200) comes from...
+    alpha = 1.0 - (d_logx/lim)**2
+    B = (1.0-epsilon)*np.sqrt(alpha) + epsilon*np.pi*alpha/4.0 #Broadening kernel
+    B /= B.sum()  #Normalize
+
+    # Do the convolution
+    conv = fftconvolve(model.y, B, mode='same')
+
+    return conv
