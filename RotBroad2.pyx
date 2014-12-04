@@ -133,6 +133,7 @@ def Broaden(model, vsini, epsilon=0.5, linear=False, findcont=False):
     B /= B.sum()  #Normalize
 
     # Do the convolution
-    conv = fftconvolve(model.y, B, mode='same')
+    broadened = model.copy()
+    broadened.y = fftconvolve(model.y, B, mode='same')
 
-    return conv
+    return broadened
