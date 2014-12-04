@@ -314,16 +314,16 @@ class KuruczGetter():
                 y = y[left:right]
 
                 if rebin:
-                    xgrid = np.linspace(x[0], x[-1], x.size) if firstkeeper else self.xaxis
+                    if firstkeeper:
+                        xgrid = np.logspace(np.log10(x[0]), np.log10(x[-1]), x.size)
+                    else:
+                        xgrid = self.xaxis
                     fcn = spline(x, y)
                     x = xgrid
                     y = fcn(xgrid)
 
                 if firstkeeper:
-                    if xaxis is None:
-                        self.xaxis = x
-                    else:
-                        self.xaxis = xaxis
+                    self.xaxis = x if xaxis is None else xaxis
                     firstkeeper = False
                 elif np.max(np.abs(self.xaxis - x) > 1e-4):
                     warnings.warn("x-axis for file {:s} is different from the master one! Not saving!".format(fname))
@@ -505,16 +505,16 @@ class PhoenixGetter():
                 y = y[left:right]
 
                 if rebin:
-                    xgrid = np.linspace(x[0], x[-1], x.size) if firstkeeper else self.xaxis
+                    if firstkeeper:
+                        xgrid = np.logspace(np.log10(x[0]), np.log10(x[-1]), x.size)
+                    else:
+                        xgrid = self.xaxis
                     fcn = spline(x, y)
                     x = xgrid
                     y = fcn(xgrid)
 
                 if firstkeeper:
-                    if xaxis is None:
-                        self.xaxis = x
-                    else:
-                        self.xaxis = xaxis
+                    self.xaxis = x if xaxis is None else xaxis
                     firstkeeper = False
                 elif np.max(np.abs(self.xaxis - x) > 1e-4):
                     warnings.warn("x-axis for file {:s} is different from the master one! Not saving!".format(fname))
