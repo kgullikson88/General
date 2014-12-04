@@ -119,6 +119,8 @@ def Broaden(model, vsini, epsilon=0.5, linear=False, findcont=False):
         x1 = model.x[-1]
         x = np.logspace(np.log10(x0), np.log10(x1), model.size())
         model = FittingUtilities.RebinData(model, x)
+    else:
+        x = model.x
     if findcont:
         model.cont = FittingUtilities.Continuum(model.x, model.y, lowreject=1.5, highreject=10)
 
