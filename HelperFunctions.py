@@ -757,8 +757,10 @@ class ListModel(Model):
     This is very bare bones now (Sep 25, 2014). Will probably need to add more later.
     """
 
-    def __init__(self, fcn, **kws):
-        Model.__init__(self, fcn, **kws)
+    def __init__(self, func, independent_vars=None, param_names=None,
+                 missing='none', prefix='', name=None, **kws):
+        Model.__init__(self, func, independent_vars=independent_vars, param_names=param_names,
+                       missing=missing, prefix=prefix, name=name, **kws)
 
 
     def fit(self, data, fitcont=True, fit_kws=None, **kws):
