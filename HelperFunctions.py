@@ -804,7 +804,7 @@ class ListModel(Model):
                 cont = FittingUtilities.Continuum(x, ratio, fitorder=5, lowreject=2, highreject=2)
             else:
                 cont = np.ones(x.size)
-            loglikelihood.append((y - cont * m) ** 2)
+            loglikelihood.append((y - cont * m))
 
             length += l
 
@@ -831,7 +831,7 @@ class ListModel(Model):
         c = np.hstack([d.cont for d in data])
         e = np.hstack([d.err for d in data])
         fulldata = DataStructures.xypoint(x=x, y=y, err=e, cont=c)
-        weights = 1.0 / e ** 2
+        weights = 1.0 / e
         self.order_lengths = [d.size() for d in data]
         self.fitcont = fitcont
 
@@ -856,7 +856,7 @@ class ListModel(Model):
             lp = lnprior(pars, priors)
             if not np.isfinite(lp):
                 return -np.inf
-            return lp + np.sum(self._residual(pars, data, weights, **kwargs))
+            return lp + np.sum(self._residual(pars, data, weights, **kwargs)**2)
 
 
         # Set up the emcee sampler
