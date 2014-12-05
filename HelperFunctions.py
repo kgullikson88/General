@@ -866,7 +866,7 @@ class ListModel(Model):
         pos = [pars + scale * np.random.randn(ndim) for i in range(nwalkers)]
         if model_getter is None:
             model_getter = self.opts['model_getter']
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(priors, fulldata.y, fulldata.err),
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(priors, fulldata.y, weights),
                                         kwargs={'model_getter': model_getter, 'names': names, 'x': x})
 
         return sampler, pos
