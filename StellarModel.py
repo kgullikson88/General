@@ -181,7 +181,7 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
 
 class KuruczGetter():
     def __init__(self, modeldir, rebin=True, T_min=7000, T_max=9000, logg_min=3.5, logg_max=4.5, metal_min=-0.5,
-                 metal_max=0.5, alpha_min=0.0, alpha_max=0.4, wavemin=0, wavemax=np.inf):
+                 metal_max=0.5, alpha_min=0.0, alpha_max=0.4, wavemin=0, wavemax=np.inf, debug=False):
         """
         This class will read in a directory with Kurucz models
 
@@ -196,6 +196,7 @@ class KuruczGetter():
                     The whole grid would take about 36 GB of RAM!
         """
         self.rebin = rebin
+        self.debug = debug
 
         # First, read in the grid
         if HelperFunctions.IsListlike(modeldir):
@@ -296,7 +297,8 @@ class KuruczGetter():
                             metal_min <= metal <= metal_max and
                             alpha_min <= alpha <= alpha_max):
 
-                print "Reading in file {:s}".format(fname)
+                if self.debug:
+                    print "Reading in file {:s}".format(fname)
                 data = pandas.read_csv("{:s}/{:s}".format(modeldir, fname),
                                        header=None,
                                        names=["wave", "norm"],
@@ -350,7 +352,8 @@ class KuruczGetter():
         """
 
         # Scale the requested values
-        print T, logg, metal, alpha, vsini
+        if self.debug:
+            print T, logg, metal, alpha, vsini
         T = (T - self.T_scale[0]) / self.T_scale[1]
         logg = (logg - self.logg_scale[0]) / self.logg_scale[1]
         metal = (metal - self.metal_scale[0]) / self.metal_scale[1]
@@ -380,7 +383,8 @@ class KuruczGetter():
 
             y = self.interpolator(input_list)
         else:
-            warnings.warn("The requested parameters fall outside the model grid. Results may be unreliable!")
+            if self.debug:
+                warnings.warn("The requested parameters fall outside the model grid. Results may be unreliable!")
             # print T, T_min, T_max
             #print logg, logg_min, logg_max
             #print metal, metal_min, metal_max
@@ -390,7 +394,8 @@ class KuruczGetter():
         # Test to make sure the result is valid. If the requested point is
         # outside the Delaunay triangulation, it will return NaN's
         if np.any(np.isnan(y)):
-            warnings.warn("Found NaNs in the interpolated spectrum! Falling back to Nearest Neighbor")
+            if self.debug:
+                warnings.warn("Found NaNs in the interpolated spectrum! Falling back to Nearest Neighbor")
             y = self.NN_interpolator(input_list)
 
         model = DataStructures.xypoint(x=self.xaxis, y=y)
@@ -414,7 +419,7 @@ class KuruczGetter():
 
 class PhoenixGetter():
     def __init__(self, modeldir, rebin=True, T_min=3000, T_max=6800, metal_min=-0.5,
-                 metal_max=0.5, wavemin=0, wavemax=np.inf):
+                 metal_max=0.5, wavemin=0, wavemax=np.inf, debug=False):
         """
         This class will read in a directory with Phoenix models
 
@@ -428,6 +433,7 @@ class PhoenixGetter():
                     You need to keep this as small as possible to avoid memory issues!
         """
         self.rebin = rebin
+        self.debug = debug
 
         # First, read in the grid
         if HelperFunctions.IsListlike(modeldir):
@@ -460,8 +466,6 @@ class PhoenixGetter():
         self.metal_scale = ((max(metalvals) + min(metalvals)) / 2.0, max(metalvals) - min(metalvals))
         Tvals = (np.array(Tvals) - self.T_scale[0]) / self.T_scale[1]
         metalvals = (np.array(metalvals) - self.metal_scale[0]) / self.metal_scale[1]
-        print self.T_scale
-        print self.metal_scale
 
         # Make the grid and interpolator instances
         self.grid = np.array((Tvals, metalvals)).T
@@ -471,7 +475,7 @@ class PhoenixGetter():
 
 
     def read_grid(self, modeldir, rebin=True, T_min=3000, T_max=6800, metal_min=-0.5,
-                  metal_max=0.5, wavemin=0, wavemax=np.inf, xaxis=None):
+                  metal_max=0.5, wavemin=0, wavemax=np.inf, xaxis=None, debug=False):
         Tvals = []
         metalvals = []
         spectra = []
@@ -486,7 +490,8 @@ class PhoenixGetter():
                             metal_min <= metal <= metal_max and
                         logg == 4.5):
 
-                print "Reading in file {:s}".format(fname)
+                if self.debug:
+                    print "Reading in file {:s}".format(fname)
                 data = pandas.read_csv("{:s}{:s}".format(modeldir, fname),
                                        header=None,
                                        names=["wave", "flux", "continuum"],
@@ -555,7 +560,8 @@ class PhoenixGetter():
 
             y = self.interpolator(input_list)
         else:
-            warnings.warn("The requested parameters fall outside the model grid. Results may be unreliable!")
+            if self.debug:
+                warnings.warn("The requested parameters fall outside the model grid. Results may be unreliable!")
             print T, T_min, T_max
             print metal, metal_min, metal_max
             y = self.NN_interpolator(input_list)
@@ -563,7 +569,8 @@ class PhoenixGetter():
         # Test to make sure the result is valid. If the requested point is
         # outside the Delaunay triangulation, it will return NaN's
         if np.any(np.isnan(y)):
-            warnings.warn("Found NaNs in the interpolated spectrum! Falling back to Nearest Neighbor")
+            if self.debug:
+                warnings.warn("Found NaNs in the interpolated spectrum! Falling back to Nearest Neighbor")
             y = self.NN_interpolator(input_list)
 
         model = DataStructures.xypoint(x=self.xaxis, y=y)
