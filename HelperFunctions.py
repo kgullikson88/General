@@ -847,7 +847,7 @@ class ListModel(Model):
                 return 0.0 if all(tmp) else -np.inf
 
             guess = [(p[0] + p[1]) / 2.0 for p in priors]
-            scale = [(p[1] - p[0]) / 10.0 for p in priors]
+            scale = [(p[1] - p[0]) / 100.0 for p in priors]
         else:
             raise ValueError("prior_type must be one of 'gauss' or 'flat'")
 
