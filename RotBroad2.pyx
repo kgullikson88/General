@@ -6,6 +6,7 @@ from libc.math cimport sqrt
 from astropy import constants, units
 import FittingUtilities
 from scipy.signal import fftconvolve
+import warnings
 
 DTYPE = np.float64
 ctypedef np.float64_t DTYPE_t
@@ -127,6 +128,10 @@ def Broaden(model, vsini, epsilon=0.5, linear=False, findcont=False):
     # Make the broadening kernel. No idea where the NECESSARY factor of log(200) comes from...
     dx = np.log10(x[1]/x[0])
     lim = vsini/c
+    if lim < dx:
+        #vsini is too small. Don't broaden
+        warnings.warn("vsini too small ({}). Not broadening!".format(vsini))
+        return model.copy()
     #d_logx = np.arange(-lim, lim, dx*np.log10(200.0))
     d_logx = np.arange(0.0, lim, dx*np.log10(200.0))
     d_logx = np.r_[-d_logx[::-1][:-1], d_logx]
