@@ -1,15 +1,15 @@
 import sys
 import os
 import warnings
-import FittingUtilities
-import RotBroad_Fast as RotBroad
-
-import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import scipy.signal
-from astropy import units, constants
 
+import FittingUtilities
+import numpy as np
+from astropy import units, constants
 import DataStructures
+
+import RotBroad_Fast as RotBroad
 import HelperFunctions
 from PlotBlackbodies import Planck
 
@@ -255,6 +255,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         raise ValueError("Must give orderweights if addmode == weighted")
 
     corrlist = []
+    normalization = 0.0
     normalization = 0.0
     info_content = []
     flux_ratio = []
