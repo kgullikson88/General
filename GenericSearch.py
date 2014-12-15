@@ -29,6 +29,7 @@ import SpectralTypeRelations
 import GenericSmooth
 import Broaden
 from astropy import units as u
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import re
 
 if pyraf_import:
@@ -192,6 +193,8 @@ def Process_Data(fname, badregions=[], interp_regions=[], extensions=True, trims
 
     return orders
 
+
+
 def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=None,
                   maxvel=1000.0, debug=False, oversample=1, logspacing=True):
     # Read in the model if necessary
@@ -244,9 +247,9 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
 
     # Rebin subsets of the model to the same spacing as the data
     model_orders = []
+    model_fcn = spline(model.x, model.y)
     if debug:
         model.output("Test_model.dat")
-
     for i, order in enumerate(data):
         if debug:
             sys.stdout.write("\rGenerating model subset for order %i in the input data" % (i + 1))
@@ -265,7 +268,8 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
         end = np.log(model.x[right])
         xgrid = np.exp(np.arange(start, end + logspacing, logspacing))
 
-        segment = FittingUtilities.RebinData(model[left:right + 1].copy(), xgrid)
+        segment = DataStructures.xypoint(x=xgrid, y=model_fcn(xgrid))
+        #segment = FittingUtilities.RebinData(model[left:right + 1].copy(), xgrid)
         segment.cont = FittingUtilities.Continuum(segment.x, segment.y, lowreject=1.5, highreject=5, fitorder=2)
         model_orders.append(segment)
 
