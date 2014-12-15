@@ -5,11 +5,11 @@
 import os
 import csv
 from collections import defaultdict
-
 from scipy.optimize import bisect
 from scipy.stats import scoreatpercentile
 from scipy.signal import kaiserord, firwin, lfilter
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
+
 from astropy.io import fits as pyfits
 import numpy as np
 from astropy import units, constants
@@ -79,7 +79,7 @@ def CheckMultiplicityWDS(starname):
         return False
 
     # Get absolute magnitude of the primary star, so that we can determine
-    #   the temperature of the secondary star from the magnitude difference
+    # the temperature of the secondary star from the magnitude difference
     MS = SpectralTypeRelations.MainSequence()
     print star.SpectralType()[:2]
     p_Mag = MS.GetAbsoluteMagnitude(star.SpectralType()[:2], 'V')
@@ -144,7 +144,7 @@ def CheckMultiplicitySB9(starname):
         segments = line.split("|")
         if int(segments[0]) == index:
             num_matches += 1
-            #information found
+            # information found
             component = segments[3]
             mag1 = float(segments[4]) if len(segments[4]) > 0 else "Unknown"
             filt1 = segments[5]
@@ -155,7 +155,7 @@ def CheckMultiplicitySB9(starname):
             companion["Magnitude"] = mag2 if filt1 == "V" else "Unknown"
             companion["SpT"] = spt2
 
-    #Finally, get orbit information for our star (Use the most recent publication)
+    # Finally, get orbit information for our star (Use the most recent publication)
     infile = open("%s/Orbits.dta" % SB9_location)
     lines = infile.readlines()
     infile.close()
@@ -315,7 +315,7 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
                        'wavelen': wave,
                        'wavefields': np.zeros(data.shape)}
 
-        #Check if wavelength units are in angstroms (common, but I like nm)
+        # Check if wavelength units are in angstroms (common, but I like nm)
         hdulist = pyfits.open(datafile)
         header = hdulist[0].header
         hdulist.close()
@@ -595,7 +595,7 @@ def Denoise(data):
     # Adjust all wavelet coefficients
     WC = WC + a * WC * np.exp(-WC ** 2 / (12 * sigma ** 2))
 
-    #Now, do a soft threshold
+    # Now, do a soft threshold
     threshold = scoreatpercentile(WC, 80.0)
     WC[np.abs(WC) <= threshold] = 0.0
     WC[np.abs(WC) > threshold] -= threshold * np.sign(WC[np.abs(WC) > threshold])
@@ -792,7 +792,7 @@ class ListModel(Model):
                 raise KeyError("Must give the parameter names if the params are just list instances!")
             d = {name: value for name, value in zip(parnames, params)}
             params = self.make_params(**d)
-        #print params
+        # print params
 
         model = Model.eval(self, params, **kwargs)
         length = 0
@@ -857,7 +857,7 @@ class ListModel(Model):
             lp = lnprior(pars, priors)
             if not np.isfinite(lp):
                 return -np.inf
-            return lp + np.sum(self._residual(pars, data, weights, **kwargs)**2)
+            return lp + np.sum(self._residual(pars, data, weights, **kwargs) ** 2)
 
 
         # Set up the emcee sampler
@@ -1009,4 +1009,17 @@ def get_max_velocity(p_spt, s_temp):
     return np.sqrt(v2) * units.cm.to(units.km)
 
 
-
+def FindOrderNums(orders, wavelengths):
+    """
+      Given a list of xypoint orders and
+      another list of wavelengths, this
+      finds the order numbers with the
+      requested wavelengths
+    """
+    nums = []
+    for wave in wavelengths:
+        for i, order in enumerate(orders):
+            if order.x[0] < wave and order.x[-1] > wave:
+                nums.append(i)
+                break
+    return nums

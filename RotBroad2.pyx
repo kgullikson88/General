@@ -125,15 +125,15 @@ def Broaden(model, vsini, epsilon=0.5, linear=False, findcont=False):
     if findcont:
         model.cont = FittingUtilities.Continuum(model.x, model.y, lowreject=1.5, highreject=10)
 
-    # Make the broadening kernel. No idea where the NECESSARY factor of log(200) comes from...
-    dx = np.log10(x[1]/x[0])
+    # Make the broadening kernel.
+    dx = np.log(x[1]/x[0])
     lim = vsini/c
     if lim < dx:
         #vsini is too small. Don't broaden
         warnings.warn("vsini too small ({}). Not broadening!".format(vsini))
         return model.copy()
     #d_logx = np.arange(-lim, lim, dx*np.log10(200.0))
-    d_logx = np.arange(0.0, lim, dx*np.log10(200.0))
+    d_logx = np.arange(0.0, lim, dx)
     d_logx = np.r_[-d_logx[::-1][:-1], d_logx]
     alpha = 1.0 - (d_logx/lim)**2
     B = (1.0-epsilon)*np.sqrt(alpha) + epsilon*np.pi*alpha/4.0 #Broadening kernel

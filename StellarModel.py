@@ -13,6 +13,7 @@ import pandas
 
 import HelperFunctions
 import Broaden
+import FittingUtilities
 
 
 """
@@ -112,7 +113,7 @@ def ClassifyModel(filename, type='phoenix'):
     return temp, gravity, metallicity
 
 
-def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', vac2air=True):
+def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', vac2air=True, logspace=False):
     """This will take a list of models, and output two dictionaries that are
     used by GenericSearch.py and Sensitivity.py
 
@@ -120,6 +121,7 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
     :param vsini_values: a list of vsini values to broaden the spectrum by (we do that later!)
     :param type: the type of models. Currently, only phoenix is implemented
     :param vac2air: If true, assumes the model is in vacuum wavelengths and converts to air
+    :param logspace: If true, it will rebin the data to a constant log-spacing
     :return: A dictionary containing the model with keys of temperature, gravity, metallicity, and vsini,
              and another one with a processed flag with the same keys
     """
@@ -142,6 +144,9 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
                 n = 1.0 + 2.735182e-4 + 131.4182 / x ** 2 + 2.76249e8 / x ** 4
                 x /= n
             model = DataStructures.xypoint(x=x * units.angstrom.to(units.nm), y=10 ** y)
+            if logspace:
+                xgrid = np.logspace(np.log(model.x[0]), np.log(model.x[-1]), model.size(), base=np.e)
+                model = FittingUtilities.RebinData(model, xgrid)
             for vsini in vsini_values:
                 modeldict[temp][gravity][metallicity][vsini] = model
                 processed[temp][gravity][metallicity][vsini] = False
@@ -166,6 +171,9 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
                 n = 1.0 + 2.735182e-4 + 131.4182 / x ** 2 + 2.76249e8 / x ** 4
                 x /= n
             model = DataStructures.xypoint(x=x * units.angstrom.to(units.nm), y=10 ** y)
+            if logspace:
+                xgrid = np.logspace(np.log(model.x[0]), np.log(model.x[-1]), model.size(), base=np.e)
+                model = FittingUtilities.RebinData(model, xgrid)
             for vsini in vsini_values:
                 modeldict[temp][gravity][metallicity][a][vsini] = model
                 processed[temp][gravity][metallicity][a][vsini] = False
