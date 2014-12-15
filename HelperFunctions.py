@@ -815,7 +815,7 @@ class ListModel(Model):
             loglikelihood *= weights
         return loglikelihood
 
-    def MCMC_fit(self, data, priors, names, prior_type='flat', fitcont=True, model_getter=None):
+    def MCMC_fit(self, data, priors, names, prior_type='flat', fitcont=True, model_getter=None, nthreads=1):
         """
         Do a fit using emcee
 
@@ -824,8 +824,7 @@ class ListModel(Model):
         :param names: The names of the variables, in the same order as the priors list
         :keyword prior_type: The type of prior. Choices are 'flat' or 'gaussian'
         :keyword fitcont: Should we fit the continuum in each step?
-        :param fit_kws:
-        :param kws:
+        :param nthreads: The number of threads to spawn (for parallelization)
         :return:
         """
         x = np.hstack([d.x for d in data])
@@ -869,7 +868,8 @@ class ListModel(Model):
         if model_getter is None:
             model_getter = self.opts['model_getter']
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(priors, fulldata.y, weights),
-                                        kwargs={'model_getter': model_getter, 'names': names, 'x': x})
+                                        kwargs={'model_getter': model_getter, 'names': names, 'x': x},
+                                        threads=nthreads)
 
         return sampler, pos
         """
