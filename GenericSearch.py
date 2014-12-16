@@ -198,7 +198,7 @@ def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
 
 
 def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=None,
-                  maxvel=1000.0, debug=False, oversample=1, logspacing=True):
+                  maxvel=1000.0, debug=False, oversample=1, logspace=True):
     # Read in the model if necessary
     if isinstance(model, str):
         if debug:
@@ -215,7 +215,7 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
 
 
     # Linearize the x-axis of the model (in log-spacing)
-    if logspacing:
+    if logspace:
         if debug:
             print "Linearizing model"
         xgrid = np.logspace(np.log10(model.x[0]), np.log10(model.x[-1]), model.size())
@@ -493,7 +493,7 @@ def slow_companion_search(fileList,
 
                         # Now, process the model
                         model_orders = process_model(model, orders, vsini_primary=vsini_prim, maxvel=1000.0,
-                                                     debug=debug, oversample=1, logspacing=True)
+                                                     debug=debug, oversample=1, logspace=False)
 
                         # Make sure the output directory exists
                         output_dir = "Cross_correlations/"
