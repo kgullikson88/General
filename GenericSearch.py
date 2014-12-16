@@ -31,6 +31,7 @@ import Broaden
 from astropy import units as u
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import re
+import sys
 
 if pyraf_import:
     pyraf.iraf.noao()
@@ -96,7 +97,8 @@ def HelCorr(header, observatory="CTIO", idlpath="/Applications/itt/idl/bin/idl",
     return float(output[-2])
 
 
-def Process_Data(fname, badregions=[], interp_regions=[], extensions=True, trimsize=1, vsini=None, logspacing=False):
+def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
+                 trimsize=1, vsini=None, logspacing=False, oversample=1.0):
     """
 
     :param fname: The filename to read in (should be a fits file)
@@ -237,7 +239,7 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
     if vsini_primary is not None:
         smooth_factor = 0.8
         d_logx = np.log(xgrid[1]/xgrid[0])
-        theta = roundodd(vsini_primary / 3e5 * smooth_factor / d_logx)
+        theta = GenericSmooth.roundodd(vsini_primary / 3e5 * smooth_factor / d_logx)
         print "Window size = {}\ndlogx = {}\nvsini = {}".format(theta, d_logx, vsini_primary)
         smooth = FittingUtilities.savitzky_golay(model.y, theta, 5)
         model.y = model.y - smooth
@@ -491,7 +493,7 @@ def slow_companion_search(fileList,
 
                         # Now, process the model
                         model_orders = process_model(model, orders, vsini_primary=vsini_prim, maxvel=1000.0,
-                                                     debug=True, oversample=1)
+                                                     debug=debug, oversample=1, logspacing=True)
 
                         # Make sure the output directory exists
                         output_dir = "Cross_correlations/"
@@ -507,13 +509,13 @@ def slow_companion_search(fileList,
 
                         corr = Correlate.Correlate(orders, model_orders, addmode=addmode, outputdir=output_dir,
                                                    get_weights=get_weights, prim_teff=temperature_dict[fname],
-                                                   debug=False)
+                                                   debug=debug)
                         if debug:
                             corr, ccf_orders = corr
 
                         # Output the ccf
                         outfilename = "{0:s}{1:s}.{2:.0f}kps_{3:.1f}K{4:+.1f}{5:+.1f}".format(output_dir, outfilebase,
-                                                                                              vsini, temp, gravity,
+                                                                                              vsini_sec, temp, gravity,
                                                                                               metallicity)
                         print "Outputting to ", outfilename, "\n"
                         if vbary_correct:
@@ -550,6 +552,6 @@ def slow_companion_search(fileList,
 
 
                     # Delete the model. We don't need it anymore and it just takes up ram.
-                    modeldict[temp][gravity][metallicity][vsini] = []
+                    modeldict[temp][gravity][metallicity][vsini_sec] = []
 
     return
