@@ -13,8 +13,12 @@ class stardata:
 
 
 def GetData(starname):
-    link = sim.buildLink(starname, cfa_mirror=True)
-    star = sim.simbad(link)
+    try:
+        link = sim.buildLink(starname, cfa_mirror=True)
+        star = sim.simbad(link)
+    except sim.ConnectionError:
+        link = sim.buildLink(starname, cfa_mirror=False)
+	star = sim.simbad(link)
     data = stardata()
     data.spectype = star.SpectralType()
     data.Vmag = star.flux()["V"]
