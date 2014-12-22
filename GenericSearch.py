@@ -131,7 +131,8 @@ def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
             dx = order.x[1] - order.x[0]
             smooth_factor = 0.8
             theta = GenericSmooth.roundodd(vsini / 3e5 * order.x.mean() / dx * smooth_factor)
-            denoised = HelperFunctions.Denoise(order.copy())
+            theta = max(theta, 21)
+	    denoised = HelperFunctions.Denoise(order.copy())
             smooth = FittingUtilities.savitzky_golay(denoised.y, theta, 5)
             order.y = order.y - smooth + order.cont.mean()
 
