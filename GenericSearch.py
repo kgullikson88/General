@@ -220,7 +220,8 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
             print "Linearizing model"
         xgrid = np.logspace(np.log10(model.x[0]), np.log10(model.x[-1]), model.size())
         model = FittingUtilities.RebinData(model, xgrid)
-
+    else:
+        xgrid = model.x
 
     # Broaden
     if vsini_model is not None and vsini_model > 1.0 * units.km.to(units.cm):
