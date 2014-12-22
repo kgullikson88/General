@@ -13,6 +13,7 @@ import Correlate
 import HelperFunctions
 import StellarModel
 
+
 try:
     import pyraf
 
@@ -466,7 +467,7 @@ def slow_companion_search(fileList,
             for metallicity in sorted(modeldict[temp][gravity].keys()):
                 for vsini_sec in vsini_values:
                     # broaden the model
-                    model = modeldict[temp][gravity][metallicity][vsini_sec]
+                    model = modeldict[temp][gravity][metallicity][vsini_sec].copy()
                     model = Broaden.RotBroad(model, vsini_sec*u.km.to(u.cm), linear=True)
                     model = FittingUtilities.ReduceResolutionFFT(model, resolution)
 
