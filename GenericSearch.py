@@ -6,7 +6,6 @@ It is called by several smaller scripts in each of the instrument-specific repos
 """
 
 import FittingUtilities
-
 import numpy as np
 import DataStructures
 
@@ -205,7 +204,7 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
         if debug:
             print "Reading in the input model from %s" % model
         x, y = np.loadtxt(model, usecols=(0, 1), unpack=True)
-        x = x * units.angstrom.to(units.nm)
+        x = x * u.angstrom.to(u.nm)
         y = 10 ** y
         left = np.searchsorted(x, data[0].x[0] - 10)
         right = np.searchsorted(x, data[-1].x[-1] + 10)
@@ -225,9 +224,9 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
         xgrid = model.x
 
     # Broaden
-    if vsini_model is not None and vsini_model > 1.0 * units.km.to(units.cm):
+    if vsini_model is not None and vsini_model > 1.0 * u.km.to(u.cm):
         if debug:
-            print "Rotationally broadening model to vsini = %g km/s" % (vsini_model * units.cm.to(units.km))
+            print "Rotationally broadening model to vsini = %g km/s" % (vsini_model * u.cm.to(u.km))
         model = Broaden.RotBroad(model, vsini_model, linear=True)
 
 
@@ -471,7 +470,7 @@ def slow_companion_search(fileList,
                     model = Broaden.RotBroad(model, vsini_sec*u.km.to(u.cm), linear=True)
                     model = FittingUtilities.ReduceResolutionFFT(model, resolution)
 
-                    for fname, vsini_prim in zip(fileList, primary_vsini):
+                    for i, (fname, vsini_prim) in enumerate(zip(fileList, primary_vsini)):
                         if vbary_correct:
                             if fname in vbary_dict:
                                 vbary = vbary_dict[fname]
@@ -494,7 +493,7 @@ def slow_companion_search(fileList,
                             orders = datadict[fname]
 
                         # Now, process the model
-                        model_orders = process_model(model, orders, vsini_primary=vsini_prim, maxvel=1000.0,
+                        model_orders = process_model(model.copy(), orders, vsini_primary=vsini_prim, maxvel=1000.0,
                                                      debug=debug, oversample=1, logspace=False)
 
                         # Make sure the output directory exists
