@@ -148,7 +148,7 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weigh
 
         # Measure the information content in the model, if get_weights is true
         # if get_weights:
-        #    slopes = [(segment.y[i + 1] / segment.cont[i + 1] - segment.y[i - 1] / segment.cont[i - 1]) /
+        # slopes = [(segment.y[i + 1] / segment.cont[i + 1] - segment.y[i - 1] / segment.cont[i - 1]) /
         #              (segment.x[i + 1] - segment.x[i - 1]) for i in range(1, segment.size() - 1)]
         #    prim_flux = Planck(segment.x*units.nm.to(units.cm), prim_teff)
         #    lines = FittingUtilities.FindLines(segment)
@@ -158,7 +158,7 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weigh
 
     print "\n"
     # if get_weights:
-    #    weights = np.array(weights) * np.array(flux_ratio)
+    # weights = np.array(weights) * np.array(flux_ratio)
     #    print "Weights: ", np.array(weights) / np.sum(weights)
     #    return model_orders, np.array(weights) / np.sum(weights)
     return model_orders
@@ -220,7 +220,7 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
         model_orders = Process(model, data, vsini * units.km.to(units.cm), resolution, debug=debug,
                                oversample=oversample, get_weights=get_weights, prim_teff=prim_teff)
         # if get_weights:
-        #    model_orders, orderweights = model_orders
+        # model_orders, orderweights = model_orders
     elif isinstance(model, list) and isinstance(model[0], DataStructures.xypoint):
         model_orders = model
     else:
@@ -282,9 +282,9 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
 
         ycorr = scipy.signal.fftconvolve((reducedmodel - meanmodel), (reduceddata - meandata)[::-1], mode='valid')
         xcorr = np.arange(ycorr.size)
-        #lags = xcorr - left
+        # lags = xcorr - left
         lags = xcorr - xcorr.size / 2.0
-	distancePerLag = np.log(model.x[1] / model.x[0])
+        distancePerLag = np.log(model.x[1] / model.x[0])
         offsets = lags * distancePerLag
         velocity = offsets * constants.c.cgs.value * units.cm.to(units.km)
         corr = DataStructures.xypoint(velocity.size)
