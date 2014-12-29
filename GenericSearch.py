@@ -32,6 +32,7 @@ from astropy import units as u
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import re
 import sys
+import logging
 
 if pyraf_import:
     pyraf.iraf.noao()
@@ -466,6 +467,9 @@ def slow_companion_search(fileList,
         for gravity in sorted(modeldict[temp].keys()):
             for metallicity in sorted(modeldict[temp][gravity].keys()):
                 for vsini_sec in vsini_values:
+                    if debug:
+                        logging.info('T: {}, logg: {}, [Fe/H]: {}, vsini: {}'.format(temp, gravity,
+                                                                                     metallicity, vsini_sec))
                     # broaden the model
                     model = modeldict[temp][gravity][metallicity][vsini_sec].copy()
                     model = Broaden.RotBroad(model, vsini_sec*u.km.to(u.cm), linear=True)
@@ -497,6 +501,27 @@ def slow_companion_search(fileList,
                         model_orders = process_model(model.copy(), orders, vsini_primary=vsini_prim, maxvel=1000.0,
                                                      debug=debug, oversample=1, logspace=False)
 
+                        # Save the model and data orders, if debug=True
+                        if debug:
+                            # Save the individual spectral inputs and CCF orders (unweighted)
+                            output_dir2 = output_dir.replace("Cross_correlations", "CCF_inputs")
+                            HelperFunctions.ensure_dir(output_dir2)
+                            HelperFunctions.ensure_dir("%sCross_correlations/" % (output_dir2))
+
+                            for i, (o, m) in enumerate(zip(orders, model_orders)):
+                                outfilename = "{0:s}{1:s}.{2:.0f}kps_{3:.1f}K{4:+.1f}{5:+.1f}.data.order{6:d}".format(
+                                    output_dir2,
+                                    outfilebase, vsini_sec,
+                                    temp, gravity,
+                                    metallicity, i + 1)
+                                o.output(outfilename)
+                                outfilename = "{0:s}{1:s}.{2:.0f}kps_{3:.1f}K{4:+.1f}{5:+.1f}.model.order{6:d}".format(
+                                    output_dir2,
+                                    outfilebase, vsini_sec,
+                                    temp, gravity,
+                                    metallicity, i + 1)
+                                m.output(outfilename)
+
                         # Make sure the output directory exists
                         output_dir = "Cross_correlations/"
                         outfilebase = fname.split(".fits")[0]
@@ -524,13 +549,9 @@ def slow_companion_search(fileList,
                             corr.x += vbary
                         np.savetxt(outfilename, np.transpose((corr.x, corr.y)), fmt="%.10g")
 
+                        # Save the individual orders, if debug=True
                         if debug:
-                            # Save the individual spectral inputs and CCF orders (unweighted)
-                            output_dir2 = output_dir.replace("Cross_correlations", "CCF_inputs")
-                            HelperFunctions.ensure_dir(output_dir2)
-                            HelperFunctions.ensure_dir("%sCross_correlations/" % (output_dir2))
-
-                            for i, (o, m, c) in enumerate(zip(orders, model_orders, ccf_orders)):
+                            for i, c in enumerate(ccf_orders):
                                 print "Saving CCF inputs for order {}".format(i + 1)
                                 outfilename = "{0:s}Cross_correlations/{1:s}.{2:.0f}kps_{3:.1f}K{4:+.1f}{5:+.1f}.order{6:d}".format(
                                     output_dir2,
@@ -538,18 +559,6 @@ def slow_companion_search(fileList,
                                     temp, gravity,
                                     metallicity, i + 1)
                                 c.output(outfilename)
-                                outfilename = "{0:s}{1:s}.{2:.0f}kps_{3:.1f}K{4:+.1f}{5:+.1f}.data.order{6:d}".format(
-                                    output_dir2,
-                                    outfilebase, vsini_sec,
-                                    temp, gravity,
-                                    metallicity, i + 1)
-                                o.output(outfilename)
-                                outfilename = "{0:s}{1:s}.{2:.0f}kps_{3:.1f}K{4:+.1f}{5:+.1f}.model.order{6:d}".format(
-                                    output_dir2,
-                                    outfilebase, vsini_sec,
-                                    temp, gravity,
-                                    metallicity, i + 1)
-                                m.output(outfilename)
 
 
 
