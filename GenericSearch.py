@@ -501,6 +501,18 @@ def slow_companion_search(fileList,
                         model_orders = process_model(model.copy(), orders, vsini_primary=vsini_prim, maxvel=1000.0,
                                                      debug=debug, oversample=1, logspace=False)
 
+                        # Make sure the output directory exists
+                        output_dir = "Cross_correlations/"
+                        outfilebase = fname.split(".fits")[0]
+                        if "/" in fname:
+                            dirs = fname.split("/")
+                            output_dir = ""
+                            outfilebase = dirs[-1].split(".fits")[0]
+                            for directory in dirs[:-1]:
+                                output_dir = output_dir + directory + "/"
+                            output_dir = output_dir + "Cross_correlations/"
+                        HelperFunctions.ensure_dir(output_dir)
+
                         # Save the model and data orders, if debug=True
                         if debug:
                             # Save the individual spectral inputs and CCF orders (unweighted)
@@ -521,18 +533,6 @@ def slow_companion_search(fileList,
                                     temp, gravity,
                                     metallicity, i + 1)
                                 m.output(outfilename)
-
-                        # Make sure the output directory exists
-                        output_dir = "Cross_correlations/"
-                        outfilebase = fname.split(".fits")[0]
-                        if "/" in fname:
-                            dirs = fname.split("/")
-                            output_dir = ""
-                            outfilebase = dirs[-1].split(".fits")[0]
-                            for directory in dirs[:-1]:
-                                output_dir = output_dir + directory + "/"
-                            output_dir = output_dir + "Cross_correlations/"
-                        HelperFunctions.ensure_dir(output_dir)
 
                         corr = Correlate.Correlate(orders, model_orders, addmode=addmode, outputdir=output_dir,
                                                    get_weights=get_weights, prim_teff=temperature_dict[fname],
