@@ -542,7 +542,7 @@ def slow_companion_search(fileList,
                             corr, ccf_orders = corr
 
                         # Output the ccf
-                        outfilename = "{0:s}{1:s}_{2:s}_method.{3:.0f}kps_{4:.1f}K{5:+.1f}{6:+.1f}".format(output_dir, outfilebase,
+                        outfilename = "{0:s}{1:s}_{2:s}-method.{3:.0f}kps_{4:.1f}K{5:+.1f}{6:+.1f}".format(output_dir, outfilebase,
                                                                                                            addmode,
                                                                                               vsini_sec, temp, gravity,
                                                                                               metallicity)
