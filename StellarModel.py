@@ -4,17 +4,17 @@ import sys
 import re
 from collections import defaultdict
 import warnings
+from scipy.interpolate import InterpolatedUnivariateSpline as spline, LinearNDInterpolator, NearestNDInterpolator
+import pandas
 
 import numpy as np
 from astropy import units
 import DataStructures
-from scipy.interpolate import InterpolatedUnivariateSpline as spline, LinearNDInterpolator, NearestNDInterpolator
-import pandas
+import FittingUtilities
+import h5py
 
 import HelperFunctions
 import Broaden
-import FittingUtilities
-import h5py
 
 
 """
@@ -203,7 +203,8 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix',
                 n = 1.0 + 2.735182e-4 + 131.4182 / x ** 2 + 2.76249e8 / x ** 4
                 x /= n
         elif wave_hdr['air']:
-            raise GridError('HDF5 grid is in air wavelengths, but you requested vacuum wavelengths. You need a new grid!')
+            raise GridError(
+                'HDF5 grid is in air wavelengths, but you requested vacuum wavelengths. You need a new grid!')
         modeldict = defaultdict(
             lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(DataStructures.xypoint)))))
         processed = defaultdict(
@@ -211,7 +212,7 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix',
         for pars in model_list:
             temp, gravity, metallicity, a = pars['temp'], pars['logg'], pars['Z'], pars['alpha']
             y = hdf5_int.load_flux(pars)
-            model = DataStructures.xypoint(x=x*units.angstrom.to(units.nm), y=y)
+            model = DataStructures.xypoint(x=x * units.angstrom.to(units.nm), y=y)
             for vsini in vsini_values:
                 modeldict[temp][gravity][metallicity][a][vsini] = model
                 processed[temp][gravity][metallicity][a][vsini] = False
@@ -222,15 +223,15 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix',
     return modeldict, processed
 
 
-
 class HDF5Interface:
     '''
     Connect to an HDF5 file that stores spectra. Stolen shamelessly from Ian Czekala's Starfish code
     '''
-    def __init__(self, filename, ranges={"temp":(0,np.inf),
-                                        "logg":(-np.inf,np.inf),
-                                        "Z":(-np.inf, np.inf),
-                                        "alpha":(-np.inf, np.inf)}):
+
+    def __init__(self, filename, ranges={"temp": (0, np.inf),
+                                         "logg": (-np.inf, np.inf),
+                                         "Z": (-np.inf, np.inf),
+                                         "alpha": (-np.inf, np.inf)}):
         '''
             :param filename: the name of the HDF5 file
             :type param: string
@@ -239,7 +240,7 @@ class HDF5Interface:
         '''
         self.filename = filename
         self.flux_name = "t{temp:.0f}g{logg:.1f}z{Z:.1f}a{alpha:.1f}"
-        grid_parameters = ("temp", "logg", "Z", "alpha") #Allowed grid parameters
+        grid_parameters = ("temp", "logg", "Z", "alpha")  # Allowed grid parameters
         grid_set = frozenset(grid_parameters)
 
         with h5py.File(self.filename, "r") as hdf5:
@@ -249,41 +250,41 @@ class HDF5Interface:
             grid_points = []
 
             for key in hdf5["flux"].keys():
-                #assemble all temp, logg, Z, alpha keywords into a giant list
+                # assemble all temp, logg, Z, alpha keywords into a giant list
                 hdr = hdf5['flux'][key].attrs
 
                 params = {k: hdr[k] for k in grid_set}
 
                 #Check whether the parameters are within the range
-                for kk,vv in params.items():
+                for kk, vv in params.items():
                     low, high = ranges[kk]
                     if (vv < low) or (vv > high):
                         break
                 else:
                     #If all parameters have passed successfully through the ranges, allow.
-                     grid_points.append(params)
+                    grid_points.append(params)
 
             self.list_grid_points = grid_points
 
-        #determine the bounding regions of the grid by sorting the grid_points
-        temp, logg, Z, alpha = [],[],[],[]
+        # determine the bounding regions of the grid by sorting the grid_points
+        temp, logg, Z, alpha = [], [], [], []
         for param in self.list_grid_points:
             temp.append(param['temp'])
             logg.append(param['logg'])
             Z.append(param['Z'])
             alpha.append(param['alpha'])
 
-        self.bounds = { "temp": (min(temp),max(temp)),
-                        "logg": (min(logg), max(logg)),
-                        "Z": (min(Z), max(Z)),
-                        "alpha":(min(alpha),max(alpha))}
+        self.bounds = {"temp": (min(temp), max(temp)),
+                       "logg": (min(logg), max(logg)),
+                       "Z": (min(Z), max(Z)),
+                       "alpha": (min(alpha), max(alpha))}
 
-        self.points = { "temp": np.unique(temp),
-                        "logg": np.unique(logg),
-                        "Z": np.unique(Z),
-                        "alpha": np.unique(alpha)}
+        self.points = {"temp": np.unique(temp),
+                       "logg": np.unique(logg),
+                       "Z": np.unique(Z),
+                       "alpha": np.unique(alpha)}
 
-        self.ind = None #Overwritten by other methods using this as part of a ModelInterpolator
+        self.ind = None  #Overwritten by other methods using this as part of a ModelInterpolator
 
     def load_flux(self, parameters):
         '''
@@ -307,7 +308,7 @@ class HDF5Interface:
             except KeyError as e:
                 raise GridError(e)
 
-        #Note: will raise a KeyError if the file is not found.
+        # Note: will raise a KeyError if the file is not found.
 
         return fl
 
@@ -316,6 +317,7 @@ class GridError(Exception):
     '''
     Raised when a spectrum cannot be found in the grid.
     '''
+
     def __init__(self, msg):
         self.msg = msg
 
@@ -527,7 +529,7 @@ class KuruczGetter():
             if self.debug:
                 warnings.warn("The requested parameters fall outside the model grid. Results may be unreliable!")
             # print T, T_min, T_max
-            #print logg, logg_min, logg_max
+            # print logg, logg_min, logg_max
             #print metal, metal_min, metal_max
             #print alpha, alpha_min, alpha_max
             y = self.NN_interpolator(input_list)
