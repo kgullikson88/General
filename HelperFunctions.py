@@ -967,7 +967,8 @@ def convert_hex_string(string, delimiter=":"):
     :return: the decimal number
     """
     segments = string.split(delimiter)
-    s = np.sign(float(segments[0]))
+    #s = np.sign(float(segments[0]))
+    s = -1.0 if '-' in string else 1.0
     return s * (abs(float(segments[0])) + float(segments[1]) / 60.0 + float(segments[2]) / 3600.0)
 
 
