@@ -30,6 +30,9 @@ import FittingUtilities
 import mlpy
 import warnings
 
+import statsmodels.api as sm
+from statsmodels.robust.norms import TukeyBiweight
+
 
 def ensure_dir(f):
     """
@@ -1023,3 +1026,25 @@ def FindOrderNums(orders, wavelengths):
                 nums.append(i)
                 break
     return nums
+
+
+
+
+def RobustFit(x,y, fitorder=3, weight_fcn=TukeyBiweight()):
+    """
+    Performs a robust fit (less sensitive to outliers) to x and y
+    :param x: A numpy.ndarray with the x-coordinates of the function to fit
+    :param y: A numpy.ndarray with the y-coordinates of the function to fit
+    :param fitorder: The order of the fit
+    :return:
+    """
+    #Re-scale x for stability
+    x = (x - x.mean())/x.std()
+    X = np.ones(x.size)
+    for i in range(1, fitorder+1):
+        X = np.column_stack((X, x**i))
+    fitter = sm.RLM(y, X, M=weight_fcn)
+    results = fitter.fit()
+    return results.predict(X)
+
+
