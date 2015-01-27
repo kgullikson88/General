@@ -465,6 +465,7 @@ def slow_companion_search(fileList,
     datadict = defaultdict(list)
     temperature_dict = defaultdict(float)
     vbary_dict = defaultdict(float)
+    alpha = 0.0
     for temp in sorted(modeldict.keys()):
         for gravity in sorted(modeldict[temp].keys()):
             for metallicity in sorted(modeldict[temp][gravity].keys()):
@@ -473,7 +474,7 @@ def slow_companion_search(fileList,
                         logging.info('T: {}, logg: {}, [Fe/H]: {}, vsini: {}'.format(temp, gravity,
                                                                                      metallicity, vsini_sec))
                     # broaden the model
-                    model = modeldict[temp][gravity][metallicity][vsini_sec].copy()
+                    model = modeldict[temp][gravity][metallicity][alpha][vsini_sec].copy()
                     model = Broaden.RotBroad(model, vsini_sec * u.km.to(u.cm), linear=True)
                     model = FittingUtilities.ReduceResolutionFFT(model, resolution)
 
@@ -567,6 +568,6 @@ def slow_companion_search(fileList,
 
 
                     # Delete the model. We don't need it anymore and it just takes up ram.
-                    modeldict[temp][gravity][metallicity][vsini_sec] = []
+                    modeldict[temp][gravity][metallicity][alpha][vsini_sec] = []
 
     return
