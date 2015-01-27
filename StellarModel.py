@@ -4,16 +4,17 @@ import sys
 import re
 from collections import defaultdict
 import warnings
+from scipy.interpolate import InterpolatedUnivariateSpline as spline, LinearNDInterpolator, NearestNDInterpolator
+import pandas
 
 import numpy as np
 from astropy import units
 import DataStructures
-from scipy.interpolate import InterpolatedUnivariateSpline as spline, LinearNDInterpolator, NearestNDInterpolator
-import pandas
+import FittingUtilities
+import h5py
 
 import HelperFunctions
 import Broaden
-import FittingUtilities
 
 
 """
@@ -23,8 +24,10 @@ It is used in GenericSearch.py and SensitivityAnalysis.py
 
 if "darwin" in sys.platform:
     modeldir = "/Volumes/DATADRIVE/Stellar_Models/Sorted/Stellar/Vband/"
+    HDF5_FILE = '/Volumes/DATADRIVE/Stellar_Models/Search_Grid.hdf5'
 elif "linux" in sys.platform:
     modeldir = "/media/FreeAgent_Drive/SyntheticSpectra/Sorted/Stellar/Vband/"
+    HDF5_FILE = '/media/ExtraSpace/PhoenixGrid/Search_Grid.hdf5'
 else:
     modeldir = raw_input("sys.platform not recognized. Please enter model directory below: ")
     if not modeldir.endswith("/"):
@@ -36,14 +39,17 @@ def GetModelList(type='phoenix',
                  logg=[4.5, ],
                  temperature=range(3000, 6900, 100),
                  alpha=[0, 0.2],
-                 model_directory=modeldir):
+                 model_directory=modeldir,
+                 hdf5_file=HDF5_FILE):
     """This function searches the model directory (hard coded in StellarModels.py) for stellar
        models with the appropriate parameters
 
-    :param type: the type of models to get. Right now, only 'phoenix' is implemented
+    :param type: the type of models to get. Right now, only 'phoenix', 'kurucz', and 'hdf5' are implemented
     :param metal: a list of the metallicities to include
     :param logg: a list of the surface gravity values to include
     :param temperature: a list of the temperatures to include
+    :param model_directory: The absolute path to the model directory (only used for type=phoenix or kurucz)
+    :param hdf5_file: The absolute path to the HDF5 file with the models (only used for type=hdf5)
     :return: a list of filenames for the requested models
     """
 
@@ -69,6 +75,14 @@ def GetModelList(type='phoenix',
             Teff, gravity, metallicity, a = ClassifyModel(model, type='kurucz')
             if Teff in temperature and gravity in logg and metallicity in metal and a in alpha:
                 chosen_models.append("{:s}{:s}".format(model_directory, model))
+
+
+    elif type.lower() == 'hdf5':
+        hdf5_int = HDF5Interface(hdf5_file)
+        chosen_models = []
+        for par in hdf5_int.list_grid_points:
+            if par['temp'] in temperature and par['logg'] in logg and par['Z'] in metal and par['alpha'] in alpha:
+                chosen_models.append(par)
 
     else:
         raise NotImplementedError("Sorry, the model type ({:s}) is not available!".format(type))
@@ -113,15 +127,17 @@ def ClassifyModel(filename, type='phoenix'):
     return temp, gravity, metallicity
 
 
-def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', vac2air=True, logspace=False):
+def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix',
+                   vac2air=True, logspace=False, hdf5_file=HDF5_FILE):
     """This will take a list of models, and output two dictionaries that are
     used by GenericSearch.py and Sensitivity.py
 
     :param model_list: A list of model filenames
     :param vsini_values: a list of vsini values to broaden the spectrum by (we do that later!)
-    :param type: the type of models. Currently, only phoenix is implemented
+    :param type: the type of models. Currently, phoenix, kurucz, and hdf5 are implemented
     :param vac2air: If true, assumes the model is in vacuum wavelengths and converts to air
     :param logspace: If true, it will rebin the data to a constant log-spacing
+    :param hdf5_file: The absolute path to the HDF5 file with the models. Only used if type=hdf5
     :return: A dictionary containing the model with keys of temperature, gravity, metallicity, and vsini,
              and another one with a processed flag with the same keys
     """
@@ -178,13 +194,132 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix', va
                 modeldict[temp][gravity][metallicity][a][vsini] = model
                 processed[temp][gravity][metallicity][a][vsini] = False
 
+    elif type.lower() == 'hdf5':
+        hdf5_int = HDF5Interface(hdf5_file)
+        x = hdf5_int.wl
+        wave_hdr = hdf5_int.wl_header
+        if vac2air:
+            if not wave_hdr['air']:
+                n = 1.0 + 2.735182e-4 + 131.4182 / x ** 2 + 2.76249e8 / x ** 4
+                x /= n
+        elif wave_hdr['air']:
+            raise GridError(
+                'HDF5 grid is in air wavelengths, but you requested vacuum wavelengths. You need a new grid!')
+        modeldict = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(DataStructures.xypoint)))))
+        processed = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(bool)))))
+        for pars in model_list:
+            temp, gravity, metallicity, a = pars['temp'], pars['logg'], pars['Z'], pars['alpha']
+            y = hdf5_int.load_flux(pars)
+            model = DataStructures.xypoint(x=x * units.angstrom.to(units.nm), y=y)
+            for vsini in vsini_values:
+                modeldict[temp][gravity][metallicity][a][vsini] = model
+                processed[temp][gravity][metallicity][a][vsini] = False
+
     else:
         raise NotImplementedError("Sorry, the model type ({:s}) is not available!".format(type))
 
     return modeldict, processed
 
 
+class HDF5Interface:
+    '''
+    Connect to an HDF5 file that stores spectra. Stolen shamelessly from Ian Czekala's Starfish code
+    '''
 
+    def __init__(self, filename, ranges={"temp": (0, np.inf),
+                                         "logg": (-np.inf, np.inf),
+                                         "Z": (-np.inf, np.inf),
+                                         "alpha": (-np.inf, np.inf)}):
+        '''
+            :param filename: the name of the HDF5 file
+            :type param: string
+            :param ranges: optionally select a smaller part of the grid to use.
+            :type ranges: dict
+        '''
+        self.filename = filename
+        self.flux_name = "t{temp:.0f}g{logg:.1f}z{Z:.1f}a{alpha:.1f}"
+        grid_parameters = ("temp", "logg", "Z", "alpha")  # Allowed grid parameters
+        grid_set = frozenset(grid_parameters)
+
+        with h5py.File(self.filename, "r") as hdf5:
+            self.wl = hdf5["wl"][:]
+            self.wl_header = dict(hdf5["wl"].attrs.items())
+
+            grid_points = []
+
+            for key in hdf5["flux"].keys():
+                # assemble all temp, logg, Z, alpha keywords into a giant list
+                hdr = hdf5['flux'][key].attrs
+
+                params = {k: hdr[k] for k in grid_set}
+
+                #Check whether the parameters are within the range
+                for kk, vv in params.items():
+                    low, high = ranges[kk]
+                    if (vv < low) or (vv > high):
+                        break
+                else:
+                    #If all parameters have passed successfully through the ranges, allow.
+                    grid_points.append(params)
+
+            self.list_grid_points = grid_points
+
+        # determine the bounding regions of the grid by sorting the grid_points
+        temp, logg, Z, alpha = [], [], [], []
+        for param in self.list_grid_points:
+            temp.append(param['temp'])
+            logg.append(param['logg'])
+            Z.append(param['Z'])
+            alpha.append(param['alpha'])
+
+        self.bounds = {"temp": (min(temp), max(temp)),
+                       "logg": (min(logg), max(logg)),
+                       "Z": (min(Z), max(Z)),
+                       "alpha": (min(alpha), max(alpha))}
+
+        self.points = {"temp": np.unique(temp),
+                       "logg": np.unique(logg),
+                       "Z": np.unique(Z),
+                       "alpha": np.unique(alpha)}
+
+        self.ind = None  #Overwritten by other methods using this as part of a ModelInterpolator
+
+    def load_flux(self, parameters):
+        '''
+        Load just the flux from the grid, with possibly an index truncation.
+
+        :param parameters: the stellar parameters
+        :type parameters: dict
+
+        :raises KeyError: if spectrum is not found in the HDF5 file.
+
+        :returns: flux array
+        '''
+
+        key = self.flux_name.format(**parameters)
+        with h5py.File(self.filename, "r") as hdf5:
+            try:
+                if self.ind is not None:
+                    fl = hdf5['flux'][key][self.ind[0]:self.ind[1]]
+                else:
+                    fl = hdf5['flux'][key][:]
+            except KeyError as e:
+                raise GridError(e)
+
+        # Note: will raise a KeyError if the file is not found.
+
+        return fl
+
+
+class GridError(Exception):
+    '''
+    Raised when a spectrum cannot be found in the grid.
+    '''
+
+    def __init__(self, msg):
+        self.msg = msg
 
 
 class KuruczGetter():
@@ -394,7 +529,7 @@ class KuruczGetter():
             if self.debug:
                 warnings.warn("The requested parameters fall outside the model grid. Results may be unreliable!")
             # print T, T_min, T_max
-            #print logg, logg_min, logg_max
+            # print logg, logg_min, logg_max
             #print metal, metal_min, metal_max
             #print alpha, alpha_min, alpha_max
             y = self.NN_interpolator(input_list)

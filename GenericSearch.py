@@ -133,7 +133,7 @@ def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
             smooth_factor = 0.8
             theta = GenericSmooth.roundodd(vsini / 3e5 * order.x.mean() / dx * smooth_factor)
             theta = max(theta, 21)
-	    denoised = HelperFunctions.Denoise(order.copy())
+            denoised = HelperFunctions.Denoise(order.copy())
             smooth = FittingUtilities.savitzky_golay(denoised.y, theta, 5)
             order.y = order.y - smooth + order.cont.mean()
 
@@ -198,7 +198,6 @@ def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
     return orders
 
 
-
 def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=None,
                   maxvel=1000.0, debug=False, oversample=1, logspace=True):
     # Read in the model if necessary
@@ -241,7 +240,7 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
     # Divide by the same smoothing kernel as we used for the data
     if vsini_primary is not None:
         smooth_factor = 0.8
-        d_logx = np.log(xgrid[1]/xgrid[0])
+        d_logx = np.log(xgrid[1] / xgrid[0])
         theta = GenericSmooth.roundodd(vsini_primary / 3e5 * smooth_factor / d_logx)
         print "Window size = {}\ndlogx = {}\nvsini = {}".format(theta, d_logx, vsini_primary)
         smooth = FittingUtilities.savitzky_golay(model.y, theta, 5)
@@ -274,11 +273,9 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
         xgrid = np.exp(np.arange(start, end + logspacing, logspacing))
 
         segment = DataStructures.xypoint(x=xgrid, y=model_fcn(xgrid))
-        #segment = FittingUtilities.RebinData(model[left:right + 1].copy(), xgrid)
+        # segment = FittingUtilities.RebinData(model[left:right + 1].copy(), xgrid)
         segment.cont = FittingUtilities.Continuum(segment.x, segment.y, lowreject=1.5, highreject=5, fitorder=2)
         model_orders.append(segment)
-
-
 
     print "\n"
     return model_orders
@@ -294,16 +291,19 @@ def CompanionSearch(fileList,
                     Tvalues=range(3000, 6900, 100),
                     metal_values=(-0.5, 0.0, +0.5),
                     logg_values=(4.5,),
-                    modeldir="models/",
+                    modeldir=StellarModel.modeldir,
+                    hdf5_file=StellarModel.HDF5_FILE,
                     vbary_correct=True,
                     observatory="CTIO",
                     addmode="ML",
                     debug=False):
-    model_list = StellarModel.GetModelList(model_directory=modeldir,
+    model_list = StellarModel.GetModelList(type='hdf5',
+                                           hdf5_file=hdf5_file,
                                            temperature=Tvalues,
                                            metal=metal_values,
                                            logg=logg_values)
-    modeldict, processed = StellarModel.MakeModelDicts(model_list, vsini_values=vsini_values, vac2air=True)
+    modeldict, processed = StellarModel.MakeModelDicts(model_list, type='hdf5', hdf5_file=hdf5_file,
+                                                       vsini_values=vsini_values, vac2air=True)
 
     get_weights = True if addmode.lower() == "weighted" else False
     orderweights = None
@@ -371,7 +371,7 @@ def CompanionSearch(fileList,
                         if pflag:
                             processed[temp][gravity][metallicity][vsini] = True
                             modeldict[temp][gravity][metallicity][vsini] = retdict["model"]
-                            #orderweights = retdict['weights']
+                            # orderweights = retdict['weights']
                         if process_data:
                             datadict[fname] = retdict['data']
 
@@ -425,6 +425,7 @@ def CompanionSearch(fileList,
 ===============================================================
 """
 
+
 def slow_companion_search(fileList,
                           primary_vsini,
                           badregions=[],
@@ -436,7 +437,8 @@ def slow_companion_search(fileList,
                           Tvalues=range(3000, 6900, 100),
                           metal_values=(-0.5, 0.0, +0.5),
                           logg_values=(4.5,),
-                          modeldir="models/",
+                          modeldir=StellarModel.modeldir,
+                          hdf5_file=StellarModel.HDF5_FILE,
                           vbary_correct=True,
                           observatory="CTIO",
                           addmode="ML",
@@ -446,13 +448,13 @@ def slow_companion_search(fileList,
     subtracts the 'smoothed' model from the model spectrum before correlating
     """
 
-    model_list = StellarModel.GetModelList(model_directory=modeldir,
+    model_list = StellarModel.GetModelList(type='hdf5',
+                                           hdf5_file=hdf5_file,
                                            temperature=Tvalues,
                                            metal=metal_values,
                                            logg=logg_values)
-    modeldict, processed = StellarModel.MakeModelDicts(model_list, vsini_values=vsini_values,
-                                                       vac2air=True, logspace=True)
-
+    modeldict, processed = StellarModel.MakeModelDicts(model_list, type='hdf5', hdf5_file=hdf5_file,
+                                                       vsini_values=vsini_values, vac2air=True, logspace=True)
 
     get_weights = True if addmode.lower() == "weighted" else False
     orderweights = None
@@ -472,7 +474,7 @@ def slow_companion_search(fileList,
                                                                                      metallicity, vsini_sec))
                     # broaden the model
                     model = modeldict[temp][gravity][metallicity][vsini_sec].copy()
-                    model = Broaden.RotBroad(model, vsini_sec*u.km.to(u.cm), linear=True)
+                    model = Broaden.RotBroad(model, vsini_sec * u.km.to(u.cm), linear=True)
                     model = FittingUtilities.ReduceResolutionFFT(model, resolution)
 
                     for i, (fname, vsini_prim) in enumerate(zip(fileList, primary_vsini)):
