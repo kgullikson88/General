@@ -956,13 +956,15 @@ def radec2altaz(ra, dec, obstime, lat=None, long=None, debug=False):
     return alt * 180.0 / np.pi, az * 180.0 / np.pi
 
 
-def convert_hex_string(string, delimiter=":"):
+def convert_hex_string(string, delimiter=":", debug=False):
     """
     Converts a hex coordinate string to a decimal
     :param string: The string to convert
     :param delimiter: The delimiter
     :return: the decimal number
     """
+    if debug:
+        print('Parsing hex string {}'.format(string))
     segments = string.split(delimiter)
     s = np.sign(float(segments[0]))
     return s * (abs(float(segments[0])) + float(segments[1]) / 60.0 + float(segments[2]) / 3600.0)
