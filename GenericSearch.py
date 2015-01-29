@@ -431,7 +431,7 @@ def slow_companion_search(fileList,
                           badregions=[],
                           interp_regions=[],
                           extensions=True,
-                          resolution=60000,
+                          resolution=None,
                           trimsize=1,
                           vsini_values=(10, 20, 30, 40),
                           Tvalues=range(3000, 6900, 100),
@@ -476,7 +476,8 @@ def slow_companion_search(fileList,
                     # broaden the model
                     model = modeldict[temp][gravity][metallicity][alpha][vsini_sec].copy()
                     model = Broaden.RotBroad(model, vsini_sec * u.km.to(u.cm), linear=True)
-                    model = FittingUtilities.ReduceResolutionFFT(model, resolution)
+                    if resolution is not None:
+                        model = FittingUtilities.ReduceResolutionFFT(model, resolution)
 
                     for i, (fname, vsini_prim) in enumerate(zip(fileList, primary_vsini)):
                         if vbary_correct:
