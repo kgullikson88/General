@@ -113,7 +113,7 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weigh
     # Reduce resolution
     if debug:
         print "Convolving to the detector resolution of %g" % resolution
-    if resolution > 5000 and resolution < 500000:
+    if resolution is not None and  5000 < resolution < 500000:
         model = FittingUtilities.ReduceResolution(model, resolution)
 
 
