@@ -353,7 +353,7 @@ def CompanionSearch(fileList,
                         HelperFunctions.ensure_dir(output_dir)
 
                         model = modeldict[temp][gravity][metallicity][alpha][vsini]
-                        pflag = not processed[temp][gravity][metallicity][vsini]
+                        pflag = not processed[temp][gravity][metallicity][alpha][vsini]
                         # if pflag:
                         # orderweights = None
                         retdict = Correlate.GetCCF(orders,
@@ -370,8 +370,8 @@ def CompanionSearch(fileList,
                                                    prim_teff=temperature_dict[fname])
                         corr = retdict["CCF"]
                         if pflag:
-                            processed[temp][gravity][metallicity][vsini] = True
-                            modeldict[temp][gravity][metallicity][vsini] = retdict["model"]
+                            processed[temp][gravity][metallicity][alpha][vsini] = True
+                            modeldict[temp][gravity][metallicity][alpha][vsini] = retdict["model"]
                             # orderweights = retdict['weights']
                         if process_data:
                             datadict[fname] = retdict['data']
