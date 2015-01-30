@@ -314,6 +314,7 @@ def CompanionSearch(fileList,
     datadict = defaultdict(list)
     temperature_dict = defaultdict(float)
     vbary_dict = defaultdict(float)
+    alpha=0.0
     for temp in sorted(modeldict.keys()):
         for gravity in sorted(modeldict[temp].keys()):
             for metallicity in sorted(modeldict[temp][gravity].keys()):
@@ -351,7 +352,7 @@ def CompanionSearch(fileList,
                             output_dir = output_dir + "Cross_correlations/"
                         HelperFunctions.ensure_dir(output_dir)
 
-                        model = modeldict[temp][gravity][metallicity][vsini]
+                        model = modeldict[temp][gravity][metallicity][alpha][vsini]
                         pflag = not processed[temp][gravity][metallicity][vsini]
                         # if pflag:
                         # orderweights = None
