@@ -594,6 +594,18 @@ class MainSequence:
             else:
                 raise ValueError("Color %s not known!" % color)
 
+    def GetSpectralType_FromAbsMag(self, value, color='V'):
+        diff = np.inf
+        best_spt = 'O9'
+        for spt_num in range(10, 70):
+            spt = self.Number_To_SpT(spt_num)
+            absmag = self.GetAbsoluteMagnitude(spt, color=color)
+            dm = abs(absmag - value)
+            if dm < diff:
+                diff = dm
+                best_spt = spt
+        return best_spt
+
     def GetSpectralType(self, dictionary, value, interpolate=False):
         #Returns the spectral type that is closest to the value (within 0.1 subtypes)
         testgrid = np.arange(self.SpT_To_Number("O1"), self.SpT_To_Number("M9"), 0.1)
