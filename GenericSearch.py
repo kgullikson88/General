@@ -16,7 +16,6 @@ import StellarModel
 
 try:
     import pyraf
-
     pyraf_import = True
 except ImportError:
     pyraf_import = False
@@ -33,6 +32,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import re
 import sys
 import logging
+import matplotlib.pyplot as plt
 
 if pyraf_import:
     pyraf.iraf.noao()
@@ -133,7 +133,8 @@ def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
             smooth_factor = 0.8
             theta = GenericSmooth.roundodd(vsini / 3e5 * order.x.mean() / dx * smooth_factor)
             theta = max(theta, 21)
-            denoised = HelperFunctions.Denoise(order.copy())
+            #denoised = HelperFunctions.Denoise(order.copy())
+            denoised = order.copy()
             smooth = FittingUtilities.savitzky_golay(denoised.y, theta, 5)
             order.y = order.y - smooth + order.cont.mean()
 
@@ -443,10 +444,31 @@ def slow_companion_search(fileList,
                           vbary_correct=True,
                           observatory="CTIO",
                           addmode="ML",
-                          debug=False):
+                          debug=False,
+                          makeplots=False):
     """
     This function runs a companion search, but makes a new model for each file. That is necessary because it
     subtracts the 'smoothed' model from the model spectrum before correlating
+    :param fileList: The list of fits data files
+    :param primary_vsini: A list of the same length as fileList, which contains the vsini for each star (in km/s)
+    :param badregions: A list of wavelength regions to ignore in the CCF (contaminated by tellurics, etc)
+    :param interp_regions: A list of wavelength regions to interpolate over in the data. Generally, badregions should be on the edge of the orders or contain the whole order, and interp_regions should contain a small wavelength range.
+    :param resolution: The detector resolution in lam/dlam. The default is now to use a pre-broadened grid; do not give a value for resolution unless the grid is un-broadened!
+    :param trimsize: The number of pixels to cut from both sides of each order. This is because the  order edges are usually pretty noisy.
+    :param vsini_values: A list of vsini values (in km/s) to apply to each model spectrum before correlation.
+    :param Tvalues: A list of model temperatures (in K) to correlate the data against.
+    :param metal_values: A list of [Fe/H] values to correlate the model against
+    :param logg_values: A list of log(g) values (in cgs units) to correlate the model against
+    :param modeldir: The model directory. This is no longer used by default!
+    :param hdf5_file: The path to the hdf5 file containing the pre-broadened model grid.
+    :param vbary_correct: Correct for the heliocentric motion of the Earth around the Sun?
+    :param observatory: The name of the observatory, in a way that IRAF's rvcorrect will understand. Only needed if vbary_correct = True
+    :param addmode: The way to add the CCFs for each order. Options are:
+         1: 'simple': Do a simple average
+         2: 'weighted': Do a weighted average: C = \sum_i{w_i C_i^2}
+         3: 'ml': The maximum likelihood estimate. See Zucker 2003, MNRAS, 342, 1291
+    :param debug: Flag to print a bunch of information to screen, and save some intermediate data files
+    :param makeplots: A 'higher level' of debug. Will make a plot of the data and model orders for each model.
     """
 
     model_list = StellarModel.GetModelList(type='hdf5',
@@ -506,6 +528,15 @@ def slow_companion_search(fileList,
                         # Now, process the model
                         model_orders = process_model(model.copy(), orders, vsini_primary=vsini_prim, maxvel=1000.0,
                                                      debug=debug, oversample=1, logspace=False)
+
+                        if debug and makeplots:
+                            fig = plt.figure('T={}   vsini={}'.format(temp, vsini_sec))
+                            for o, m in zip(orders, model_orders):
+                                d_scale = np.std(o.y/o.cont)
+                                m_scale = np.std(m.y/m.cont)
+                                plt.plot(o.x, (o.y/o.cont-1.0)/d_scale, 'k-', alpha=0.4)
+                                plt.plot(m.x, (m.y/m.cont-1.0)/m_scale, 'r-', alpha=0.6)
+                            plt.show(block=False)
 
                         # Make sure the output directory exists
                         output_dir = "Cross_correlations/"
