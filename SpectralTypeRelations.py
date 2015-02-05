@@ -3,10 +3,12 @@ import warnings
 import sys
 import re
 import pickle
+import logging
 
 from scipy.interpolate import UnivariateSpline, griddata
 import DataStructures
 import pandas
+
 
 
 # Provides relations temperature, luminosity, radius, and mass for varius spectral types
@@ -42,6 +44,27 @@ class FitVals():
 class FunctionFits():
     def __init__(self, MS=None):
         self.MS = MainSequence() if MS is None else MS
+
+        # Mass fits, made using the old MainSequence dictionaries
+        self.sptnum_to_mass = FitVals(coeffs=np.array([-0.17182606, -0.38423188, -0.30105226, -0.04980108,
+                                                       1.8851773, -1.21786221, -1.56182261, 1.42616918,
+                                                       0.27332682, -0.51168936, 0.11679476]),
+                                      xmean=26.681818181818183, xscale=19.342337838478862, logscale=True,
+                                      intercept=0.46702748509563452, valid=[5, 65])
+
+        # Radius fit, made using the old MainSequence dictionaries
+        self.sptnum_to_radius = FitVals(coeffs=np.array([-0.08480404, -0.24671561, 0.3132073, -0.07293512,
+                                                         -0.50930703, 0.13635043, 0.55373813, -0.2087987,
+                                                         -0.21719815, 0.06041591, 0.02250148]),
+                                        xmean=34.5, xscale=20.702656834329261, logscale=True,
+                                        intercept=0.16198349185993394, valid=[5, 67])
+
+        # Absolute magnitude fit, using the old MainSequence dictionaries
+        self.sptnum_to_absmag = FitVals(coeffs=np.array([0.45854428, 2.50954236, -0.41864979,
+                                                         1.74295661, -0.95804462, -0.2924717, 0.35215153]),
+                                        xmean=32.44, scale=18.456608572541164,
+                                        intercept=2.8008819709959134, valid=[5, 65])
+
 
         # Color fits from Boyajian et al 2013
         color_relations = defaultdict(lambda: defaultdict(FitVals))
@@ -90,8 +113,12 @@ class FunctionFits():
         """
         if HelperFunctions.IsListlike(spt):
             sptnum = np.array([self.MS.SpT_To_Number(s) for s in spt])
+            if not all([fv.valid[0] < n < fv.valid[1] for n in sptnum]):
+                logging.warn('Evaluating function outside of valid range!')
         else:
             sptnum = self.MS.SpT_To_Number(spt)
+            if not fv.valid[0] < sptnum < fv.valid[1]:
+                logging.warn('Evaluating function outside of valid range!')
 
         # Normalize the sptnum
         x = (sptnum - fv.xmean)/fv.xscale
@@ -254,9 +281,6 @@ class MainSequence:
         self.AbsMag['M0'] = 8.8
         self.AbsMag['M2'] = 9.9
         self.AbsMag['M5'] = 12.3
-
-
-
 
     def SpT_To_Number(self, SpT):
         if SpT[1:] == "":
