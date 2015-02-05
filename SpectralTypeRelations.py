@@ -11,6 +11,7 @@ import pandas
 
 
 
+
 # Provides relations temperature, luminosity, radius, and mass for varius spectral types
 #Data comes from Carroll and Ostlie book, or interpolated from it
 #ALL RELATIONS ARE FOR MAIN SEQUENCE ONLY!
@@ -20,6 +21,9 @@ import pandas
          Make instance of class (currently only MainSequence class available
          call instance.Interpolate(instance.dict, SpT) where dict is the name of the dictionary you want to interpolate (Temperature, Radius, or Mass) and SpT is the spectral type of what you wish to interpolate to.
 """
+
+SPT_PATTERN = '[A-Z]([0-9]\.?[0-9]*)'  # regular expression pattern for identifying spectral types
+
 
 def fill_dict(row, d, key, makefloat=True):
     val = row[key].strip()
@@ -46,23 +50,23 @@ class FunctionFits():
         self.MS = MainSequence() if MS is None else MS
 
         # Mass fits, made using the old MainSequence dictionaries
-        self.sptnum_to_mass = FitVals(coeffs=np.array([-0.17182606, -0.38423188, -0.30105226, -0.04980108,
-                                                       1.8851773, -1.21786221, -1.56182261, 1.42616918,
-                                                       0.27332682, -0.51168936, 0.11679476]),
+        self.sptnum_to_mass = FitVals(coeffs=np.array([0.11679476, -0.51168936, 0.27332682, 1.42616918,
+                                                       -1.56182261, -1.21786221, 1.8851773, -0.04980108,
+                                                       -0.30105226, -0.38423188, -0.17182606]),
                                       xmean=26.681818181818183, xscale=19.342337838478862, logscale=True,
                                       intercept=0.46702748509563452, valid=[5, 65])
 
         # Radius fit, made using the old MainSequence dictionaries
-        self.sptnum_to_radius = FitVals(coeffs=np.array([-0.08480404, -0.24671561, 0.3132073, -0.07293512,
-                                                         -0.50930703, 0.13635043, 0.55373813, -0.2087987,
-                                                         -0.21719815, 0.06041591, 0.02250148]),
+        self.sptnum_to_radius = FitVals(coeffs=np.array([0.02250148, 0.06041591, -0.21719815, -0.2087987,
+                                                         0.55373813, 0.13635043, -0.50930703, -0.07293512,
+                                                         0.3132073, -0.24671561, -0.08480404]),
                                         xmean=34.5, xscale=20.702656834329261, logscale=True,
                                         intercept=0.16198349185993394, valid=[5, 67])
 
         # Absolute magnitude fit, using the old MainSequence dictionaries
-        self.sptnum_to_absmag = FitVals(coeffs=np.array([0.45854428, 2.50954236, -0.41864979,
-                                                         1.74295661, -0.95804462, -0.2924717, 0.35215153]),
-                                        xmean=32.44, scale=18.456608572541164,
+        self.sptnum_to_absmag = FitVals(coeffs=np.array([0.35215153, -0.2924717, -0.95804462, 1.74295661,
+                                                         -0.41864979, 2.50954236, 0.45854428]),
+                                        xmean=32.44, xscale=18.456608572541164,
                                         intercept=2.8008819709959134, valid=[5, 65])
 
 
@@ -112,10 +116,12 @@ class FunctionFits():
         Evaluate the function defined by fv (which is a FitVals instance) for the given spectral type
         """
         if HelperFunctions.IsListlike(spt):
+            spt = [re.search(SPT_PATTERN, s).group() for s in spt]
             sptnum = np.array([self.MS.SpT_To_Number(s) for s in spt])
             if not all([fv.valid[0] < n < fv.valid[1] for n in sptnum]):
                 logging.warn('Evaluating function outside of valid range!')
         else:
+            spt = re.search(SPT_PATTERN, spt).group()
             sptnum = self.MS.SpT_To_Number(spt)
             if not fv.valid[0] < sptnum < fv.valid[1]:
                 logging.warn('Evaluating function outside of valid range!')
@@ -128,6 +134,9 @@ class FunctionFits():
         if fv.log:
             retval = 10**retval
         return retval
+
+    def __call__(self, fv, spt):
+        return self.evaluate(fv, spt)
 
 
 class Interpolator():
@@ -142,16 +151,25 @@ class Interpolator():
 
     def evaluate(self, interp, spt):
         if HelperFunctions.IsListlike(spt):
+            spt = [re.search(SPT_PATTERN, s).group() for s in spt]
             sptnum = np.array([self.MS.SpT_To_Number(s) for s in spt])
         else:
+            spt = re.search(SPT_PATTERN, spt).group()
             sptnum = self.MS.SpT_To_Number(spt)
 
         return interp(sptnum)
+
+    def __call__(self, interp, spt):
+        return self.evaluate(interp, spt)
 
 
 
 class MainSequence:
     def __init__(self):
+        self.FunctionFitter = FunctionFits(self)
+        self.Interpolator = self.FunctionFitter.interpolator
+
+        # TODO: Remove all these dictionaries!
         self.Temperature = defaultdict(float)
         self.Radius = defaultdict(float)
         self.Mass = defaultdict(float)
@@ -333,7 +351,31 @@ class MainSequence:
         subclass = str(number - 10 * tens_index)
         return spt_class + subclass
 
-    def Interpolate(self, dictionary, SpT):
+    def Interpolate(self, parameter, SpT):
+        """
+        A new version that uses pre-made interpolations and function fits
+        :param parameter: The string name of the value you want. Valid options are (case-insensitive):
+             + Mass
+             + Radius
+             + Temperature
+
+             Note: You can still give a dictionary like before, but that is discouraged and will spit out a warning
+        :param SpT: The spectral type to interpolate at. If you give parameters as strings, these can now be list-like!
+        :return: The value of the requested parameter, at the requested spectral type(s)
+        """
+        if isinstance(parameter, dict):
+            logging.warn('Dictionary input is deprecated! Use string names instead!')
+            return self.Interpolate_Old(parameter, SpT)
+
+        # If we get here, we are using the new method!
+        if parameter.lower().strip() == 'temperature':
+            return self.Interpolator(self.Interpolator.sptnum_to_teff, SpT)
+        elif parameter.lower().strip() == 'mass':
+            return self.FunctionFitter(self.FunctionFitter.sptnum_to_mass, SpT)
+        elif parameter.lower().strip() == 'radius':
+            return self.FunctionFitter(self.FunctionFitter.sptnum_to_radius, SpT)
+
+    def Interpolate_Old(self, dictionary, SpT):
         #First, we must convert the relations above into a monotonically increasing system
         #Just add ten when we get to each new spectral type
         relation = DataStructures.xypoint(len(dictionary))
