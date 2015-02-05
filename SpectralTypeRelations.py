@@ -1,14 +1,13 @@
 from collections import defaultdict
 import warnings
 import sys
-
-from scipy.interpolate import UnivariateSpline, griddata
-
-import DataStructures
-import pandas
-import os
 import re
 import pickle
+
+from scipy.interpolate import UnivariateSpline, griddata
+import DataStructures
+import pandas
+
 
 # Provides relations temperature, luminosity, radius, and mass for varius spectral types
 #Data comes from Carroll and Ostlie book, or interpolated from it
@@ -30,26 +29,60 @@ def fill_dict(row, d, key, makefloat=True):
 
 
 class FitVals():
-    def __init__(self, coeffs, xmean, xscale, logscale=False, intercept=0.0):
+    def __init__(self, coeffs, xmean=0.0, xscale=1.0, logscale=False, intercept=0.0, valid=(-5.0, 5.0)):
         self.coeffs = coeffs
         self.order = len(coeffs) - 1.0
         self.xmean = xmean
         self.xscale = xscale
         self.log = logscale
         self.intercept = intercept
+        self.valid = valid
 
 
 class FunctionFits():
     def __init__(self, MS=None):
         self.MS = MainSequence() if MS is None else MS
-        # Fit to the spectral type lookup table in Pecaut & Mamajek 2013
-        self.sptnum_to_teff = FitVals(coeffs=np.array([ 0.02122169, -0.03002895, -0.12733951,  0.15767385,
-                                                        0.27973801, -0.28587626, -0.23513699,  0.09748218,
-                                                        0.11926096, -0.13911846, -0.02927537]),
-                                      xmean=36.515384615384619,
-                                      xscale=18.170195640536857,
-                                      logscale=True,
-                                      intercept=3.8265827919657864)
+
+        # Color fits from Boyajian et al 2013
+        color_relations = defaultdict(lambda: defaultdict(FitVals))
+        color_relations['B']['V'] = FitVals(coeffs=np.array((9552, -17443, 44350, 68940, 57338, -24072, 4009)),
+                                            valid=[-0.1, 1.8])
+        color_relations['V']['J'] = FitVals(coeffs=np.array((9052, -3972, 1039, -101)), valid=[-0.12, 4.24])
+        color_relations['V']['H'] = FitVals(coeffs=np.array((8958, -3023, 632, -52.9)), valid=[-0.13, 4.77])
+        color_relations['V']['K'] = FitVals(coeffs=np.array((8984, -2914, 588, -47.4)), valid=[-0.15, 5.04])
+        color_relations['V']['R_j'] = FitVals(coeffs=np.array((9335, -9272, 5579, -1302.5)), valid=[0.0, 1.69])
+        color_relations['V']['I_j'] = FitVals(coeffs=np.array((9189, -5372, 1884, -245.1)), valid=[-0.02, 2.77])
+        color_relations['V']['R_c'] = FitVals(coeffs=np.array((9317, -13886, 12760, -4468.7)), valid=[-0.01, 1.24])
+        color_relations['V']['I_c'] = FitVals(coeffs=np.array((9354, -7178, 3226, -518.2)), valid=[-0.02, 2.77])
+        color_relations['V']['R_k'] = FitVals(coeffs=np.array((7371, -7940, 6947, -2557.8)), valid=[-0.21, 1.32])
+        color_relations['V']['I_k'] = FitVals(coeffs=np.array((7694, -5142, 2412, -428.4)), valid=[-0.33, 2.42])
+        color_relations['R_j']['J'] = FitVals(coeffs=np.array((8718, -6740, 3164, -547.0)), valid=[-0.12, 2.21])
+        color_relations['R_j']['H'] = FitVals(coeffs=np.array((8689, -4292, 1356, -180.8)), valid=[-0.13, 2.80])
+        color_relations['R_j']['K'] = FitVals(coeffs=np.array((8787, -4287, 1383, -187.0)), valid=[-0.15, 3.06])
+        color_relations['R_c']['J'] = FitVals(coeffs=np.array((9019, -5767, 2209, -310.3)), valid=[-0.11, 3.00])
+        color_relations['R_c']['H'] = FitVals(coeffs=np.array((9035, -4354, 1334, -160.9)), valid=[-0.12, 3.53])
+        color_relations['R_c']['K'] = FitVals(coeffs=np.array((9077, -4054, 1133, -124.1)), valid=[-0.14, 3.80])
+        color_relations['R_k']['J'] = FitVals(coeffs=np.array((10087, -7219, 2903, -433.7)), valid=[0.09, 2.58])
+        color_relations['R_k']['H'] = FitVals(coeffs=np.array((9695, -4791, 1432, -175.0)), valid=[0.07, 3.17])
+        color_relations['R_k']['K'] = FitVals(coeffs=np.array((9683, -4479, 1268, -147.8)), valid=[0.06, 3.43])
+        color_relations['g']['z'] = FitVals(coeffs=np.array((7089, -2760, 804, -95.2)), valid=[-0.58, 3.44])
+        color_relations['g']['i'] = FitVals(coeffs=np.array((7279, -3356, 1112, -153.9)), valid=[-0.23, 1.40])
+        color_relations['g']['r'] = FitVals(coeffs=np.array((7526, -5570, 3750, -1332.9)), valid=[-0.23, 1.40])
+        color_relations['g']['J'] = FitVals(coeffs=np.array((8576, -2710, 548, -44.0)), valid=[-0.02, 5.06])
+        color_relations['g']['H'] = FitVals(coeffs=np.array((8589, -2229, 380, -27.5)), valid=[-0.12, 5.59])
+        color_relations['g']['K'] = FitVals(coeffs=np.array((8526, -2084, 337, -23.3)), valid=[-0.1, 5.86])
+        color_relations['V']['W3'] = FitVals(coeffs=np.array((9046, -3005, 602, -45.3)), valid=[0.76, 5.50])
+        color_relations['V']['W4'] = FitVals(coeffs=np.array((9008, -2881, 565, -42.3)), valid=[0.03, 5.62])
+        color_relations['R_j']['W4'] = FitVals(coeffs=np.array((9055, -4658, 1551, -199.8)), valid=[0.03, 3.56])
+        color_relations['I_j']['W4'] = FitVals(coeffs=np.array((9140, -7347, 3981, -873.1)), valid=[0.04, 2.13])
+        color_relations['R_c']['W4'] = FitVals(coeffs=np.array((9015, -3833, 1004, -98.5)), valid=[0.20, 4.38])
+        color_relations['I_c']['W4'] = FitVals(coeffs=np.array((8971, -5296, 1997, -298.1)), valid=[0.14, 2.85])
+        color_relations['R_k']['W4'] = FitVals(coeffs=np.array((9753, -4530, 1271, -137.7)), valid=[0.17, 3.93])
+        color_relations['I_k']['W4'] = FitVals(coeffs=np.array((10576, -7103, 2887, -461.5)), valid=[0.23, 2.83])
+
+        self.color_relations = color_relations
+        self.interpolator = Interpolator(MS=self.MS)
+
 
     def evaluate(self, fv, spt):
         """
