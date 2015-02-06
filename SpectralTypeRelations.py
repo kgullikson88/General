@@ -13,6 +13,7 @@ import pandas
 
 
 
+
 # Provides relations temperature, luminosity, radius, and mass for varius spectral types
 #Data comes from Carroll and Ostlie book, or interpolated from it
 #ALL RELATIONS ARE FOR MAIN SEQUENCE ONLY!
@@ -502,18 +503,27 @@ class MainSequence:
                     return gmag - color_diff
 
 
-
-    def GetSpectralType_FromAbsMag(self, value, color='V'):
+    def GetSpectralType_FromAbsMag(self, value, color='V', prec=1.0):
+        """
+        Given an absolute magnitude in some band, return the spectral type that best matches it
+        :param value: The absolute magnitude
+        :param color: The band the magnitude is measured in
+        :param prec: The precision you want in the returned spectral type.
+                     prec=1.0 means spectral type subclass (returns things like 'G4').
+                     prec=0.1 would mean returning things like 'G4.3'
+        :return: The spectral type that best matches the given absolute magnitude
+        """
         diff = np.inf
         best_spt = 'O9'
-        for spt_num in range(10, 70):
-            spt = self.Number_To_SpT(spt_num)
-            absmag = self.GetAbsoluteMagnitude(spt, color=color)
-            dm = abs(absmag - value)
-            if dm < diff:
-                diff = dm
-                best_spt = spt
-        return best_spt
+        spt_num = np.arange(10, 70, prec)
+        spt_values = np.array([self.Number_To_SpT(n) for n in spt_num])
+        absmag = self.GetAbsoluteMagnitude(spt_values, color=color)
+
+        dm = (np.array(value).reshape(1, -1) - absmag.reshape(-1, 1))
+        idx = np.abs(dm).argmin(axis=0)
+        spt = spt_values[idx]
+        return spt
+
 
     def GetSpectralType(self, dictionary, value, interpolate=False):
         #Returns the spectral type that is closest to the value (within 0.1 subtypes)
