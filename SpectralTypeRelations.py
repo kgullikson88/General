@@ -14,6 +14,7 @@ import pandas
 
 
 
+
 # Provides relations temperature, luminosity, radius, and mass for varius spectral types
 #Data comes from Carroll and Ostlie book, or interpolated from it
 #ALL RELATIONS ARE FOR MAIN SEQUENCE ONLY!
@@ -370,11 +371,11 @@ class MainSequence:
     def Number_To_SpT(self, number):
         tens_index = 0
         num = float(number)
-        while num > 0:
+        while num >= 0:
             num -= 10
             tens_index += 1
         tens_index = tens_index - 1
-        if num == 0:
+        if abs(num) < 1e-5:
             tens_index += 1
             number = 10 * tens_index
         if tens_index == 0:
@@ -513,8 +514,6 @@ class MainSequence:
                      prec=0.1 would mean returning things like 'G4.3'
         :return: The spectral type that best matches the given absolute magnitude
         """
-        diff = np.inf
-        best_spt = 'O9'
         spt_num = np.arange(10, 70, prec)
         spt_values = np.array([self.Number_To_SpT(n) for n in spt_num])
         absmag = self.GetAbsoluteMagnitude(spt_values, color=color)
@@ -525,8 +524,42 @@ class MainSequence:
         return spt
 
 
-    def GetSpectralType(self, dictionary, value, interpolate=False):
-        #Returns the spectral type that is closest to the value (within 0.1 subtypes)
+    def GetSpectralType(self, parameter, value, prec=1.0):
+        """
+        Returns the spectral type that is closest to the requested value of the requested parameter
+        :param parameter: A string containing any of the valid parameters (see Interpolate docstring).
+                          A dictionary can still be given, but we will now throw a warning
+        :param value: The value of the parameter
+        :param prec: The precision you want in the returned spectral type.
+                     prec=1.0 means spectral type subclass (returns things like 'G4').
+                     prec=0.1 would mean returning things like 'G4.3'
+        :return: The spectral type that best matches the given value of the requested parameter
+        """
+
+        if isinstance(parameter, dict):
+            logging.warn('Dictionary input is deprecated! Use string names instead!')
+            interpolate = True if prec < 1 else False
+            return self.GetSpectralType_Old(parameter, value, interpolate=interpolate)
+
+        # If we get here, we can vectorize things
+        spt_num = np.arange(10, 70, prec)
+        spt_values = np.array([self.Number_To_SpT(n) for n in spt_num])
+        test_values = self.Interpolate(parameter, spt_values)
+
+        difference = (np.array(value).reshape(1, -1) - test_values.reshape(-1, 1))
+        idx = np.abs(difference).argmin(axis=0)
+        spt = spt_values[idx]
+        return spt
+
+
+    def GetSpectralType_Old(self, dictionary, value, interpolate=False):
+        """
+        Returns the spectral type that is closest to the requested value of the requested parameter. Deprecated!
+        :param parameter: One of the MS class dictionaries.
+        :param value: The value of the parameter
+        :param interpolate: If True, it will return a spectral type at ridiculously high precision
+        :return: The spectral type that best matches the given value of the requested parameter
+        """
         testgrid = np.arange(self.SpT_To_Number("O1"), self.SpT_To_Number("M9"), 0.1)
         besttype = "O1"
         best_difference = 9e9
