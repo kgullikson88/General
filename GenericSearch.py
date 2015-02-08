@@ -33,6 +33,7 @@ import re
 import sys
 import logging
 import matplotlib.pyplot as plt
+import h5py
 
 if pyraf_import:
     pyraf.iraf.noao()
@@ -444,6 +445,7 @@ def slow_companion_search(fileList,
                           vbary_correct=True,
                           observatory="CTIO",
                           addmode="ML",
+                          output_mode='text',
                           debug=False,
                           makeplots=False):
     """
@@ -467,6 +469,9 @@ def slow_companion_search(fileList,
          1: 'simple': Do a simple average
          2: 'weighted': Do a weighted average: C = \sum_i{w_i C_i^2}
          3: 'ml': The maximum likelihood estimate. See Zucker 2003, MNRAS, 342, 1291
+    :param output_mode': How to output. Valid options are:
+         1: text, which is just ascii data with a filename convention. This is the default option
+         2: hdf5, which ouputs a single hdf5 file with all the metadata necessary to classify the output
     :param debug: Flag to print a bunch of information to screen, and save some intermediate data files
     :param makeplots: A 'higher level' of debug. Will make a plot of the data and model orders for each model.
     """
@@ -577,15 +582,14 @@ def slow_companion_search(fileList,
                         if debug:
                             corr, ccf_orders = corr
 
-                        # Output the ccf
-                        outfilename = "{0:s}{1:s}_{2:s}-method.{3:.0f}kps_{4:.1f}K{5:+.1f}{6:+.1f}".format(output_dir, outfilebase,
-                                                                                                           addmode,
-                                                                                              vsini_sec, temp, gravity,
-                                                                                              metallicity)
-                        print "Outputting to ", outfilename, "\n"
+                        # Barycentric correction
                         if vbary_correct:
                             corr.x += vbary
-                        np.savetxt(outfilename, np.transpose((corr.x, corr.y)), fmt="%.10g")
+
+                        # Output the ccf
+                        pars = {'outdir': output_dir, 'outbase': outfilebase, 'addmode': addmode,
+                                'vsini': vsini, 'T': temp, 'logg': gravity, '[Fe/H]': metallicity}
+                        save_ccf(corr, params=pars, mode=output_mode)
 
                         # Save the individual orders, if debug=True
                         if debug:
@@ -604,3 +608,59 @@ def slow_companion_search(fileList,
                     modeldict[temp][gravity][metallicity][alpha][vsini_sec] = []
 
     return
+
+
+
+def save_ccf(corr, params, mode='text', update=True):
+    """
+    Save the cross-correlation function in the given way.
+    :param: corr: The DataStructures object holding the cross-correlation function
+    :param params: A dictionary describing the metadata to include
+    :param mode: See docstring for slow_companion_search, param output_mode
+    :param update: If mode='hdf5', DO I NEED THIS?
+    """
+    if mode.lower() == 'text':
+        outfilename = "{0:s}{1:s}_{2:s}-method.{3:.0f}kps_{4:.1f}K{5:+.1f}{6:+.1f}".format(params['outdir'],
+                                                                                           params['outbase'],
+                                                                                           params['addmode'],
+                                                                                           params['vsini'],
+                                                                                           params['T'],
+                                                                                           params['logg'],
+                                                                                           params['[Fe/H]'])
+        print('Outputting to {}'.format(outfilename))
+        np.savetxt(outfilename, np.transpose((corr.x, corr.y)), fmt="%.10g")
+
+    elif mode.lower() == 'hdf5':
+        # Get the hdf5 file
+        hdf5_file = {'{0:s}CCF.hdf5'.format(params['outdir'])}
+        print('Saving CCF to {}'.format(hdf5_file))
+        f = h5py.File(hdf5_file, 'a')
+
+        # Star combination
+        segments = params['outbase'].split('_')[:-1]
+        str = ' '.join(segments)
+        star1 = str.split('+')[0]
+        star2 = str.split('-')[0]
+
+        # Make the heirarchy if the file does not have it
+        p = f[star1] if star1 in f.keys() else f.create_group(star1)
+        s = p[star2] if star2 in p.keys() else p.create_group(star2)
+        g = s[params['addmode']] if params['addmode'] in s.keys() else s.create_group(params['addmode'])
+
+        # Add a new dataset. The name doesn't matter
+        current_datasets = g.keys()
+        if len(current_datasets) == 0:
+            ds = g.create_dataset('ds1', data=corr.y)
+        else:
+            ds_num = int(sorted(current_datasets)[-1][2:]) + 1
+            ds = g.create_dataset('ds{}'.format(ds_num), data=corr.y)
+
+        # Add attributes to the dataset
+        ds.attrs['vsini'] = params['vsini']
+        ds.attrs['T'] = params['T']
+        ds.attrs['logg'] = params['logg']
+        ds.attrs['[Fe/H]'] = params['[Fe/H]']
+        ds.attrs['velocity'] = corr.x
+
+        f.flush()
+        f.close()
