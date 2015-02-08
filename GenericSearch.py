@@ -588,7 +588,8 @@ def slow_companion_search(fileList,
 
                         # Output the ccf
                         pars = {'outdir': output_dir, 'outbase': outfilebase, 'addmode': addmode,
-                                'vsini': vsini, 'T': temp, 'logg': gravity, '[Fe/H]': metallicity}
+                                'vsini_prim': vsini_prim, 'vsini': vsini_sec,
+                                'T': temp, 'logg': gravity, '[Fe/H]': metallicity}
                         save_ccf(corr, params=pars, mode=output_mode)
 
                         # Save the individual orders, if debug=True
@@ -632,7 +633,7 @@ def save_ccf(corr, params, mode='text', update=True):
 
     elif mode.lower() == 'hdf5':
         # Get the hdf5 file
-        hdf5_file = {'{0:s}CCF.hdf5'.format(params['outdir'])}
+        hdf5_file = '{0:s}CCF.hdf5'.format(params['outdir'])
         print('Saving CCF to {}'.format(hdf5_file))
         f = h5py.File(hdf5_file, 'a')
 
@@ -640,7 +641,7 @@ def save_ccf(corr, params, mode='text', update=True):
         segments = params['outbase'].split('_')[:-1]
         str = ' '.join(segments)
         star1 = str.split('+')[0]
-        star2 = str.split('-')[0]
+        star2 = str.split('+')[1]
 
         # Make the heirarchy if the file does not have it
         p = f[star1] if star1 in f.keys() else f.create_group(star1)
@@ -656,11 +657,18 @@ def save_ccf(corr, params, mode='text', update=True):
             ds = g.create_dataset('ds{}'.format(ds_num), data=corr.y)
 
         # Add attributes to the dataset
+        print(star1, star2)
+        print(params)
         ds.attrs['vsini'] = params['vsini']
         ds.attrs['T'] = params['T']
         ds.attrs['logg'] = params['logg']
         ds.attrs['[Fe/H]'] = params['[Fe/H]']
         ds.attrs['velocity'] = corr.x
 
+        p.attrs['vsini'] = params['vsini_prim']
+
         f.flush()
         f.close()
+
+    else:
+        raise ValueError('output mode ({}) not supported!'.format(mode))
