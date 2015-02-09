@@ -653,7 +653,7 @@ def save_ccf(corr, params, mode='text', update=True):
         if len(current_datasets) == 0:
             ds = g.create_dataset('ds1', data=corr.y)
         else:
-            ds_num = int(sorted(current_datasets)[-1][2:]) + 1
+            ds_num = max(int(d[2:]) for d in current_datasets) + 1
             ds = g.create_dataset('ds{}'.format(ds_num), data=corr.y)
 
         # Add attributes to the dataset
