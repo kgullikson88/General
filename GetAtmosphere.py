@@ -82,7 +82,6 @@ def InterpolateAtmosphere(firstfile, lastfile, t1, t2, t):
         dew2 = dew2[j:]
 
 
-
     #Set up output arrays
     Pres = Pres1.copy()
     height = height1.copy()
@@ -94,6 +93,7 @@ def InterpolateAtmosphere(firstfile, lastfile, t1, t2, t):
         height[i] = (height1[i] - height2[i]) / (t1 - t2) * (t - t1) + height1[i]
         Temp[i] = (Temp1[i] - Temp2[i]) / (t1 - t2) * (t - t1) + Temp1[i]
         dew[i] = (dew1[i] - dew2[i]) / (t1 - t2) * (t - t1) + dew1[i]
+
     return Pres, height, Temp, dew
 
 
