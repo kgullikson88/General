@@ -106,7 +106,7 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
     summary_dfs = []
     with h5py.File(hdf5_filename, 'r') as f:
         primaries = f.keys()
-        for p in primaries[:1]:
+        for p in primaries:
             if debug:
                 print(p)
             secondaries = f[p].keys()
