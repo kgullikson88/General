@@ -4,7 +4,7 @@ from collections import defaultdict
 from operator import itemgetter
 import logging
 
-import pandas
+import pandas as pd
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from george import kernels
 import matplotlib.pyplot as plt
@@ -12,7 +12,9 @@ import numpy as np
 import george
 import emcee
 import StarData
+import h5py
 import SpectralTypeRelations
+import sys
 
 
 def classify_filename(fname, type='bright'):
@@ -84,36 +86,60 @@ def get_ccf_data(basedir, primary_name=None, secondary_name=None, vel_arr=np.ara
         metallicity.append(metal)
 
     # Make a pandas dataframe with all this data
-    df = pandas.DataFrame(data={'Primary': primary, 'Secondary': secondary, 'Temperature': temperature,
+    df = pd.DataFrame(data={'Primary': primary, 'Secondary': secondary, 'Temperature': temperature,
                                 'vsini': vsini_values, 'logg': gravity, '[Fe/H]': metallicity, 'CCF': ccf})
     return df
 
 
-def get_ccf_summary(basedir, vel_arr=np.arange(-900.0, 900.0, 0.1), velocity='highest', type='bright'):
+def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
+                    velocity='highest', addmode='simple', debug=False):
     """
-    Very similar to get_ccf_data, but does it in a way that is more memory efficient
-    :param basedir: The directory to search for CCF files
+    Goes through the given HDF5 file, and finds the best set of parameters for each combination of primary/secondary star
+    :param hdf5_filename: The HDF5 file containing the CCF data
     :keyword velocity: The velocity to measure the CCF at. The default is 'highest', and uses the maximum of the ccf
     :keyword vel_arr: The velocities to interpolate each ccf at
-    :return: pandas DataFrame
+    :keyword addmode: The way the CCF orders were added while generating the ccfs
+    :keyword debug: If True, it prints the progress. Otherwise, does its work silently and takes a while
+    :return: pandas DataFrame summarizing the best parameters.
+             This is the type of dataframe to give to the other function here
     """
-    if not basedir.endswith('/'):
-        basedir += '/'
-    all_files = ['{}{}'.format(basedir, f) for f in os.listdir(basedir) if type in f.lower()]
-    file_dict = defaultdict(lambda: defaultdict(list))
-    for fname in all_files:
-        star1, star2, vsini, temp, logg, metal = classify_filename(fname, type=type)
-        file_dict[star1][star2].append(fname)
-
-    # Now, read the ccfs for each primary/secondary combo, and find the best combination
     summary_dfs = []
-    for primary in file_dict.keys():
-        for secondary in file_dict[primary].keys():
-            data = get_ccf_data(basedir, primary_name=primary, secondary_name=secondary,
-                                vel_arr=vel_arr, type=type)
-            summary_dfs.append(find_best_pars(data, velocity=velocity, vel_arr=vel_arr))
+    with h5py.File(hdf5_filename, 'r') as f:
+        primaries = f.keys()
+        for p in primaries[:1]:
+            if debug:
+                print(p)
+            secondaries = f[p].keys()
+            for s in secondaries:
+                if debug:
+                    print('\t{}'.format(s))
+                datasets = f[p][s][addmode].keys()
+                vsini_values = []
+                temperature = []
+                gravity = []
+                metallicity = []
+                ccf = []
+                for i, d in enumerate(datasets):
+                    if debug:
+                        sys.stdout.write('\r\t\tDataset {}/{}'.format(i+1, len(datasets)))
+                        sys.stdout.flush()
+                    ds = f[p][s][addmode][d]
+                    vel, corr = ds.attrs['velocity'], ds.value
+                    fcn = spline(vel, corr)
+                    vsini_values.append(ds.attrs['vsini'])
+                    temperature.append(ds.attrs['T'])
+                    gravity.append(ds.attrs['logg'])
+                    metallicity.append(ds.attrs['[Fe/H]'])
+                    ccf.append(fcn(vel_arr))
+                if debug:
+                    print()
+                data = pd.DataFrame(data={'Primary': [p]*len(ccf), 'Secondary': [s]*len(ccf),
+                                          'Temperature': temperature, 'vsini': vsini_values,
+                                          'logg': gravity, '[Fe/H]': metallicity, 'CCF': ccf})
+                summary_dfs.append(find_best_pars(data, velocity=velocity, vel_arr=vel_arr))
 
-    return pandas.concat(summary_dfs, ignore_index=True)
+    return pd.concat(summary_dfs, ignore_index=True)
+
 
 
 def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1)):
@@ -125,8 +151,8 @@ def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1)
     :return: a dataframe with keys of primary, secondary, and the parameters
     """
     # Get the names of the primary and secondary stars
-    primary_names = pandas.unique(df.Primary)
-    secondary_names = pandas.unique(df.Secondary)
+    primary_names = pd.unique(df.Primary)
+    secondary_names = pd.unique(df.Secondary)
 
     # Find the ccf value at the given velocity
     if velocity == 'highest':
@@ -152,18 +178,18 @@ def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1)
             d['[Fe/H]'].append(best['[Fe/H]'].item())
             d['rv'].append(best['rv'].item())
 
-    return pandas.DataFrame(data=d)
+    return pd.DataFrame(data=d)
 
 
 def get_detected_objects(df, tol=1.0):
     """
     Takes a summary dataframe with RV information. Finds the median rv for each star,
-      and removes objects that are 'tol' km/s from the median value
-    :param df: A summary dataframe, such as created by find_best_pars
+      and removes objects that are more than 'tol' km/s from the median value
+    :param df: A summary dataframe, such as created by get_ccf_summary or find_best_pars
     :param tol: The tolerance, in km/s, to accept an observation as detected
     :return: a dataframe containing only detected companions
     """
-    secondary_names = pandas.unique(df.Secondary)
+    secondary_names = pd.unique(df.Secondary)
     secondary_to_rv = defaultdict(float)
     for secondary in secondary_names:
         rv = df.loc[df.Secondary == secondary]['rv'].median()
@@ -175,17 +201,19 @@ def get_detected_objects(df, tol=1.0):
     return good
 
 
-def add_actual_temperature(df, method='spt'):
+def add_actual_temperature(df, method='excel', filename='SecondaryStar_Temperatures.xls'):
     """
     Add the actual temperature to a given summary dataframe
     :param df: The dataframe to which we will add the actual secondary star temperature
-    :param method: How to get the actual temperature. Options are:
+    :keyword method: How to get the actual temperature. Options are:
                    - 'spt': Use main-sequence relationships to go from spectral type --> temperature
                    - 'excel': Use tabulated data, available in the file 'SecondaryStar_Temperatures.xls'
+    :keyword filename: The filename of the excel spreadsheet containing the literature temperatures.
+                       Needs to have the right format! Ignored if method='spt'
     :return: copy of the original dataframe, with an extra column for the secondary star temperature
     """
     # First, get a list of the secondary stars in the data
-    secondary_names = pandas.unique(df.Secondary)
+    secondary_names = pd.unique(df.Secondary)
     secondary_to_temperature = defaultdict(float)
     secondary_to_error = defaultdict(float)
 
@@ -198,7 +226,7 @@ def add_actual_temperature(df, method='spt'):
             secondary_to_temperature[secondary] = T_sec
 
     elif method.lower() == 'excel':
-        table = pandas.read_excel('SecondaryStar_Temperatures.xls', 0)
+        table = pd.read_excel(filename, 0)
         for secondary in secondary_names:
             T_sec = table.loc[table.Star.str.lower().str.contains(secondary.strip().lower())]['Literature_Temp'].item()
             T_error = table.loc[table.Star.str.lower().str.contains(secondary.strip().lower())][
@@ -312,7 +340,7 @@ def make_gaussian_process_samples(df):
     # Finally, make confidence intervals for the actual temperatures
     gp_posterior = np.array(gp_posterior)
     l, m, h = np.percentile(gp_posterior, [16.0, 50.0, 84.0], axis=0)
-    conf = pandas.DataFrame(data={'Measured Temperature': Tvalues, 'Actual Temperature': m,
+    conf = pd.DataFrame(data={'Measured Temperature': Tvalues, 'Actual Temperature': m,
                                   'Lower Bound': l, 'Upper bound': h})
     conf.to_csv('Confidence_Intervals.csv', index=False)
 
@@ -331,7 +359,7 @@ def check_posterior(df, posterior, Tvalues):
     l, m, h = np.percentile(posterior, [5.0, 50.0, 95.0], axis=0)
 
     # Save the confidence intervals
-    # conf = pandas.DataFrame(data={'Measured Temperature': Tvalues, 'Actual Temperature': m,
+    # conf = pd.DataFrame(data={'Measured Temperature': Tvalues, 'Actual Temperature': m,
     #                              'Lower Bound': l, 'Upper bound': h})
     #conf.to_csv('Confidence_Intervals.csv', index=False)
 
