@@ -259,12 +259,15 @@ def make_gaussian_process_samples(df):
     for Tm, Ta, e in zip(Tmeasured, Tactual, error):
         print Tm, Ta, e
     plt.figure(1)
+    limits = [3000, 8000]
     plt.errorbar(Tmeasured, Tactual, yerr=error, fmt='.k', capsize=0)
-    plt.plot(Tmeasured, Tmeasured, 'r--')
+    plt.plot(limits, limits, 'r--')
     plt.xlim((min(Tmeasured) - 100, max(Tmeasured) + 100))
     plt.xlabel('Measured Temperature')
     plt.ylabel('Actual Temperature')
-    plt.show(block=False)
+    plt.xlim(limits)
+    plt.ylim(limits)
+    #plt.show(block=False)
 
     # Define some functions to use in the GP fit
     def model(pars, T):
