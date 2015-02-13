@@ -6,6 +6,7 @@
 from astropy.time import Time
 import numpy as np
 import MakeModel
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
 
 
 def GetAtmosphereFiles(filenames, datestr, timestr):
@@ -59,42 +60,22 @@ def InterpolateAtmosphere(firstfile, lastfile, t1, t2, t):
     Pres1, height1, Temp1, dew1 = np.loadtxt(firstfile, usecols=(0, 1, 2, 3), unpack=True)
     Pres2, height2, Temp2, dew2 = np.loadtxt(lastfile, usecols=(0, 1, 2, 3), unpack=True)
 
-    # Sometimes, the first pressure will be different (because it hits the ground level)
-    if abs(Pres1[0] - Pres2[0]) > 1e-3:
-        for i in range(len(Pres1)):
-            found = False
-            for j in range(len(Pres2)):
-                if abs(Pres1[i] - Pres2[j]) < 1e-3:
-                    found = True
-                    break
-            if found:
-                break
+    # Interpolate
+    P1 = spline(height1, Pres1)
+    T1 = spline(height1, Temp1)
+    D1 = spline(height1, dew1)
+    P2 = spline(height2, Pres2)
+    T2 = spline(height2, Temp2)
+    D2 = spline(height2, dew2)
 
-        #Shorten the arrays so the pressure points are the same.
-        Pres1 = Pres1[i:]
-        height1 = height1[i:]
-        Temp1 = Temp1[i:]
-        dew1 = dew1[i:]
-
-        Pres2 = Pres2[j:]
-        height2 = height2[j:]
-        Temp2 = Temp2[j:]
-        dew2 = dew2[j:]
-
-
-    #Set up output arrays
-    Pres = Pres1.copy()
-    height = height1.copy()
-    Temp = Temp1.copy()
-    dew = dew1.copy()
-
-    #Now, interpolate the temperature, height, and dewpoint at each pressure
-    for i, P in enumerate(Pres):
-        height[i] = (height1[i] - height2[i]) / (t1 - t2) * (t - t1) + height1[i]
-        Temp[i] = (Temp1[i] - Temp2[i]) / (t1 - t2) * (t - t1) + Temp1[i]
-        dew[i] = (dew1[i] - dew2[i]) / (t1 - t2) * (t - t1) + dew1[i]
-
-    return Pres, height, Temp, dew
+    # Make a new height grid
+    firstval = max(height1[0], height2[0])
+    lastval = min(height1[-1], height2[-1])
+    Z = np.logspace(np.log10(firstval), np.log10(lastval), height1.size)
+    P = (P1(Z) - P2(Z)) / (t1 - t2) * (t - t1) + P1(Z)
+    T = (T1(Z) - T2(Z)) / (t1 - t2) * (t - t1) + T1(Z)
+    D = (D1(Z) - D2(Z)) / (t1 - t2) * (t - t1) + D1(Z)
+    return P, Z, T, D
 
 
 def GetProfile(filenames, datestr, timestr):
