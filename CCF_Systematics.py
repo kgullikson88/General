@@ -266,7 +266,6 @@ def make_gaussian_process_samples(df):
     for i, e in enumerate(error):
         if e < 1:
             error[i] = fit_sigma(df, i)
-        print df.loc[df.Temperature == Tmeasured[i]]
         error[i] = np.sqrt(e**2 + lit_err[i]**2)
     for Tm, Ta, e in zip(Tmeasured, Tactual, error):
         print Tm, Ta, e
@@ -413,7 +412,7 @@ def get_values(df):
     Tactual = [np.mean(Ta) for Ta in Tactual_values]
     spread = np.nan_to_num([np.std(Ta, ddof=1) for Ta in Tactual_values])
     literr_values = [temp.get_group(Tm)['Tact_err'].values for Tm in Tmeasured]
-    lit_err = [np.sqrt(np.sum(literr**2)) for literr in literr_values]
+    lit_err = np.array([np.sqrt(np.sum(literr**2)) for literr in literr_values])
     return Tmeasured, Tactual, spread, lit_err
 
 
