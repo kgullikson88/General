@@ -326,7 +326,7 @@ def make_gaussian_process_samples(df):
         s = gp.sample_conditional(Tactual - model(pars, Tmeasured), Tvalues) + model(pars, Tvalues)
         plt.plot(Tvalues, s, 'b-', alpha=0.05)
     plt.draw()
-    plt.savefig('Temperature_Correspondence.eps')
+    plt.savefig('Temperature_Correspondence.pdf')
 
     # Finally, get posterior samples at all the possibly measured temperatures
     print 'Generating posterior samples at all temperatures...'
