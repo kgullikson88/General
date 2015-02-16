@@ -294,7 +294,7 @@ def make_gaussian_process_samples(df):
     def lnprior(pars):
         lna, lntau = pars[:2]
         polypars = pars[2:]
-        if -20 < lna < 20 and 4 < lntau < 20:
+        if -20 < lna < 20 and 12 < lntau < 20:
             return 0.0
         return -np.inf
 
@@ -303,7 +303,7 @@ def make_gaussian_process_samples(df):
         return lp + lnlike(pars, x, y, yerr) if np.isfinite(lp) else -np.inf
 
     # Set up the emcee fitter
-    initial = np.array([0, 6])#, 1.0, 0.0])
+    initial = np.array([0, 14])#, 1.0, 0.0])
     ndim = len(initial)
     nwalkers = 100
     p0 = [np.array(initial) + 1e-8 * np.random.randn(ndim) for i in xrange(nwalkers)]
