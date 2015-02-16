@@ -260,14 +260,14 @@ def make_gaussian_process_samples(df):
     #Tmeasured = temp.keys().values
     #Tactual = temp.values
     #error = np.nan_to_num(df.groupby('Temperature').std(ddof=1)['Tactual'].values)
-    Tmeasured, Tactual, error = get_values(df)
+    Tmeasured, Tactual, error, lit_err = get_values(df)
     #default = max(150.0, np.median(error[error > 1]))
     #error = np.maximum(error, np.ones(error.size) * default)
     for i, e in enumerate(error):
         if e < 1:
             error[i] = fit_sigma(df, i)
         print df.loc[df.Temperature == Tmeasured[i]]
-        error[i] = np.sqrt(e**2 + df.loc[df.Temperature == Tmeasured[i]]['Tact_err'].values[i]**2)
+        error[i] = np.sqrt(e**2 + lit_err[i]**2)
     for Tm, Ta, e in zip(Tmeasured, Tactual, error):
         print Tm, Ta, e
     plt.figure(1)
@@ -407,13 +407,14 @@ def check_posterior(df, posterior, Tvalues):
 
 
 def get_values(df):
-    temp = df.groupby('Temperature').mean()['Tactual']
-    Tmeasured = temp.keys().values
-    Tactual = temp.values
-    error = np.nan_to_num(df.groupby('Temperature').std(ddof=1)['Tactual'].values)
-    #default = np.median(error[error > 1])
-    #error = np.maximum(error, np.ones(error.size) * default)
-    return Tmeasured, Tactual, error
+    temp = df.groupby('Temperature')
+    Tmeasured = temp.groups.keys()
+    Tactual_values = [temp.get_group(Tm)['Tactual'].values for Tm in Tmeasured]
+    Tactual = [np.mean(Ta) for Ta in Tactual_values]
+    spread = np.nan_to_num([np.std(Ta, ddof=1) for Ta in Tactual_values])
+    literr_values = [temp.get_group(Tm)['Tact_err'].values for Tm in Tmeasured]
+    lit_err = [np.sqrt(np.sum(literr**2)) for literr in literr_values]
+    return Tmeasured, Tactual, spread, lit_err
 
 
 def integrate_gauss(x1, x2, amp, mean, sigma):
@@ -448,7 +449,7 @@ def fit_sigma(df, i):
     """
     Find the largest allowable standard deviation, given the possible values Tactual can take.
     """
-    Tmeasured, Tactual, _ = get_values(df)
+    Tmeasured, Tactual, _, _ = get_values(df)
     Tm = Tmeasured[i]
     print('Measured temperature = {} K'.format(Tm))
     
