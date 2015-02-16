@@ -265,7 +265,7 @@ def make_gaussian_process_samples(df):
     #error = np.maximum(error, np.ones(error.size) * default)
     for i, e in enumerate(error):
         if e < 1:
-            error[i] = fit_sigma(df, i)
+            e = fit_sigma(df, i)
         error[i] = np.sqrt(e**2 + lit_err[i]**2)
     for Tm, Ta, e in zip(Tmeasured, Tactual, error):
         print Tm, Ta, e
