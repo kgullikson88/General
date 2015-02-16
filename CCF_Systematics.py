@@ -256,10 +256,11 @@ def make_gaussian_process_samples(df):
     # Tactual = df['Tactual'].values
     #Tmeasured = df['Temperature'].values
     #error = df['Tact_err'].values
-    temp = df.groupby('Temperature').mean()['Tactual']
-    Tmeasured = temp.keys().values
-    Tactual = temp.values
-    error = np.nan_to_num(df.groupby('Temperature').std(ddof=1)['Tactual'].values)
+    #temp = df.groupby('Temperature').mean()['Tactual']
+    #Tmeasured = temp.keys().values
+    #Tactual = temp.values
+    #error = np.nan_to_num(df.groupby('Temperature').std(ddof=1)['Tactual'].values)
+    Tmeasured, Tactual, error = get_values(df)
     #default = max(150.0, np.median(error[error > 1]))
     #error = np.maximum(error, np.ones(error.size) * default)
     for i, e in enumerate(error):
@@ -401,6 +402,16 @@ def check_posterior(df, posterior, Tvalues):
         logging.warn('Only {:.2f}% of the total samples were accepted!'.format(p * 100))
         return False
     return True
+
+
+def get_values(df):
+    temp = df.groupby('Temperature').mean()['Tactual']
+    Tmeasured = temp.keys().values
+    Tactual = temp.values
+    error = np.nan_to_num(df.groupby('Temperature').std(ddof=1)['Tactual'].values)
+    #default = np.median(error[error > 1])
+    #error = np.maximum(error, np.ones(error.size) * default)
+    return Tmeasured, Tactual, error
 
 
 def get_probability(x1, x2, x3, x4, N, mean, sigma):
