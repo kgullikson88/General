@@ -260,8 +260,11 @@ def make_gaussian_process_samples(df):
     Tmeasured = temp.keys().values
     Tactual = temp.values
     error = np.nan_to_num(df.groupby('Temperature').std(ddof=1)['Tactual'].values)
-    default = max(150.0, np.median(error[error > 1]))
-    error = np.maximum(error, np.ones(error.size) * default)
+    #default = max(150.0, np.median(error[error > 1]))
+    #error = np.maximum(error, np.ones(error.size) * default)
+    for i, e in enumerate(error):
+        if e < 1:
+            error[i] = fit_sigma(df, i)
     for Tm, Ta, e in zip(Tmeasured, Tactual, error):
         print Tm, Ta, e
     plt.figure(1)
@@ -398,6 +401,60 @@ def check_posterior(df, posterior, Tvalues):
         logging.warn('Only {:.2f}% of the total samples were accepted!'.format(p * 100))
         return False
     return True
+
+
+def get_probability(x1, x2, x3, x4, N, mean, sigma):
+    """
+    Get the probability of the given value of sigma
+    x1-x4 are the four limits, which are the bin edges of the possible values Tactual can take
+    N is the number of entries in the single bin, and mean what it sounds like
+    """
+    if x2 < 100:
+        x2 = x3 - (x4-x3)
+    if x4 > 1e6:
+        x4 = x3 + (x3-x2)
+    int1 = integrate_gauss(x2, x3, 1.0, mean, sigma)
+    A = float(N) / int1
+    int2 = 0 if x1 < 100 else integrate_gauss(x1, x2, A, mean, sigma)
+    int3 = 0 if x4 > 1e6 else integrate_gauss(x3, x4, A, mean, sigma)
+    if int2 > 1 or int3 > 1:
+        return 0
+    return 1
+
+
+def fit_sigma(df, i):
+    """
+    Find the largest allowable standard deviation, given the possible values Tactual can take.
+    """
+    Tmeasured, Tactual, _ = get_values(df)
+    Tm = Tmeasured[i]
+    print('Measured temperature = {} K'.format(Tm))
+    
+    # Get the possible values, and bin those with this measured value
+    possible_values = sorted(pd.unique(df.Tactual))
+    edges = [(possible_values[i] + possible_values[i+1])/2 for i in range(len(possible_values)-1)]
+    bins = [0] + edges + [9e9]
+    good = df.loc[df.Temperature == Tm]
+    values, _= np.histogram(good.Tactual.values, bins=bins)
+    
+    mean = np.mean(good.Tactual.values)
+    std = np.std(good.Tactual.values)
+    if std > 0:
+        return mean, std
+    
+    sigma_test = np.arange(500, 10, -10) #Just test a bunch of values
+    idx = np.searchsorted(bins, mean)
+    x1 = bins[idx-2] if idx > 2 else -1
+    x2 = bins[idx-1]
+    x3 = bins[idx]
+    x4 = bins[idx+1] if idx < len(bins)-2 else np.inf
+    N = len(good)
+    probs = [get_probability(x1, x2, x3, x4, N, mean, s) for s in sigma_test]
+    for s, p in zip(sigma_test, probs):
+        if p > 0.5:
+            return s
+    
+    raise ValueError('No probability > 0!')
 
 
 if __name__ == '__main__':
