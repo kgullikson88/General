@@ -325,7 +325,7 @@ def make_gaussian_process_samples(df):
     # Plot a bunch of the fits
     print "Plotting..."
     N = 100
-    Tvalues = np.arange(3300, 7000, 20)
+    Tvalues = np.arange(3000, 7000, 20)
     idx = np.argsort(-sampler.lnprobability.flatten())[:N]  # Get N 'best' curves
     par_vals = sampler.flatchain[idx]
     for i, pars in enumerate(par_vals):
@@ -333,7 +333,7 @@ def make_gaussian_process_samples(df):
         gp = george.GP(a * kernels.ExpSquaredKernel(tau))
         gp.compute(Tmeasured, error)
         s = gp.sample_conditional(Tactual - model(pars, Tmeasured), Tvalues) + model(pars, Tvalues)
-        plt.plot(Tvalues, s, 'b-', alpha=0.1)
+        plt.plot(Tvalues, s, 'b-', alpha=0.05)
     plt.draw()
 
     # Finally, get posterior samples at all the possibly measured temperatures
@@ -472,7 +472,7 @@ def fit_sigma(df, i):
     probs = [get_probability(x1, x2, x3, x4, N, mean, s) for s in sigma_test]
     for s, p in zip(sigma_test, probs):
         if p > 0.5:
-            return s
+            return s * 2
     
     raise ValueError('No probability > 0!')
 
