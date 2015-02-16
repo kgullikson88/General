@@ -227,7 +227,13 @@ def add_actual_temperature(df, method='excel', filename='SecondaryStar_Temperatu
 
     elif method.lower() == 'excel':
         table = pd.read_excel(filename, 0)
+        #print(secondary_names)
+        #print(table)
+        print(table.keys())
         for secondary in secondary_names:
+            print(secondary)
+            print(table.Star)
+            #print table.loc[table.Star.str.lower().str.contains(secondary.strip().lower())]
             T_sec = table.loc[table.Star.str.lower().str.contains(secondary.strip().lower())]['Literature_Temp'].item()
             T_error = table.loc[table.Star.str.lower().str.contains(secondary.strip().lower())][
                 'Literature_error'].item()
@@ -254,7 +260,7 @@ def make_gaussian_process_samples(df):
     Tmeasured = temp.keys().values
     Tactual = temp.values
     error = np.nan_to_num(df.groupby('Temperature').std(ddof=1)['Tactual'].values)
-    default = np.median(error[error > 1])
+    default = max(150.0, np.median(error[error > 1]))
     error = np.maximum(error, np.ones(error.size) * default)
     for Tm, Ta, e in zip(Tmeasured, Tactual, error):
         print Tm, Ta, e
