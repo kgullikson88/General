@@ -414,6 +414,15 @@ def get_values(df):
     return Tmeasured, Tactual, error
 
 
+def integrate_gauss(x1, x2, amp, mean, sigma):
+    """
+    Integrate a gaussian between the points x1 and x2
+    """
+    gauss = lambda x, A, mu, sig: A*np.exp(-(x-mu)**2 / (2.0*sig**2))
+    result = quad(gauss, x1, x2, args=(amp, mean, sigma))
+    return result[0]
+
+
 def get_probability(x1, x2, x3, x4, N, mean, sigma):
     """
     Get the probability of the given value of sigma
