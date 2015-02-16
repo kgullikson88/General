@@ -15,7 +15,7 @@ import StarData
 import h5py
 import SpectralTypeRelations
 import sys
-
+from scipy.integrate import quad
 
 def classify_filename(fname, type='bright'):
     """
