@@ -260,10 +260,10 @@ def make_gaussian_process_samples(df):
     for Tm, Ta, e in zip(Tmeasured, Tactual, error):
         print Tm, Ta, e
     plt.figure(1)
-    limits = [3000, 8000]
+    limits = [3000, 7000]
     plt.errorbar(Tmeasured, Tactual, yerr=error, fmt='.k', capsize=0)
     plt.plot(limits, limits, 'r--')
-    plt.xlim((min(Tmeasured) - 100, max(Tmeasured) + 100))
+    #plt.xlim((min(Tmeasured) - 100, max(Tmeasured) + 100))
     plt.xlabel('Measured Temperature')
     plt.ylabel('Actual Temperature')
     plt.xlim(limits)
@@ -326,6 +326,7 @@ def make_gaussian_process_samples(df):
         s = gp.sample_conditional(Tactual - model(pars, Tmeasured), Tvalues) + model(pars, Tvalues)
         plt.plot(Tvalues, s, 'b-', alpha=0.05)
     plt.draw()
+    plt.savefig('Temperature_Correspondence.eps')
 
     # Finally, get posterior samples at all the possibly measured temperatures
     print 'Generating posterior samples at all temperatures...'
