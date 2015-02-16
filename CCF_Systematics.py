@@ -409,7 +409,7 @@ def get_values(df):
     temp = df.groupby('Temperature')
     Tmeasured = temp.groups.keys()
     Tactual_values = [temp.get_group(Tm)['Tactual'].values for Tm in Tmeasured]
-    Tactual = [np.mean(Ta) for Ta in Tactual_values]
+    Tactual = np.array([np.mean(Ta) for Ta in Tactual_values])
     spread = np.nan_to_num([np.std(Ta, ddof=1) for Ta in Tactual_values])
     literr_values = [temp.get_group(Tm)['Tact_err'].values for Tm in Tmeasured]
     lit_err = np.array([np.sqrt(np.sum(literr**2)) for literr in literr_values])
