@@ -6,6 +6,7 @@ It is called by several smaller scripts in each of the instrument-specific repos
 """
 
 import FittingUtilities
+
 import numpy as np
 import DataStructures
 
@@ -590,7 +591,7 @@ def slow_companion_search(fileList,
                         pars = {'outdir': output_dir, 'outbase': outfilebase, 'addmode': addmode,
                                 'vsini_prim': vsini_prim, 'vsini': vsini_sec,
                                 'T': temp, 'logg': gravity, '[Fe/H]': metallicity}
-                        save_ccf(corr, params=pars, mode=output_mode)
+                        save_synthetic_ccf(corr, params=pars, mode=output_mode)
 
                         # Save the individual orders, if debug=True
                         if debug:
@@ -611,8 +612,7 @@ def slow_companion_search(fileList,
     return
 
 
-
-def save_ccf(corr, params, mode='text', update=True):
+def save_synthetic_ccf(corr, params, mode='text', update=True):
     """
     Save the cross-correlation function in the given way.
     :param: corr: The DataStructures object holding the cross-correlation function
