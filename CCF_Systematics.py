@@ -412,6 +412,10 @@ def integrate_gauss(x1, x2, amp, mean, sigma):
     Integrate a gaussian between the points x1 and x2
     """
     gauss = lambda x, A, mu, sig: A*np.exp(-(x-mu)**2 / (2.0*sig**2))
+    if x1 < -1e6:
+        x1 = -np.inf
+    if x2 > 1e6:
+        x2 = np.inf
     result = quad(gauss, x1, x2, args=(amp, mean, sigma))
     return result[0]
 
@@ -462,6 +466,8 @@ def fit_sigma(df, i):
     x3 = bins[idx]
     x4 = bins[idx+1] if idx < len(bins)-2 else np.inf
     N = len(good)
+    print x1, x2, x3, x4
+    print N, '\n'
     probs = [get_probability(x1, x2, x3, x4, N, mean, s) for s in sigma_test]
     for s, p in zip(sigma_test, probs):
         if p > 0.5:
