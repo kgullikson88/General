@@ -447,6 +447,7 @@ def slow_companion_search(fileList,
                           observatory="CTIO",
                           addmode="ML",
                           output_mode='text',
+                          obstype='real',
                           debug=False,
                           makeplots=False):
     """
@@ -470,9 +471,10 @@ def slow_companion_search(fileList,
          1: 'simple': Do a simple average
          2: 'weighted': Do a weighted average: C = \sum_i{w_i C_i^2}
          3: 'ml': The maximum likelihood estimate. See Zucker 2003, MNRAS, 342, 1291
-    :param output_mode': How to output. Valid options are:
+    :param output_mode: How to output. Valid options are:
          1: text, which is just ascii data with a filename convention. This is the default option
          2: hdf5, which ouputs a single hdf5 file with all the metadata necessary to classify the output
+    :param obstype: Is this a synthetic binary star or real observation? (default is real)
     :param debug: Flag to print a bunch of information to screen, and save some intermediate data files
     :param makeplots: A 'higher level' of debug. Will make a plot of the data and model orders for each model.
     """
@@ -549,11 +551,12 @@ def slow_companion_search(fileList,
                         outfilebase = fname.split(".fits")[0]
                         if "/" in fname:
                             dirs = fname.split("/")
-                            output_dir = ""
                             outfilebase = dirs[-1].split(".fits")[0]
-                            for directory in dirs[:-1]:
-                                output_dir = output_dir + directory + "/"
-                            output_dir = output_dir + "Cross_correlations/"
+                            if obstype.lower() == 'synthetic':
+                                output_dir = ""
+                                for directory in dirs[:-1]:
+                                    output_dir = output_dir + directory + "/"
+                                output_dir = output_dir + "Cross_correlations/"
                         HelperFunctions.ensure_dir(output_dir)
 
                         # Save the model and data orders, if debug=True
@@ -588,10 +591,16 @@ def slow_companion_search(fileList,
                             corr.x += vbary
 
                         # Output the ccf
-                        pars = {'outdir': output_dir, 'outbase': outfilebase, 'addmode': addmode,
-                                'vsini_prim': vsini_prim, 'vsini': vsini_sec,
-                                'T': temp, 'logg': gravity, '[Fe/H]': metallicity}
-                        save_synthetic_ccf(corr, params=pars, mode=output_mode)
+                        if obstype.lower() == 'synthetic':
+                            pars = {'outdir': output_dir, 'outbase': outfilebase, 'addmode': addmode,
+                                    'vsini_prim': vsini_prim, 'vsini': vsini_sec,
+                                    'T': temp, 'logg': gravity, '[Fe/H]': metallicity}
+                            save_synthetic_ccf(corr, params=pars, mode=output_mode)
+                        else:
+                            pars = {'outdir': output_dir, 'fname': fname, 'addmode': addmode,
+                                    'vsini_prim': vsini_prim, 'vsini': vsini_sec,
+                                    'T': temp, 'logg': gravity, '[Fe/H]': metallicity}
+                            save_ccf(corr, params=pars, mode=output_mode)
 
                         # Save the individual orders, if debug=True
                         if debug:
@@ -666,6 +675,65 @@ def save_synthetic_ccf(corr, params, mode='text', update=True):
         ds.attrs['velocity'] = corr.x
 
         p.attrs['vsini'] = params['vsini_prim']
+
+        f.flush()
+        f.close()
+
+    else:
+        raise ValueError('output mode ({}) not supported!'.format(mode))
+
+
+def save_ccf(corr, params, mode='text', update=True):
+    """
+    Save the cross-correlation function in the given way.
+    :param: corr: The DataStructures object holding the cross-correlation function
+    :param params: A dictionary describing the metadata to include
+    :param mode: See docstring for slow_companion_search, param output_mode
+    :param update: If mode='hdf5', DO I NEED THIS?
+    """
+    if mode.lower() == 'text':
+        params['outbase'] = params['fname'].split('/')[-1].split('.fits')[0]
+        save_synthetic_ccf(corr, params, mode=mode, update=update)
+
+    elif mode.lower() == 'hdf5':
+        # Get the hdf5 file
+        hdf5_file = '{0:s}CCF.hdf5'.format(params['outdir'])
+        print('Saving CCF to {}'.format(hdf5_file))
+        f = h5py.File(hdf5_file, 'a')
+
+        # Star name and date
+        header = fits.getheader(params['fname'])
+        star = header['OBJECT']
+        date = header['DATE-OBS'].split('T')[0]
+
+        if star in f.keys():
+            s = f[star]
+        else:
+            star_data = StarData.GetData(star)
+            s = f.create_group(star)
+            s.attrs['vsini'] = params['vsini_prim']
+            s.attrs['RA'] = star_data.ra
+            s.attrs['DEC'] = star_data.dec
+            s.attrs['SpT'] = star_data.spectype
+
+        d = s[date] if date in s.keys() else s.create_group(date)
+
+        # Add a new dataset. The name doesn't matter
+        current_datasets = d.keys()
+        if len(current_datasets) == 0:
+            ds = d.create_dataset('ds1', data=np.array((corr.x, corr.y)))
+        else:
+            ds_num = max(int(d[2:]) for d in current_datasets) + 1
+            ds = d.create_dataset('ds{}'.format(ds_num), data=np.array((corr.x, corr.y)))
+
+        # Add attributes to the dataset
+        print(star, date)
+        print(params)
+        ds.attrs['vsini'] = params['vsini']
+        ds.attrs['T'] = params['T']
+        ds.attrs['logg'] = params['logg']
+        ds.attrs['[Fe/H]'] = params['[Fe/H]']
+        ds.attrs['addmode'] = params['addmode']
 
         f.flush()
         f.close()
