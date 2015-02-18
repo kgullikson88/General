@@ -10,13 +10,13 @@ from collections import defaultdict
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 
 
-class CCF_Interface:
+class CCF_Interface(object):
     def __init__(self, filename, vel=np.arange(-900, 900, 1)):
         self.hdf5 = h5py.File(filename, 'r')
         self.velocities = vel
 
 
-    def list_stars(self, print2screen=True):
+    def list_stars(self, print2screen=False):
         """
         List the stars available in the HDF5 file, and the dates available for each
         :return: A list of the stars
@@ -29,7 +29,7 @@ class CCF_Interface:
         return sorted(self.hdf5.keys())
 
 
-    def list_dates(self, star, print2screen=True):
+    def list_dates(self, star, print2screen=False):
         """
         List the dates available for the given star
         :param star: The name of the star
@@ -114,6 +114,7 @@ class CCF_Interface:
             d['rv'].append(best['rv'].item())
             d['ccf_value'].append(best.ccf_max.item())
             d['T'].append(T)
+            d['metal'].append(best['[Fe/H]'].item())
 
         return pd.DataFrame(data=d)
 
@@ -135,9 +136,7 @@ class CCF_Interface:
         good = df.loc[(df['T'] == params['T']) & (df.logg == params['logg']) & (df.vsini == params['vsini']) \
                       & (df['[Fe/H]'] == params['[Fe/H]']) & (df.addmode == params['addmode'])]
 
-        print self.velocities.shape
-        print good['ccf'].item()
-        print good['ccf'].item().shape
+
         return pd.DataFrame(data={'velocity': self.velocities, 'CCF': good['ccf'].item()})
 
 
