@@ -100,11 +100,14 @@ class BokehApp(VBox):
         dates = self._ccf_interface.list_dates(self.star)
         self.date = dates[0]
         # TODO: Figure out how to make a new date list more than once!
-        self.date_select = Select.create(
-            name='Date',
-            value=dates[0],
-            options=dates,
-        )
+        if isinstance(self.date_select, Select):
+            self.date_select.update(value=dates[0], options=dates)
+        else:
+            self.date_select = Select.create(
+                name='Date',
+                value=dates[0],
+                options=dates,
+            )
 
     def make_source(self):
         self.source = ColumnDataSource(data=self.df)
