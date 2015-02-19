@@ -101,7 +101,7 @@ def HelCorr(header, observatory="CTIO", idlpath="/Applications/itt/idl/bin/idl",
 
 
 def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
-                 trimsize=1, vsini=None, logspacing=False, oversample=1.0):
+                 trimsize=1, vsini=None, logspacing=False, oversample=1.0, reject_outliers=True):
     """
 
     :param fname: The filename to read in (should be a fits file)
@@ -126,11 +126,15 @@ def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
     numorders = len(orders)
     for i, order in enumerate(orders[::-1]):
         # Trim data, and make sure the wavelength spacing is constant
-        xgrid = np.linspace(order.x[trimsize], order.x[-trimsize], order.size() - 2 * trimsize)
-        order = FittingUtilities.RebinData(order, xgrid)
+        if trimsize > 0:
+            order = order[trimsize:-trimsize]
 
         # Smooth the data
         if vsini is not None:
+            # make sure the x-spacing is linear
+            xgrid = np.linspace(order.x[0], order.x[-1], order.size())
+            order = FittingUtilities.RebinData(order, xgrid)
+
             dx = order.x[1] - order.x[0]
             smooth_factor = 0.8
             theta = GenericSmooth.roundodd(vsini / 3e5 * order.x.mean() / dx * smooth_factor)
@@ -173,15 +177,16 @@ def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
             print "Removing order %i" % (numorders - 1 - i)
             orders.pop(numorders - 1 - i)
         else:
-            # Find outliers from e.g. bad telluric line or stellar spectrum removal.
-            order.cont = FittingUtilities.Continuum(order.x, order.y, lowreject=3, highreject=3)
-            outliers = HelperFunctions.FindOutliers(order, expand=10, numsiglow=5, numsighigh=5)
-            # plt.plot(order.x, order.y / order.cont, 'k-')
-            if len(outliers) > 0:
-                # plt.plot(order.x[outliers], (order.y / order.cont)[outliers], 'r-')
-                order.y[outliers] = order.cont[outliers]
+            if reject_outliers:
+                # Find outliers from e.g. bad telluric line or stellar spectrum removal.
                 order.cont = FittingUtilities.Continuum(order.x, order.y, lowreject=3, highreject=3)
-                order.y[outliers] = order.cont[outliers]
+                outliers = HelperFunctions.FindOutliers(order, expand=10, numsiglow=5, numsighigh=5)
+                # plt.plot(order.x, order.y / order.cont, 'k-')
+                if len(outliers) > 0:
+                    # plt.plot(order.x[outliers], (order.y / order.cont)[outliers], 'r-')
+                    order.y[outliers] = order.cont[outliers]
+                    order.cont = FittingUtilities.Continuum(order.x, order.y, lowreject=3, highreject=3)
+                    order.y[outliers] = order.cont[outliers]
 
             # Save this order
             orders[numorders - 1 - i] = order.copy()

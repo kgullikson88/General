@@ -462,8 +462,17 @@ def Analyze(fileList,
 
                     for i, (fname, vsini_prim) in enumerate(zip(fileList, primary_vsini)):
                         # Read in data
-                        orders_original = datadict[
-                            fname] if fname in datadict.keys() else HelperFunctions.ReadExtensionFits(fname)
+                        process_data = False if fname in datadict else True
+                        if process_data:
+                            orders_original = HelperFunctions.ReadExtensionFits(fname)
+                            orders_original = GenericSearch.Process_Data(orders_original,
+                                                                         badregions=badregions, interp_regions=[],
+                                                                         trimsize=trimsize, vsini=None,
+                                                                         reject_outliers=False, logspacing=False)
+
+                            datadict[fname] = orders_original
+                        else:
+                            orders_original = datadict[fname]
 
                         header = fits.getheader(fname)
                         starname = header['OBJECT']
@@ -498,9 +507,10 @@ def Analyze(fileList,
 
                             # Process the data and model
                             orders = GenericSearch.Process_Data(orders,
-                                                                badregions=badregions, interp_regions=interp_regions,
-                                                                extensions=extensions, trimsize=trimsize,
-                                                                vsini=vsini_prim, logspacing=True)
+                                                                badregions=[], interp_regions=interp_regions,
+                                                                extensions=extensions, trimsize=0,
+                                                                vsini=vsini_prim, logspacing=True,
+                                                                reject_outliers=True)
                             model_orders = GenericSearch.process_model(model.copy(), orders,
                                                                        vsini_model=vsini_sec, vsini_primary=vsini_prim,
                                                                        debug=debug, logspace=False)
