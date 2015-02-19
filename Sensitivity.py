@@ -62,9 +62,9 @@ def GetMass(spt):
 
 
 
-def Analyze(fileList,
-            vsini_secondary=20 * units.km.to(units.cm),
-            resolution=60000,
+def Analyze_Old(fileList,
+            vsini_secondary=10 * units.km.to(units.cm),
+            resolution=None,
             smooth_factor=0.8,
             vel_list=range(-400, 450, 50),
             companion_file="%s/Dropbox/School/Research/AstarStuff/TargetLists/Multiplicity.csv" % (os.environ["HOME"]),
