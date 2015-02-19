@@ -21,6 +21,7 @@ import GenericSmooth
 import HelperFunctions
 import Broaden
 import Correlate
+import h5py
 
 
 MS = SpectralTypeRelations.MainSequence()
@@ -322,11 +323,10 @@ def split_by_component(df):
     sec = comps.loc[comps.sec_comp.notnull()].rename(columns={'Sp2': 'SpT', 'sec_comp': 'comp'})
     return pd.concat((prim, sec))[['comp', 'SpT']].drop_duplicates(subset='comp')
 
-
+mult_filename = '{}/Dropbox/School/Research/Databases/A_star/SB9andWDS.csv'.format(os.environ['HOME'])
+multiples = pd.read_csv(mult_filename)
 def get_companions(starname, sep_max=1.5):
     data = StarData.GetData(starname)
-    mult_filename = '{}/Dropbox/School/Research/Databases/A_star/SB9andWDS.csv'.format(os.environ['HOME'])
-    multiples = pd.read_csv(mult_filename)
 
     # Search for the given star in the database
     match = multiples.loc[multiples.main_id == data.main_id]
@@ -364,6 +364,12 @@ def get_companions(starname, sep_max=1.5):
     components['companion_teff'] = components['SpT'].map(lambda s: MS.Interpolate('temperature', s))
     components['companion_radius'] = components['SpT'].map(lambda s: MS.Interpolate('radius', s))
 
+    if len(match) < 1:
+        spt = data.spectype
+        retdict['temperature'].append(MS.Interpolate('temperature', spt))
+        retdict['radius'].append(MS.Interpolate('radius', spt))
+        retdict['mass'].append(MS.Interpolate('mass', spt))
+        return retdict
     retdict = {'temperature': list(components['companion_teff']),
                'mass': list(components['companion_mass']),
                'radius': list(components['companion_radius'])}
@@ -386,6 +392,7 @@ def Analyze(fileList,
             addmode="ML",
             output_mode='hdf5',
             vel_list=range(-400, 450, 50),
+            tolerance=5.0,
             debug=False,
             makeplots=False):
     """
@@ -409,7 +416,8 @@ def Analyze(fileList,
     :param output_mode: How to output. Valid options are:
          1: text, which is just ascii data with a filename convention.
          2: hdf5, which ouputs a single hdf5 file with all the metadata necessary to classify the output
-    :param obstype: Is this a synthetic binary star or real observation? (default is real)
+    :param vel_list: The list of velocities to add the model to the data with
+    :param tolerance: How close the highest CCF peak needs to be to the correct velocity, to count as a detection
     :param debug: Flag to print a bunch of information to screen, and save some intermediate data files
     :param makeplots: A 'higher level' of debug. Will make a plot of the data and model orders for each model.
     """
@@ -441,7 +449,7 @@ def Analyze(fileList,
                                                                                      metallicity, vsini_sec))
                     # broaden the model
                     model = modeldict[temp][gravity][metallicity][alpha][vsini_sec].copy()
-                    model = Broaden.RotBroad(model, vsini_sec * u.km.to(u.cm), linear=True)
+                    model = Broaden.RotBroad(model, vsini_sec * units.km.to(units.cm), linear=True)
                     if resolution is not None:
                         model = FittingUtilities.ReduceResolutionFFT(model, resolution)
 
@@ -462,6 +470,7 @@ def Analyze(fileList,
                         date = header['DATE-OBS'].split('T')[0]
 
                         components = get_companions(starname)
+                        print components
                         primary_temp = components['temperature']
                         primary_radius = components['radius']
                         primary_mass = components['mass']
@@ -497,7 +506,7 @@ def Analyze(fileList,
                                                                        debug=debug, logspace=False)
 
                             # Do the correlation
-                            corr = Correlate.Correlate(orders, model_orders, addmode=addmode, outputdir=output_dir,
+                            corr = Correlate.Correlate(orders, model_orders, addmode=addmode, outputdir='Sensitivity/',
                                                        get_weights=get_weights, prim_teff=max(primary_temp),
                                                        debug=debug)
                             if debug:
@@ -589,7 +598,7 @@ def check_detection(corr, params, mode='text', tol=5):
             s.attrs['DEC'] = star_data.dec
             s.attrs['SpT'] = star_data.spectype
             s.attrs['n_companions'] = len(params['primary_temps'])
-            for i, pT, pM in enumerate(zip(params['primary_temps'], params['primary_masses'])):
+            for i, (pT, pM) in enumerate(zip(params['primary_temps'], params['primary_masses'])):
                 s.attrs['comp{}_Teff'.format(i + 1)] = pT
                 s.attrs['comp{}_Mass'.format(i + 1)] = pM
 
@@ -597,16 +606,20 @@ def check_detection(corr, params, mode='text', tol=5):
         d = s[date] if date in s.keys() else s.create_group(date)
 
         # Get or create a group for the secondary star temperature
-        Tsec = params['secondary_temp']
+        Tsec = str(int(params['secondary_temp']))
+        #print d.keys()
+        ##print Tsec
+        #print type(Tsec)
+        #print Tsec in d.keys()
         T = d[Tsec] if Tsec in d.keys() else d.create_group(Tsec)
 
         # Add a new dataset. The name doesn't matter
         current_datasets = T.keys()
         if len(current_datasets) == 0:
-            ds = d.create_dataset('ds1', data=np.array((corr.x, corr.y)))
+            ds = T.create_dataset('ds1', data=np.array((corr.x, corr.y)))
         else:
-            ds_num = max(int(d[2:]) for d in current_datasets) + 1
-            ds = d.create_dataset('ds{}'.format(ds_num), data=np.array((corr.x, corr.y)))
+            ds_num = max(int(das[2:]) for das in current_datasets) + 1
+            ds = T.create_dataset('ds{}'.format(ds_num), data=np.array((corr.x, corr.y)))
 
         # Add attributes to the dataset
         print(star, date)
