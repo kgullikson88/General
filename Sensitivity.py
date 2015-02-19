@@ -2,18 +2,21 @@ import os
 import sys
 import FittingUtilities
 from re import search
+from collections import defaultdict
 
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as interp
 from astropy.io import fits
 from astropy.io import ascii
+import pandas as pd
 from astropy import units, constants
 import DataStructures
-
 import GenericSearch
 import StellarModel
+import StarData
 import SpectralTypeRelations
 from PlotBlackbodies import Planck
+from astropy.analytic_functions import blackbody_lambda
 import GenericSmooth
 import HelperFunctions
 import Broaden
@@ -21,6 +24,9 @@ import Correlate
 
 
 MS = SpectralTypeRelations.MainSequence()
+
+# Define some constants to use
+lightspeed = constants.c.cgs.value * units.cm.to(units.km)
 
 
 def GetFluxRatio(sptlist, Tsec, xgrid):
@@ -60,25 +66,23 @@ def GetMass(spt):
     return MS.Interpolate(MS.Mass, spt[:end])
 
 
-
-
 def Analyze_Old(fileList,
-            vsini_secondary=10 * units.km.to(units.cm),
-            resolution=None,
-            smooth_factor=0.8,
-            vel_list=range(-400, 450, 50),
-            companion_file="%s/Dropbox/School/Research/AstarStuff/TargetLists/Multiplicity.csv" % (os.environ["HOME"]),
-            vsini_file="%s/School/Research/Useful_Datafiles/Vsini.csv" % (os.environ["HOME"]),
-            tolerance=5.0,
-            vsini_skip=10,
-            vsini_idx=1,
-            badregions=[],
-            trimsize=1,
-            object_keyword="object",
-	        modeldir="./",
-            addmode="ml",
-            debug=False):
-
+                vsini_secondary=10 * units.km.to(units.cm),
+                resolution=None,
+                smooth_factor=0.8,
+                vel_list=range(-400, 450, 50),
+                companion_file="%s/Dropbox/School/Research/AstarStuff/TargetLists/Multiplicity.csv" % (
+                os.environ["HOME"]),
+                vsini_file="%s/School/Research/Useful_Datafiles/Vsini.csv" % (os.environ["HOME"]),
+                tolerance=5.0,
+                vsini_skip=10,
+                vsini_idx=1,
+                badregions=[],
+                trimsize=1,
+                object_keyword="object",
+                modeldir="./",
+                addmode="ml",
+                debug=False):
     """
       Perform the sensitivity analysis.
     :param fileList:  The files to analyze
@@ -140,7 +144,7 @@ def Analyze_Old(fileList,
         x, y, c = np.loadtxt(modelfile, usecols=(0, 1, 2), unpack=True)
         print "Processing file..."
         # c = FittingUtilities.Continuum(x, y, fitorder=2, lowreject=1.5, highreject=5)
-        n = 1.0 + 2.735182e-4 + 131.4182 / x ** 2 + 2.76249e8 / x ** 4  #Index of refraction of air
+        n = 1.0 + 2.735182e-4 + 131.4182 / x ** 2 + 2.76249e8 / x ** 4  # Index of refraction of air
         model = DataStructures.xypoint(x=x * units.angstrom.to(units.nm) / n, y=10 ** y, cont=10 ** c)
         model = FittingUtilities.RebinData(model, np.linspace(model.x[0], model.x[-1], model.size()))
         model = Broaden.RotBroad(model, vsini_secondary)
@@ -159,7 +163,7 @@ def Analyze_Old(fileList,
             orders_original = HelperFunctions.ReadExtensionFits(fname)
             # orders_original = GenericSearch.Process_Data(fname, badregions=badregions, trimsize=trimsize)
 
-            #Find the vsini of the primary star with my spreadsheet
+            # Find the vsini of the primary star with my spreadsheet
             starname = fits.getheader(fname)[object_keyword]
             found = False
             for data in vsini_data:
@@ -285,3 +289,338 @@ def Analyze_Old(fileList,
                         fname, primary_temp, temp, secondary_mass, massratio, rv))
                 print "Done with rv ", rv
             outfile.close()
+
+
+def get_sec_spt(row):
+    """
+    Get the secondary spectral type from the information we have
+    """
+    if pd.notnull(row['Sp2']):
+        return row['Sp2']
+    elif pd.notnull(row['Sp1']) and pd.notnull(row['mag1']) and pd.notnull(row['mag2']):
+        # TODO: Do better than assuming V band!
+        band = 'V'
+        absmag_prim = MS.GetAbsoluteMagnitude(row['Sp1'], color=band)
+        dm = float(row['mag1']) - absmag_prim
+        absmag_sec = float(row['mag2']) - dm
+        return MS.GetSpectralType_FromAbsMag(absmag_sec, color=band)[0]
+    elif pd.notnull(row['Sp1']) and pd.notnull(row['K1']) and pd.notnull(row['K2']):
+        mass = MS.Interpolate('mass', row['Sp1'])
+        q = float(row['K1']) / float(row['K2'])
+        sec_mass = q * mass
+        return MS.GetSpectralType('mass', sec_mass)[0]
+    else:
+        print row
+        raise ValueError('Must give enough information to figure out the spectral type!')
+
+
+def split_by_component(df):
+    df['prim_comp'] = df.Comp.map(lambda s: s[0])
+    df['sec_comp'] = df.Comp.map(lambda s: s[-1])
+    comps = pd.concat((df[['prim_comp', 'Sp1']], df[['sec_comp', 'Sp2']]))
+    prim = comps.loc[comps.prim_comp.notnull()].rename(columns={'Sp1': 'SpT', 'prim_comp': 'comp'})
+    sec = comps.loc[comps.sec_comp.notnull()].rename(columns={'Sp2': 'SpT', 'sec_comp': 'comp'})
+    return pd.concat((prim, sec))[['comp', 'SpT']].drop_duplicates(subset='comp')
+
+
+def get_companions(starname, sep_max=1.5):
+    data = StarData.GetData(starname)
+    mult_filename = '{}/Dropbox/School/Research/Databases/A_star/SB9andWDS.csv'.format(os.environ['HOME'])
+    multiples = pd.read_csv(mult_filename)
+
+    # Search for the given star in the database
+    match = multiples.loc[multiples.main_id == data.main_id]
+    retdict = defaultdict(list)
+    if len(match) < 1:
+        spt = data.spectype
+        retdict['temperature'].append(MS.Interpolate('temperature', spt))
+        retdict['radius'].append(MS.Interpolate('radius', spt))
+        retdict['mass'].append(MS.Interpolate('mass', spt))
+        return retdict
+
+    print('{} matches with the same name'.format(len(match)))
+    # Now, only keep close companions
+    match = match.loc[(match.separation < sep_max) | (match.separation.isnull())]
+    print('{} matches that are within {}"'.format(len(match), sep_max))
+
+    # Finally, only keep stars we can figure something out with
+    match = match.loc[((match.Sp1.notnull()) & (match.mag1.notnull()) & match.mag2.notnull()) | (
+    (match.K1.notnull()) & match.K2.notnull())]
+    print('{} matches with sufficient information'.format(len(match)))
+
+    # Get the spectral type for each match
+    match['Sp2'] = match.apply(get_sec_spt, axis=1)
+
+    # Only keep the companions that are early type for this
+    match = match.loc[(match.Sp2.str.startswith('O')) | (match.Sp2.str.startswith('B'))
+                      | (match.Sp2.str.startswith('A')) | (match.Sp2.str.startswith('F'))]
+    print('{} matches with early type companions'.format(len(match)))
+
+
+    # Get the temperature, mass, and radius of the companions
+    # Split by the components in the system
+    components = split_by_component(match.copy())
+    components['companion_mass'] = components['SpT'].map(lambda s: MS.Interpolate('mass', s))
+    components['companion_teff'] = components['SpT'].map(lambda s: MS.Interpolate('temperature', s))
+    components['companion_radius'] = components['SpT'].map(lambda s: MS.Interpolate('radius', s))
+
+    retdict = {'temperature': list(components['companion_teff']),
+               'mass': list(components['companion_mass']),
+               'radius': list(components['companion_radius'])}
+    return retdict
+
+
+def Analyze(fileList,
+            primary_vsini,
+            badregions=[],
+            interp_regions=[],
+            extensions=True,
+            resolution=None,
+            trimsize=1,
+            vsini_values=(10,),
+            Tvalues=range(3000, 6100, 100),
+            metal_values=(0.0,),
+            logg_values=(4.5,),
+            modeldir=StellarModel.modeldir,
+            hdf5_file=StellarModel.HDF5_FILE,
+            addmode="ML",
+            output_mode='hdf5',
+            vel_list=range(-400, 450, 50),
+            debug=False,
+            makeplots=False):
+    """
+    This function runs a sensitivity analysis using the same methodology as slow_companion_search
+    :param fileList: The list of fits data files
+    :param primary_vsini: A list of the same length as fileList, which contains the vsini for each star (in km/s)
+    :param badregions: A list of wavelength regions to ignore in the CCF (contaminated by tellurics, etc)
+    :param interp_regions: A list of wavelength regions to interpolate over in the data. Generally, badregions should be on the edge of the orders or contain the whole order, and interp_regions should contain a small wavelength range.
+    :param resolution: The detector resolution in lam/dlam. The default is now to use a pre-broadened grid; do not give a value for resolution unless the grid is un-broadened!
+    :param trimsize: The number of pixels to cut from both sides of each order. This is because the  order edges are usually pretty noisy.
+    :param vsini_values: A list of vsini values (in km/s) to apply to each model spectrum before correlation.
+    :param Tvalues: A list of model temperatures (in K) to correlate the data against.
+    :param metal_values: A list of [Fe/H] values to correlate the model against
+    :param logg_values: A list of log(g) values (in cgs units) to correlate the model against
+    :param modeldir: The model directory. This is no longer used by default!
+    :param hdf5_file: The path to the hdf5 file containing the pre-broadened model grid.
+    :param addmode: The way to add the CCFs for each order. Options are:
+         1: 'simple': Do a simple average
+         2: 'weighted': Do a weighted average: C = \sum_i{w_i C_i^2}
+         3: 'ml': The maximum likelihood estimate. See Zucker 2003, MNRAS, 342, 1291
+    :param output_mode: How to output. Valid options are:
+         1: text, which is just ascii data with a filename convention.
+         2: hdf5, which ouputs a single hdf5 file with all the metadata necessary to classify the output
+    :param obstype: Is this a synthetic binary star or real observation? (default is real)
+    :param debug: Flag to print a bunch of information to screen, and save some intermediate data files
+    :param makeplots: A 'higher level' of debug. Will make a plot of the data and model orders for each model.
+    """
+
+    model_list = StellarModel.GetModelList(type='hdf5',
+                                           hdf5_file=hdf5_file,
+                                           temperature=Tvalues,
+                                           metal=metal_values,
+                                           logg=logg_values)
+    modeldict, processed = StellarModel.MakeModelDicts(model_list, type='hdf5', hdf5_file=hdf5_file,
+                                                       vsini_values=vsini_values, vac2air=True, logspace=True)
+
+    get_weights = True if addmode.lower() == "weighted" else False
+    orderweights = None
+
+    MS = SpectralTypeRelations.MainSequence()
+
+    # Do the cross-correlation
+    datadict = defaultdict(list)
+    temperature_dict = defaultdict(float)
+    vbary_dict = defaultdict(float)
+    alpha = 0.0
+    for temp in sorted(modeldict.keys()):
+        for gravity in sorted(modeldict[temp].keys()):
+            for metallicity in sorted(modeldict[temp][gravity].keys()):
+                for vsini_sec in vsini_values:
+                    if debug:
+                        logging.info('T: {}, logg: {}, [Fe/H]: {}, vsini: {}'.format(temp, gravity,
+                                                                                     metallicity, vsini_sec))
+                    # broaden the model
+                    model = modeldict[temp][gravity][metallicity][alpha][vsini_sec].copy()
+                    model = Broaden.RotBroad(model, vsini_sec * u.km.to(u.cm), linear=True)
+                    if resolution is not None:
+                        model = FittingUtilities.ReduceResolutionFFT(model, resolution)
+
+                    # Make an interpolator function
+                    bb_flux = blackbody_lambda(model.x * units.nm, temp)
+                    idx = np.where(model.x > 700)[0]
+                    s = np.median(model.y[idx] / bb_flux[idx])
+                    model.cont = bb_flux * s
+                    modelfcn = interp(model.x, model.y / model.cont)
+
+                    for i, (fname, vsini_prim) in enumerate(zip(fileList, primary_vsini)):
+                        # Read in data
+                        orders_original = datadict[
+                            fname] if fname in datadict.keys() else HelperFunctions.ReadExtensionFits(fname)
+
+                        header = fits.getheader(fname)
+                        starname = header['OBJECT']
+                        date = header['DATE-OBS'].split('T')[0]
+
+                        components = get_companions(starname)
+                        primary_temp = components['temperature']
+                        primary_radius = components['radius']
+                        primary_mass = components['mass']
+                        secondary_spt = MS.GetSpectralType('temperature', temp)[0]
+                        secondary_radius = MS.Interpolate('radius', secondary_spt)
+                        secondary_mass = MS.Interpolate('mass', secondary_spt)
+
+                        for rv in vel_list:
+                            # Make a copy of the data orders
+                            orders = [order.copy() for order in orders_original]
+
+                            for ordernum, order in enumerate(orders):
+                                # Get the flux ratio
+                                prim_flux = 0.0
+                                for ptemp, pR in zip(primary_temp, primary_radius):
+                                    prim_flux += blackbody_lambda(order.x * units.nm, ptemp).cgs.value * pR
+                                sec_flux = blackbody_lambda(order.x * units.nm, temp).cgs.value * secondary_radius
+                                scale = sec_flux / prim_flux
+
+                                # Add the model to the data
+                                model_segment = (modelfcn(order.x * (1.0 + rv / lightspeed)) - 1.0) * scale
+                                order.y += model_segment * order.cont
+
+                                orders[ordernum] = order
+
+                            # Process the data and model
+                            orders = GenericSearch.Process_Data(orders,
+                                                                badregions=badregions, interp_regions=interp_regions,
+                                                                extensions=extensions, trimsize=trimsize,
+                                                                vsini=vsini_prim, logspacing=True)
+                            model_orders = GenericSearch.process_model(model.copy(), orders,
+                                                                       vsini_model=vsini_sec, vsini_primary=vsini_prim,
+                                                                       debug=debug, logspace=False)
+
+                            # Do the correlation
+                            corr = Correlate.Correlate(orders, model_orders, addmode=addmode, outputdir=output_dir,
+                                                       get_weights=get_weights, prim_teff=max(primary_temp),
+                                                       debug=debug)
+                            if debug:
+                                corr, ccf_orders = corr
+
+                            # Determine if we found the companion, and output
+                            params = {'velocity': rv, 'primary_temps': primary_temp, 'secondary_temp': temp,
+                                      'object': starname, 'date': date,
+                                      'primary_vsini': vsini_prim, 'secondary_vsini': vsini_sec,
+                                      'primary_masses': primary_mass, 'secondary_mass': secondary_mass,
+                                      'logg': gravity, '[Fe/H]': metallicity, 'addmode': addmode}
+                            check_detection(corr, params, mode='hdf5', tol=tolerance)
+
+
+
+
+
+                    # Delete the model. We don't need it anymore and it just takes up ram.
+                    modeldict[temp][gravity][metallicity][alpha][vsini_sec] = []
+
+    return
+
+
+def check_detection(corr, params, mode='text', tol=5):
+    """
+    Check if we detected the companion, and output to a summary file.
+    :param: corr: The DataStructures object holding the cross-correlation function
+    :param params: A dictionary describing the metadata to include
+    :param mode: See docstring for slow_companion_search, param output_mode
+    :keyword tol: Tolerance (in km/s) to count a peak as the 'correct' one.
+    """
+    idx = np.argmax(corr.y)
+    vmax = corr.x[idx]
+    detected = True if abs(vmax - params['velocity']) < tol else False
+
+    # Find the significance
+    if detected:
+        fit = FittingUtilities.Continuum(corr.x, corr.y, fitorder=2, lowreject=3, highreject=2.5)
+        corr.y -= fit
+        goodindices = np.where(np.abs(corr.x - rv) > 100)[0]
+        mean = corr.y[goodindices].mean()
+        std = corr.y[goodindices].std()
+        significance = (corr.y[idx] - mean) / std
+    else:
+        significance = np.nan
+
+    # Output
+    if mode.lower() == 'text':
+        outfile = open('Sensitivity.txt', 'a')
+        if detected:
+            outfile.write("{0:s}\t{1:s}\t{2:d}\t\t\t{3:d}\t\t\t\t{4:.2f}\t\t"
+                          "{5:.4f}\t\t{6:d}\t\tyes\t\t{7:.2f}\n".format(params['object'], params['date'],
+                                                                        max(params['primary_temps']),
+                                                                        params['secondary_temp'],
+                                                                        params['secondary_mass'],
+                                                                        params['secondary_mass'] / sum(
+                                                                            params['primary_masses']),
+                                                                        params['velocity'],
+                                                                        significance))
+        else:
+            outfile.write("{0:s}\t{1:s}\t{2:d}\t\t\t{3:d}\t\t\t\t{4:.2f}\t\t"
+                          "{5:.4f}\t\t{6:d}\t\tno\t\t{7:.2f}\n".format(params['object'], params['date'],
+                                                                       max(params['primary_temps']),
+                                                                       params['secondary_temp'],
+                                                                       params['secondary_mass'],
+                                                                       params['secondary_mass'] / sum(
+                                                                           params['primary_masses']),
+                                                                       params['velocity'],
+                                                                       significance))
+
+    elif mode.lower() == 'hdf5':
+        # Get the hdf5 file
+        hdf5_file = 'Sensitivity.hdf5'
+        print('Saving CCF to {}'.format(hdf5_file))
+        f = h5py.File(hdf5_file, 'a')
+
+        # Star name and date
+        star = params['object']
+        date = params['date']
+
+        # Get or create star in file
+        if star in f.keys():
+            s = f[star]
+        else:
+            star_data = StarData.GetData(star)
+            s = f.create_group(star)
+            s.attrs['vsini'] = params['primary_vsini']
+            s.attrs['RA'] = star_data.ra
+            s.attrs['DEC'] = star_data.dec
+            s.attrs['SpT'] = star_data.spectype
+            s.attrs['n_companions'] = len(params['primary_temps'])
+            for i, pT, pM in enumerate(zip(params['primary_temps'], params['primary_masses'])):
+                s.attrs['comp{}_Teff'.format(i + 1)] = pT
+                s.attrs['comp{}_Mass'.format(i + 1)] = pM
+
+        # Get or create date in star
+        d = s[date] if date in s.keys() else s.create_group(date)
+
+        # Get or create a group for the secondary star temperature
+        Tsec = params['secondary_temp']
+        T = d[Tsec] if Tsec in d.keys() else d.create_group(Tsec)
+
+        # Add a new dataset. The name doesn't matter
+        current_datasets = T.keys()
+        if len(current_datasets) == 0:
+            ds = d.create_dataset('ds1', data=np.array((corr.x, corr.y)))
+        else:
+            ds_num = max(int(d[2:]) for d in current_datasets) + 1
+            ds = d.create_dataset('ds{}'.format(ds_num), data=np.array((corr.x, corr.y)))
+
+        # Add attributes to the dataset
+        print(star, date)
+        print(params)
+        ds.attrs['vsini'] = params['secondary_vsini']
+        ds.attrs['logg'] = params['logg']
+        ds.attrs['[Fe/H]'] = params['[Fe/H]']
+        ds.attrs['rv'] = params['velocity']
+        ds.attrs['addmode'] = params['addmode']
+        ds.attrs['detected'] = detected
+        ds.attrs['significance'] = significance
+
+        f.flush()
+        f.close()
+
+    else:
+        raise ValueError('output mode ({}) not supported!'.format(mode))
