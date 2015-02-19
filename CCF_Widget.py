@@ -16,7 +16,8 @@ from bokeh.models.widgets import HBox, VBox, VBoxForm, Select
 from Analyze_CCF import CCF_Interface
 
 
-CCF_FILE = '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(os.environ['HOME'])
+CCF_FILE = '{}/School/Research/IGRINS_data/Cross_correlations/CCF.hdf5'.format(os.environ['HOME'])
+ADDMODE = 'ml'
 
 
 class BokehApp(VBox):
@@ -220,7 +221,7 @@ class BokehApp(VBox):
 
     @property
     def df(self):
-        return self._ccf_interface._compile_data(self.star, self.date)
+        return self._ccf_interface._compile_data(self.star, self.date, addmode=ADDMODE)
 
 
 # The following code adds a "/bokeh/stocks/" url to the bokeh-server. This URL
