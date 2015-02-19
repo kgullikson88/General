@@ -4,6 +4,8 @@ from astroquery.simbad import Simbad
 
 Simbad.add_votable_fields('sp', 'flux(V)', 'plx')
 
+data_cache = {}
+
 class stardata:
     def __init__(self):
         self.main_id = ''
@@ -14,6 +16,9 @@ class stardata:
         self.par = 0.0  # parallax in arcseconds
 
 def GetData(starname):
+    if starname in data_cache:
+        return data_cache[starname]
+
     star = Simbad.query_object(starname)
     data = stardata()
     data.main_id = star['MAIN_ID'].item()
@@ -22,6 +27,7 @@ def GetData(starname):
     data.ra = star['RA'].item().strip().replace(' ', ':')
     data.dec = star['DEC'].item().strip().replace(' ', ':')
     data.par = star['PLX_VALUE'].item()
+    data_cache[starname] = data
     return data
 
 
