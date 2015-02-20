@@ -323,6 +323,14 @@ def split_by_component(df):
     sec = comps.loc[comps.sec_comp.notnull()].rename(columns={'Sp2': 'SpT', 'sec_comp': 'comp'})
     return pd.concat((prim, sec))[['comp', 'SpT']].drop_duplicates(subset='comp')
 
+def return_primary(data):
+    retdict = defaultdict(list)
+    spt = data.spectype
+    retdict['temperature'].append(MS.Interpolate('temperature', spt))
+    retdict['radius'].append(MS.Interpolate('radius', spt))
+    retdict['mass'].append(MS.Interpolate('mass', spt))
+    return retdict
+
 mult_filename = '{}/Dropbox/School/Research/Databases/A_star/SB9andWDS.csv'.format(os.environ['HOME'])
 multiples = pd.read_csv(mult_filename)
 def get_companions(starname, sep_max=1.5):
@@ -330,23 +338,22 @@ def get_companions(starname, sep_max=1.5):
 
     # Search for the given star in the database
     match = multiples.loc[multiples.main_id == data.main_id]
-    retdict = defaultdict(list)
-    if len(match) < 1:
-        spt = data.spectype
-        retdict['temperature'].append(MS.Interpolate('temperature', spt))
-        retdict['radius'].append(MS.Interpolate('radius', spt))
-        retdict['mass'].append(MS.Interpolate('mass', spt))
-        return retdict
-
     print('{} matches with the same name'.format(len(match)))
+    if len(match) < 1:
+        return return_primary(data)
+
     # Now, only keep close companions
     match = match.loc[(match.separation < sep_max) | (match.separation.isnull())]
     print('{} matches that are within {}"'.format(len(match), sep_max))
+    if len(match) < 1:
+        return return_primary(data)
 
     # Finally, only keep stars we can figure something out with
     match = match.loc[((match.Sp1.notnull()) & (match.mag1.notnull()) & match.mag2.notnull()) | (
     (match.K1.notnull()) & match.K2.notnull())]
     print('{} matches with sufficient information'.format(len(match)))
+    if len(match) < 1:
+        return return_primary(data)
 
     # Get the spectral type for each match
     match['Sp2'] = match.apply(get_sec_spt, axis=1)
@@ -355,6 +362,8 @@ def get_companions(starname, sep_max=1.5):
     match = match.loc[(match.Sp2.str.startswith('O')) | (match.Sp2.str.startswith('B'))
                       | (match.Sp2.str.startswith('A')) | (match.Sp2.str.startswith('F'))]
     print('{} matches with early type companions'.format(len(match)))
+    if len(match) < 1:
+        return return_primary(data)
 
 
     # Get the temperature, mass, and radius of the companions
@@ -364,12 +373,6 @@ def get_companions(starname, sep_max=1.5):
     components['companion_teff'] = components['SpT'].map(lambda s: MS.Interpolate('temperature', s))
     components['companion_radius'] = components['SpT'].map(lambda s: MS.Interpolate('radius', s))
 
-    if len(match) < 1:
-        spt = data.spectype
-        retdict['temperature'].append(MS.Interpolate('temperature', spt))
-        retdict['radius'].append(MS.Interpolate('radius', spt))
-        retdict['mass'].append(MS.Interpolate('mass', spt))
-        return retdict
     retdict = {'temperature': list(components['companion_teff']),
                'mass': list(components['companion_mass']),
                'radius': list(components['companion_radius'])}
