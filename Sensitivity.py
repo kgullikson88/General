@@ -685,9 +685,10 @@ class HDF5_Interface(object):
         return sorted(self.hdf5[star].keys())
 
 
-    def to_df(self, starname, date):
+    def to_df(self, starname=None, date=None):
         """
-        This reads in all the datasets for the given star and date
+        This reads in all the datasets for the given star and date.
+        If star/date is not given, it reads in all the datesets in the hdf5 file.
         :param starname: the name of the star. Must be in self.hdf5
         :param date: The date to search. Must be in self.hdf5[star]
         :return: a pandas DataFrame with the columns:
@@ -701,19 +702,31 @@ class HDF5_Interface(object):
                   - rv
                   - significance
         """
-        temperatures = self.hdf5[starname][date].keys()
         df_list = []
-        for T in temperatures:
-            datasets = self.hdf5[starname][date][T].items()
-            logg = [ds[1].attrs['logg'] for ds in datasets]
-            metal = [ds[1].attrs['[Fe/H]'] for ds in datasets]
-            vsini = [ds[1].attrs['vsini'] for ds in datasets]
-            addmode = [ds[1].attrs['addmode'] for ds in datasets]
-            rv = [ds[1].attrs['rv'] for ds in datasets]
-            significance = [ds[1].attrs['significance'] for ds in datasets]
-            temp = [T] * len(logg)
-            df = pd.DataFrame(data={'star': [starname]*len(logg), 'date': [date]*len(logg), 'addmode': addmode,
-                                    'temperature': [T]*len(logg), 'logg': logg, '[Fe/H]': metal,
-                                    'vsini': vsini, 'significance': significance, 'rv': rv})
-            df_list.append(df)
+        if starname is None:
+            starnames = self.list_stars()
+            for starname in starnames:
+                dates = self.list_dates(starname)
+                for date in dates:
+                    df_list.append(self.to_df(starname=starname, date=date))
+        elif starname is not None and date is None:
+            # Get every date for the requested star
+            dates = self.list_dates(starname)
+            for date in dates:
+                df_list.append(self.to_df(starname=starname, date=date))
+        else:
+            temperatures = self.hdf5[starname][date].keys()
+            for T in temperatures:
+                datasets = self.hdf5[starname][date][T].items()
+                logg = [ds[1].attrs['logg'] for ds in datasets]
+                metal = [ds[1].attrs['[Fe/H]'] for ds in datasets]
+                vsini = [ds[1].attrs['vsini'] for ds in datasets]
+                addmode = [ds[1].attrs['addmode'] for ds in datasets]
+                rv = [ds[1].attrs['rv'] for ds in datasets]
+                significance = [ds[1].attrs['significance'] for ds in datasets]
+                temp = [T] * len(logg)
+                df = pd.DataFrame(data={'star': [starname]*len(logg), 'date': [date]*len(logg), 'addmode': addmode,
+                                        'temperature': [T]*len(logg), 'logg': logg, '[Fe/H]': metal,
+                                        'vsini': vsini, 'significance': significance, 'rv': rv})
+                df_list.append(df)
         return pd.concat(df_list, ignore_index=True)
