@@ -323,6 +323,7 @@ def split_by_component(df):
     sec = comps.loc[comps.sec_comp.notnull()].rename(columns={'Sp2': 'SpT', 'sec_comp': 'comp'})
     return pd.concat((prim, sec))[['comp', 'SpT']].drop_duplicates(subset='comp')
 
+
 def return_primary(data):
     retdict = defaultdict(list)
     spt = data.spectype
@@ -330,6 +331,7 @@ def return_primary(data):
     retdict['radius'].append(MS.Interpolate('radius', spt))
     retdict['mass'].append(MS.Interpolate('mass', spt))
     return retdict
+
 
 mult_filename = '{}/Dropbox/School/Research/Databases/A_star/SB9andWDS.csv'.format(os.environ['HOME'])
 multiples = pd.read_csv(mult_filename)
@@ -368,6 +370,7 @@ def get_companions(starname, sep_max=1.5):
 
     # Get the temperature, mass, and radius of the companions
     # Split by the components in the system
+    match = match.fillna('AB')
     components = split_by_component(match.copy())
     components['companion_mass'] = components['SpT'].map(lambda s: MS.Interpolate('mass', s))
     components['companion_teff'] = components['SpT'].map(lambda s: MS.Interpolate('temperature', s))
