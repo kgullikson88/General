@@ -744,9 +744,14 @@ class HDF5_Interface(object):
                 rv = [ds[1].attrs['rv'] for ds in datasets]
                 significance = [ds[1].attrs['significance'] for ds in datasets]
                 temp = [T] * len(logg)
-                mass = [self.hdf5[starname][date][T].attrs['mass']] * len(logg)
+                try:
+                    mass = [self.hdf5[starname][date][T].attrs['mass']] * len(logg)
+                except:
+                    sec_spt = MS.GetSpectralType('temperature', float(T), prec=0.01)
+                    mass = [MS.Interpolate('mass', sec_spt)] * len(logg)
                 df = pd.DataFrame(data={'star': [starname]*len(logg), 'primary masses': [pmass]*len(logg),
-                                        'primary temps': [ptemp]*len(logg), 'date': [date]*len(logg),
+                                        'primary temps': [ptemp]*len(logg), 'primary SpT': [prim_spt]*len(logg),
+                                        'primary vsini': [prim_vsini]*len(logg), 'date': [date]*len(logg),
                                         'addmode': addmode, 'mass': mass,
                                         'temperature': [T]*len(logg), 'logg': logg, '[Fe/H]': metal,
                                         'vsini': vsini, 'significance': significance, 'rv': rv})
