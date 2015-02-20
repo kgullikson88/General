@@ -279,11 +279,15 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         data_rms = np.std(reduceddata)
         model_rms = np.std(reducedmodel)
         left = np.searchsorted(model.x, order.x[0])
+        if left > 0:
+            dl = (order.x[0] - model.x[left-1]) / (model.x[left] - model.x[left-1])
+            left -= dl
+
 
         ycorr = scipy.signal.fftconvolve((reducedmodel - meanmodel), (reduceddata - meandata)[::-1], mode='valid')
         xcorr = np.arange(ycorr.size)
-        # lags = xcorr - left
-        lags = xcorr - xcorr.size / 2.0
+        lags = xcorr - left
+        #lags = xcorr - xcorr.size / 2.0
         distancePerLag = np.log(model.x[1] / model.x[0])
         offsets = lags * distancePerLag
         velocity = offsets * constants.c.cgs.value * units.cm.to(units.km)
