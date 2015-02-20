@@ -627,7 +627,12 @@ def check_detection(corr, params, mode='text', tol=5):
         ##print Tsec
         #print type(Tsec)
         #print Tsec in d.keys()
-        T = d[Tsec] if Tsec in d.keys() else d.create_group(Tsec)
+        if Tsec in d.keys():
+            T = d[Tsec]
+        else:
+            T = d.create_group(Tsec)
+            T.attrs['mass'] = params['secondary_mass']
+
 
         # Add a new dataset. The name doesn't matter
         current_datasets = T.keys()
@@ -692,9 +697,12 @@ class HDF5_Interface(object):
         :param starname: the name of the star. Must be in self.hdf5
         :param date: The date to search. Must be in self.hdf5[star]
         :return: a pandas DataFrame with the columns:
-                  - star
+                  - star (primary)
+                  - primary masses (a list of masses for the primary and any known early-type companions)
+                  - primary temps (a list of temperatures for the primary and any known early-type companions)
                   - date
                   - temperature
+                  - secondary mass
                   - log(g)
                   - [Fe/H]
                   - vsini (of the secondary)
@@ -715,6 +723,17 @@ class HDF5_Interface(object):
             for date in dates:
                 df_list.append(self.to_df(starname=starname, date=date))
         else:
+            # Get the primary information
+            prim_spt = self.hdf5[starname].attrs['SpT']
+            prim_vsini = self.hdf5[starname].attrs['vsini']
+            n_comps = self.hdf5[starname].attrs['n_companions']
+            pmass = []
+            ptemp = []
+            for n in range(n_comps):
+                pmass.append(self.hdf5[starname].attrs['comp{}_Mass'.format(n+1)])
+                ptemp.append(self.hdf5[starname].attrs['comp{}_Teff'.format(n+1)])
+
+            # Get the detection information
             temperatures = self.hdf5[starname][date].keys()
             for T in temperatures:
                 datasets = self.hdf5[starname][date][T].items()
@@ -725,7 +744,9 @@ class HDF5_Interface(object):
                 rv = [ds[1].attrs['rv'] for ds in datasets]
                 significance = [ds[1].attrs['significance'] for ds in datasets]
                 temp = [T] * len(logg)
-                df = pd.DataFrame(data={'star': [starname]*len(logg), 'date': [date]*len(logg), 'addmode': addmode,
+                df = pd.DataFrame(data={'star': [starname]*len(logg), 'primary masses': [pmass]*len(logg),
+                                        'primary temps': [ptemp]*len(logg), 'date': [date]*len(logg),
+                                        'addmode': addmode,
                                         'temperature': [T]*len(logg), 'logg': logg, '[Fe/H]': metal,
                                         'vsini': vsini, 'significance': significance, 'rv': rv})
                 df_list.append(df)
