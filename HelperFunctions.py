@@ -24,10 +24,17 @@ import readmultispec as multispec
 
 try:
     import emcee
+    emcee_import = True
 except ImportError:
     print "Warning! emcee module not loaded! BayesFit Module will not be available!"
+    emcee_import = False
 import FittingUtilities
-import mlpy
+try:
+    import mlpy
+    mlpy_import = True
+except ImportError:
+    print "Warning! mlpy not loaded! Denoise will not be available"
+    mlpy_import = False
 import warnings
 
 import statsmodels.api as sm
@@ -572,125 +579,126 @@ def HighPassFilter(data, vel, width=5, linearize=False):
         return smoothed_y
 
 
-def Denoise(data):
-    """
-    This function implements the denoising given in the url below:
-    http://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=4607982&tag=1
+if mlpy_import:
+    def Denoise(data):
+        """
+        This function implements the denoising given in the url below:
+        http://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=4607982&tag=1
 
-    with title "Astronomical Spectra Denoising Based on Simplifed SURE-LET Wavelet Thresholding"
-    """
-    y, boolarr = mlpy.wavelet.pad(data.y)
-    WC = mlpy.wavelet.dwt(y, 'd', 10, 0)
-    # Figure out the unknown parameter 'a'
-    sum1 = 0.0
-    sum2 = 0.0
-    numlevels = int(np.log2(WC.size))
-    start = 2 ** (numlevels - 1)
-    median = np.median(WC[start:])
-    sigma = np.median(np.abs(WC[start:] - median)) / 0.6745
-    for w in WC:
-        phi = w * np.exp(-w ** 2 / (12.0 * sigma ** 2))
-        dphi = np.exp(-w ** 2 / (12.0 * sigma ** 2)) * (1 - 2 * w ** 2 / (12 * sigma ** 2) )
-        sum1 += sigma ** 2 * dphi
-        sum2 += phi ** 2
-    a = -sum1 / sum2
+        with title "Astronomical Spectra Denoising Based on Simplifed SURE-LET Wavelet Thresholding"
+        """
+        y, boolarr = mlpy.wavelet.pad(data.y)
+        WC = mlpy.wavelet.dwt(y, 'd', 10, 0)
+        # Figure out the unknown parameter 'a'
+        sum1 = 0.0
+        sum2 = 0.0
+        numlevels = int(np.log2(WC.size))
+        start = 2 ** (numlevels - 1)
+        median = np.median(WC[start:])
+        sigma = np.median(np.abs(WC[start:] - median)) / 0.6745
+        for w in WC:
+            phi = w * np.exp(-w ** 2 / (12.0 * sigma ** 2))
+            dphi = np.exp(-w ** 2 / (12.0 * sigma ** 2)) * (1 - 2 * w ** 2 / (12 * sigma ** 2) )
+            sum1 += sigma ** 2 * dphi
+            sum2 += phi ** 2
+        a = -sum1 / sum2
 
-    # Adjust all wavelet coefficients
-    WC = WC + a * WC * np.exp(-WC ** 2 / (12 * sigma ** 2))
+        # Adjust all wavelet coefficients
+        WC = WC + a * WC * np.exp(-WC ** 2 / (12 * sigma ** 2))
 
-    # Now, do a soft threshold
-    threshold = scoreatpercentile(WC, 80.0)
-    WC[np.abs(WC) <= threshold] = 0.0
-    WC[np.abs(WC) > threshold] -= threshold * np.sign(WC[np.abs(WC) > threshold])
+        # Now, do a soft threshold
+        threshold = scoreatpercentile(WC, 80.0)
+        WC[np.abs(WC) <= threshold] = 0.0
+        WC[np.abs(WC) > threshold] -= threshold * np.sign(WC[np.abs(WC) > threshold])
 
-    #Transform back
-    y2 = mlpy.wavelet.idwt(WC, 'd', 10)
-    data.y = y2[boolarr]
-    return data
-
-
-# Kept for legacy support, since I was using Denoise3 in several codes in the past.
-def Denoise3(data):
-    return Denoise(data)
+        #Transform back
+        y2 = mlpy.wavelet.idwt(WC, 'd', 10)
+        data.y = y2[boolarr]
+        return data
 
 
-def BayesFit(data, model_fcn, priors, limits=None, burn_in=100, nwalkers=100, nsamples=100, nthreads=1,
-             full_output=False, a=2):
-    """
-    This function will do a Bayesian fit to the model.
+    # Kept for legacy support, since I was using Denoise3 in several codes in the past.
+    def Denoise3(data):
+        return Denoise(data)
 
-    Parameter description:
-      data:         A DataStructures.xypoint instance containing the data
-      model_fcn:    A function that takes an x-array and parameters,
-                       and returns a y-array. The number of parameters
-                       should be the same as the length of the 'priors'
-                       parameter
-      priors:       Either a 2d np array or a list of lists. Each index
-                       should contain the expected value and the uncertainty
-                       in that value (assumes all Gaussian priors!).
-      limits:       If given, it should be a list of the same shape as
-                       'priors', giving the limits of each parameter
-      burn_in:      The burn-in period for the MCMC before you start counting
-      nwalkers:     The number of emcee 'walkers' to use.
-      nsamples:     The number of samples to use in the MCMC sampling. Note that
-                        the actual number of samples is nsamples * nwalkers
-      nthreads:     The number of processing threads to use (parallelization)
-                        This probably needs MPI installed to work. Not sure though...
-      full_ouput:   Return the full sample chain instead of just the mean and
-                        standard deviation of each parameter.
-      a:            See emcee.EnsembleSampler. Basically, it controls the step size
-    """
+if emcee_import:
+    def BayesFit(data, model_fcn, priors, limits=None, burn_in=100, nwalkers=100, nsamples=100, nthreads=1,
+                 full_output=False, a=2):
+        """
+        This function will do a Bayesian fit to the model.
 
-    # Priors needs to be a np array later, so convert to that first
-    priors = np.array(priors)
+        Parameter description:
+          data:         A DataStructures.xypoint instance containing the data
+          model_fcn:    A function that takes an x-array and parameters,
+                           and returns a y-array. The number of parameters
+                           should be the same as the length of the 'priors'
+                           parameter
+          priors:       Either a 2d np array or a list of lists. Each index
+                           should contain the expected value and the uncertainty
+                           in that value (assumes all Gaussian priors!).
+          limits:       If given, it should be a list of the same shape as
+                           'priors', giving the limits of each parameter
+          burn_in:      The burn-in period for the MCMC before you start counting
+          nwalkers:     The number of emcee 'walkers' to use.
+          nsamples:     The number of samples to use in the MCMC sampling. Note that
+                            the actual number of samples is nsamples * nwalkers
+          nthreads:     The number of processing threads to use (parallelization)
+                            This probably needs MPI installed to work. Not sure though...
+          full_ouput:   Return the full sample chain instead of just the mean and
+                            standard deviation of each parameter.
+          a:            See emcee.EnsembleSampler. Basically, it controls the step size
+        """
 
-    # Define the likelihood, prior, and posterior probability functions
-    likelihood = lambda pars, data, model_fcn: np.sum(-(data.y - model_fcn(data.x, *pars)) ** 2 / (2.0 * data.err ** 2))
-    if limits == None:
-        prior = lambda pars, priors: np.sum(-(pars - priors[:, 0]) ** 2 / (2.0 * priors[:, 1] ** 2))
-        posterior = lambda pars, data, model_fcn, priors: likelihood(pars, data, model_fcn) + prior(pars, priors)
-    else:
-        limits = np.array(limits)
-        prior = lambda pars, priors, limits: -9e19 if any(
-            np.logical_or(pars < limits[:, 0], pars > limits[:, 1])) else np.sum(
-            -(pars - priors[:, 0]) ** 2 / (2.0 * priors[:, 1] ** 2))
-        posterior = lambda pars, data, model_fcn, priors, limits: likelihood(pars, data, model_fcn) + prior(pars,
-                                                                                                            priors,
-                                                                                                            limits)
+        # Priors needs to be a np array later, so convert to that first
+        priors = np.array(priors)
+
+        # Define the likelihood, prior, and posterior probability functions
+        likelihood = lambda pars, data, model_fcn: np.sum(-(data.y - model_fcn(data.x, *pars)) ** 2 / (2.0 * data.err ** 2))
+        if limits == None:
+            prior = lambda pars, priors: np.sum(-(pars - priors[:, 0]) ** 2 / (2.0 * priors[:, 1] ** 2))
+            posterior = lambda pars, data, model_fcn, priors: likelihood(pars, data, model_fcn) + prior(pars, priors)
+        else:
+            limits = np.array(limits)
+            prior = lambda pars, priors, limits: -9e19 if any(
+                np.logical_or(pars < limits[:, 0], pars > limits[:, 1])) else np.sum(
+                -(pars - priors[:, 0]) ** 2 / (2.0 * priors[:, 1] ** 2))
+            posterior = lambda pars, data, model_fcn, priors, limits: likelihood(pars, data, model_fcn) + prior(pars,
+                                                                                                                priors,
+                                                                                                                limits)
 
 
-    # Set up the MCMC sampler
-    ndim = priors.shape[0]
-    if limits == None:
-        p0 = [np.random.normal(loc=priors[:, 0], scale=priors[:, 1]) for i in range(nwalkers)]
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, posterior, threads=nthreads, args=(data, model_fcn, priors),
-                                        a=4)
-    else:
-        ranges = np.array([l[1] - l[0] for l in limits])
-        p0 = [np.random.rand(ndim) * ranges + limits[:, 0] for i in range(nwalkers)]
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, posterior, threads=nthreads,
-                                        args=(data, model_fcn, priors, limits), a=a)
+        # Set up the MCMC sampler
+        ndim = priors.shape[0]
+        if limits == None:
+            p0 = [np.random.normal(loc=priors[:, 0], scale=priors[:, 1]) for i in range(nwalkers)]
+            sampler = emcee.EnsembleSampler(nwalkers, ndim, posterior, threads=nthreads, args=(data, model_fcn, priors),
+                                            a=4)
+        else:
+            ranges = np.array([l[1] - l[0] for l in limits])
+            p0 = [np.random.rand(ndim) * ranges + limits[:, 0] for i in range(nwalkers)]
+            sampler = emcee.EnsembleSampler(nwalkers, ndim, posterior, threads=nthreads,
+                                            args=(data, model_fcn, priors, limits), a=a)
 
-    # Burn-in the sampler
-    pos, prob, state = sampler.run_mcmc(p0, burn_in)
+        # Burn-in the sampler
+        pos, prob, state = sampler.run_mcmc(p0, burn_in)
 
-    # Reset the chain to remove the burn-in samples.
-    sampler.reset()
+        # Reset the chain to remove the burn-in samples.
+        sampler.reset()
 
-    # Run the sampler
-    pos, prob, state = sampler.run_mcmc(pos, nsamples, rstate0=state)
+        # Run the sampler
+        pos, prob, state = sampler.run_mcmc(pos, nsamples, rstate0=state)
 
-    print "Acceptance fraction = %f" % np.mean(sampler.acceptance_fraction)
-    maxprob_indice = np.argmax(prob)
-    priors[:, 0] = pos[maxprob_indice]
-    # Get the parameter estimates
-    chain = sampler.flatchain
-    for i in range(ndim):
-        priors[i][1] = np.std(chain[:, i])
+        print "Acceptance fraction = %f" % np.mean(sampler.acceptance_fraction)
+        maxprob_indice = np.argmax(prob)
+        priors[:, 0] = pos[maxprob_indice]
+        # Get the parameter estimates
+        chain = sampler.flatchain
+        for i in range(ndim):
+            priors[i][1] = np.std(chain[:, i])
 
-    if full_output:
-        return priors, sampler
-    return priors
+        if full_output:
+            return priors, sampler
+        return priors
 
 
 def Gauss(x, mu, sigma, amp=1):
