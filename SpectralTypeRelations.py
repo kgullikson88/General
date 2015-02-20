@@ -4,6 +4,7 @@ import sys
 import re
 import pickle
 import logging
+import os
 
 from scipy.interpolate import UnivariateSpline, griddata
 import DataStructures
