@@ -744,9 +744,10 @@ class HDF5_Interface(object):
                 rv = [ds[1].attrs['rv'] for ds in datasets]
                 significance = [ds[1].attrs['significance'] for ds in datasets]
                 temp = [T] * len(logg)
+                mass = [self.hdf5[starname][date][T].attrs['mass']] * len(logg)
                 df = pd.DataFrame(data={'star': [starname]*len(logg), 'primary masses': [pmass]*len(logg),
                                         'primary temps': [ptemp]*len(logg), 'date': [date]*len(logg),
-                                        'addmode': addmode,
+                                        'addmode': addmode, 'mass': mass,
                                         'temperature': [T]*len(logg), 'logg': logg, '[Fe/H]': metal,
                                         'vsini': vsini, 'significance': significance, 'rv': rv})
                 df_list.append(df)
