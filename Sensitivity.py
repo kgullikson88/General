@@ -4,6 +4,7 @@ import FittingUtilities
 from re import search
 from collections import defaultdict
 import itertools
+import logging
 
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as interp
@@ -837,6 +838,7 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5'):
     rate_top_ax.set_xlabel('Spectral Type', fontsize=15)
 
     plt.show()
+    return
 
 
 def add_top_axis(axis, spt_values=('M5', 'M0', 'K5', 'K0', 'G5', 'G0')):
