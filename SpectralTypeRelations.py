@@ -4,6 +4,7 @@ import sys
 import re
 import pickle
 import logging
+import os
 
 from scipy.interpolate import UnivariateSpline, griddata
 import DataStructures
@@ -188,10 +189,16 @@ class Interpolator():
         self.MS = MainSequence() if MS is None else MS
 
         # Spectral type to temperature converter
-        fname = '{}/Dropbox/School/Research/Databases/SpT_Relations/sptnum_to_teff.interp'.format(os.environ['HOME'])
-        fileid = open(fname, 'r')
-        self.sptnum_to_teff = pickle.load(fileid)
-        fileid.close()
+        #fname = '{}/Dropbox/School/Research/Databases/SpT_Relations/sptnum_to_teff.interp'.format(os.environ['HOME'])
+        #fileid = open(fname, 'r')
+        #self.sptnum_to_teff = pickle.load(fileid)
+        #fileid.close()
+        self.make_new_interpolator()
+
+    def make_new_interpolator(self, filename='{}/Dropbox/School/Research/Databases/SpT_Relations/Pecaut2013.tsv'.format(os.environ['HOME'])):
+        df = pandas.read_csv(filename, skiprows=55, sep='|', engine='python')[2:-1]
+        sptnum = [self.MS.SpT_To_Number(s.strip()[:-1]) for s in df.SpT.values]
+        self.sptnum_to_teff = UnivariateSpline(sptnum, df.Teff.values, s=0)
 
     def evaluate(self, interp, spt):
         if HelperFunctions.IsListlike(spt):

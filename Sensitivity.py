@@ -627,7 +627,12 @@ def check_detection(corr, params, mode='text', tol=5):
         ##print Tsec
         #print type(Tsec)
         #print Tsec in d.keys()
-        T = d[Tsec] if Tsec in d.keys() else d.create_group(Tsec)
+        if Tsec in d.keys():
+            T = d[Tsec]
+        else:
+            T = d.create_group(Tsec)
+            T.attrs['mass'] = params['secondary_mass']
+
 
         # Add a new dataset. The name doesn't matter
         current_datasets = T.keys()
@@ -685,15 +690,19 @@ class HDF5_Interface(object):
         return sorted(self.hdf5[star].keys())
 
 
-    def to_df(self, starname, date):
+    def to_df(self, starname=None, date=None):
         """
-        This reads in all the datasets for the given star and date
+        This reads in all the datasets for the given star and date.
+        If star/date is not given, it reads in all the datesets in the hdf5 file.
         :param starname: the name of the star. Must be in self.hdf5
         :param date: The date to search. Must be in self.hdf5[star]
         :return: a pandas DataFrame with the columns:
-                  - star
+                  - star (primary)
+                  - primary masses (a list of masses for the primary and any known early-type companions)
+                  - primary temps (a list of temperatures for the primary and any known early-type companions)
                   - date
                   - temperature
+                  - secondary mass
                   - log(g)
                   - [Fe/H]
                   - vsini (of the secondary)
@@ -701,23 +710,55 @@ class HDF5_Interface(object):
                   - rv
                   - significance
         """
-        temperatures = self.hdf5[starname][date].keys()
         df_list = []
-        for T in temperatures:
-            datasets = self.hdf5[starname][date][T].items()
-            logg = [ds[1].attrs['logg'] for ds in datasets]
-            metal = [ds[1].attrs['[Fe/H]'] for ds in datasets]
-            vsini = [ds[1].attrs['vsini'] for ds in datasets]
-            addmode = [ds[1].attrs['addmode'] for ds in datasets]
-            rv = [ds[1].attrs['rv'] for ds in datasets]
-            significance = [ds[1].attrs['significance'] for ds in datasets]
-            temp = [T] * len(logg)
-            df = pd.DataFrame(data={'star': [starname]*len(logg), 'date': [date]*len(logg), 'addmode': addmode,
-                                    'temperature': [T]*len(logg), 'logg': logg, '[Fe/H]': metal,
-                                    'vsini': vsini, 'significance': significance, 'rv': rv})
-            df_list.append(df)
-        return pd.concat(df_list, ignore_index=True)
+        if starname is None:
+            starnames = self.list_stars()
+            for starname in starnames:
+                dates = self.list_dates(starname)
+                for date in dates:
+                    df_list.append(self.to_df(starname=starname, date=date))
+        elif starname is not None and date is None:
+            # Get every date for the requested star
+            dates = self.list_dates(starname)
+            for date in dates:
+                df_list.append(self.to_df(starname=starname, date=date))
+        else:
+            # Get the primary information
+            prim_spt = self.hdf5[starname].attrs['SpT']
+            prim_vsini = self.hdf5[starname].attrs['vsini']
+            n_comps = self.hdf5[starname].attrs['n_companions']
+            pmass = []
+            ptemp = []
+            for n in range(n_comps):
+                pmass.append(self.hdf5[starname].attrs['comp{}_Mass'.format(n+1)])
+                ptemp.append(self.hdf5[starname].attrs['comp{}_Teff'.format(n+1)])
 
+            # Get the detection information
+            temperatures = self.hdf5[starname][date].keys()
+            for T in temperatures:
+                datasets = self.hdf5[starname][date][T].items()
+                logg = [ds[1].attrs['logg'] for ds in datasets]
+                metal = [ds[1].attrs['[Fe/H]'] for ds in datasets]
+                vsini = [ds[1].attrs['vsini'] for ds in datasets]
+                addmode = [ds[1].attrs['addmode'] for ds in datasets]
+                rv = [ds[1].attrs['rv'] for ds in datasets]
+                significance = [ds[1].attrs['significance'] for ds in datasets]
+                temp = [T] * len(logg)
+                try:
+                    mass = [self.hdf5[starname][date][T].attrs['mass']] * len(logg)
+                except:
+                    sec_spt = MS.GetSpectralType('temperature', float(T), prec=0.01)
+                    mass = [MS.Interpolate('mass', sec_spt)] * len(logg)
+                df = pd.DataFrame(data={'star': [starname]*len(logg), 'primary masses': [pmass]*len(logg),
+                                        'primary temps': [ptemp]*len(logg), 'primary SpT': [prim_spt]*len(logg),
+                                        'primary vsini': [prim_vsini]*len(logg), 'date': [date]*len(logg),
+                                        'addmode': addmode, 'mass': mass,
+                                        'temperature': [T]*len(logg), 'logg': logg, '[Fe/H]': metal,
+                                        'vsini': vsini, 'significance': significance, 'rv': rv})
+                df_list.append(df)
+        return pd.concat(df_list, ignore_index=True)
+        
+        
 
 """
 =================================================
