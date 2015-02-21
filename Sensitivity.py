@@ -3,6 +3,7 @@ import sys
 import FittingUtilities
 from re import search
 from collections import defaultdict
+import itertools
 
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as interp
@@ -10,18 +11,21 @@ from astropy.io import fits
 from astropy.io import ascii
 import pandas as pd
 from astropy import units, constants
+from astropy.analytic_functions import blackbody_lambda
+import h5py
+import matplotlib.pyplot as plt
+import seaborn
+
 import DataStructures
 import GenericSearch
 import StellarModel
 import StarData
 import SpectralTypeRelations
 from PlotBlackbodies import Planck
-from astropy.analytic_functions import blackbody_lambda
 import GenericSmooth
 import HelperFunctions
 import Broaden
 import Correlate
-import h5py
 
 
 MS = SpectralTypeRelations.MainSequence()
