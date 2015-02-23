@@ -806,7 +806,6 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True):
     df_list = []
     for key in sorted(keys, key=lambda l: MS.SpT_To_Number(l[6][:2])):
         g = groups.get_group(key)
-        prim_spt = g['primary SpT'].values[0]
         T_groups = g.groupby('temperature')
         T_keys = T_groups.groups.keys()
         Tvals = np.zeros(len(T_keys))
@@ -819,7 +818,10 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True):
             rate[i] = 100.0 * numdetected / float(len(T_groups.get_group(Tstring)))
             significance[i] = med_sig
 
-        labelstr = '{} ({}) - {}'.format(key[0], prim_spt, key[1])
+        starname = key[0]
+        date = key[1]
+        prim_spt = key[6]
+        labelstr = '{} ({}) - {}'.format(starname, prim_spt, date)
         ls = ps_cycler.next()
         sig_ax.plot(Tvals, significance, ls, lw=2, label=labelstr)
         rate_ax.plot(Tvals, rate, ls, lw=2, label=labelstr)
