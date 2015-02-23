@@ -852,6 +852,10 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True):
     # Make sure we can see 0 and 100 on the detection rate plots
     rate_ax.set_ylim((-5, 105))
 
+    # Adjust to fit the labels
+    rate_fig.subplots_adjust(left=0.12, bottom=0.12, right=0.95, top=0.88)
+    sig_fig.subplots_adjust(left=0.12, bottom=0.12, right=0.95, top=0.88)
+
     return sig_fig, rate_fig, rate_ax, rate_top_ax, sig_ax, sig_top_ax
 
 
