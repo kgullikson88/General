@@ -787,7 +787,7 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True):
     if interactive:
         for i, key in enumerate(groups.groups.keys()):
             print('[{}]: {}'.format(i + 1, key))
-        inp = raw_input('Enter the numbers of the keys you want to plot: ')
+        inp = raw_input('Enter the numbers of the keys you want to plot (, or - delimited): ')
         chosen = parse_input(inp)
         keys = [k for i, k in enumerate(groups.groups.keys()) if i + 1 in chosen]
     else:
@@ -848,6 +848,9 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True):
     sig_top_ax.set_xlabel('Spectral Type', fontsize=15)
     rate_top_ax = add_top_axis(rate_ax)
     rate_top_ax.set_xlabel('Spectral Type', fontsize=15)
+
+    # Make sure we can see 0 and 100 on the detection rate plots
+    rate_ax.set_ylim((-5, 105))
 
     return sig_fig, rate_fig, rate_ax, rate_top_ax, sig_ax, sig_top_ax
 
