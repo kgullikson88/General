@@ -1,7 +1,8 @@
 import sys
+import os
+import logging
 
 from astroquery.simbad import Simbad
-import os
 import pandas as pd
 from astropy.io import fits
 
