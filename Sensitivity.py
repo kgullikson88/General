@@ -771,7 +771,8 @@ class HDF5_Interface(object):
 =================================================
 """
 
-def analyze_sensitivity(hdf5_file='Sensitivity.hdf5'):
+
+def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True):
     """
     This uses the output of a previous run of check_sensitivity, and makes plots
     :return:
@@ -781,6 +782,17 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5'):
 
     # Group by a bunch of keys that probably don't change, but could
     groups = df.groupby(('star', 'date', '[Fe/H]', 'logg', 'vsini', 'addmode', 'primary SpT'))
+
+    # Have the user choose keys
+    if interactive:
+        for i, key in enumerate(groups.groups.keys()):
+            print('[{}]: {}'.format(i + 1, key))
+        inp = raw_input('Enter the numbers of the keys you want to plot: ')
+        chosen = parse_input(inp)
+        keys = [k for i, k in enumerate(groups.groups.keys()) if i + 1 in chosen]
+    else:
+        keys = groups.groups.keys()
+
 
     # Plot
     seaborn.set_style('white')
@@ -792,7 +804,7 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5'):
     rate_fig = plt.figure('Detection Rate')
     rate_ax = rate_fig.add_subplot(111)
     df_list = []
-    for key in sorted(groups.groups.keys(), key=lambda l: MS.SpT_To_Number(l[6][:2])):
+    for key in sorted(keys, key=lambda l: MS.SpT_To_Number(l[6][:2])):
         g = groups.get_group(key)
         prim_spt = g['primary SpT'].values[0]
         T_groups = g.groupby('temperature')
@@ -807,7 +819,7 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5'):
             rate[i] = 100.0 * numdetected / float(len(T_groups.get_group(Tstring)))
             significance[i] = med_sig
 
-        labelstr = '{} ({})'.format(key[0], prim_spt)
+        labelstr = '{} ({}) - {}'.format(key[0], prim_spt, key[1])
         ls = ps_cycler.next()
         sig_ax.plot(Tvals, significance, ls, lw=2, label=labelstr)
         rate_ax.plot(Tvals, rate, ls, lw=2, label=labelstr)
@@ -854,3 +866,23 @@ def add_top_axis(axis, spt_values=('M5', 'M0', 'K5', 'K0', 'G5', 'G0')):
     top.set_xlim(xlim)
     top.set_xticklabels(spt_values)
     return top
+
+
+def parse_input(inp):
+    """
+    Parse the user input to get a list of integers
+    :param inp: Can be in the form 'a-b', 'a,b,c', 'a-b,c-d', etc.
+                '-' means an inclusive list of every number between a and b
+                ',' means the numbers a and b
+    :return: A list of integers
+    """
+    sublists = inp.split(',')
+    final_list = []
+    for l in sublists:
+        if '-' in l:
+            first, last = l.split('-')
+            for i in range(int(first), int(last) + 1):
+                final_list.append(i)
+        else:
+            final_list.append(int(l))
+    return pd.unique(sorted(final_list))
