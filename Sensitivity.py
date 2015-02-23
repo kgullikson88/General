@@ -1,11 +1,11 @@
 import os
 import sys
-import FittingUtilities
 from re import search
 from collections import defaultdict
 import itertools
 import logging
 
+import FittingUtilities
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as interp
 from astropy.io import fits
@@ -16,8 +16,8 @@ from astropy.analytic_functions import blackbody_lambda
 import h5py
 import matplotlib.pyplot as plt
 import seaborn
-
 import DataStructures
+
 import GenericSearch
 import StellarModel
 import StarData
@@ -837,8 +837,7 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5'):
     rate_top_ax = add_top_axis(rate_ax)
     rate_top_ax.set_xlabel('Spectral Type', fontsize=15)
 
-    plt.show()
-    return
+    return sig_fig, rate_fig, rate_ax, rate_top_ax, sig_ax, sig_top_ax
 
 
 def add_top_axis(axis, spt_values=('M5', 'M0', 'K5', 'K0', 'G5', 'G0')):
