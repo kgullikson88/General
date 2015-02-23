@@ -352,6 +352,7 @@ class MainSequence:
         self.AbsMag['M5'] = 12.3
 
     def SpT_To_Number(self, SpT):
+        SpT = re.search(SPT_PATTERN, SpT).group()
         if SpT[1:] == "":
             basenum = 5.0
         else:
