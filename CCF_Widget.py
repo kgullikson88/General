@@ -16,8 +16,8 @@ from bokeh.models.widgets import HBox, VBox, VBoxForm, Select
 from Analyze_CCF import CCF_Interface
 
 
-CCF_FILE = '{}/School/Research/IGRINS_data/Cross_correlations/CCF.hdf5'.format(os.environ['HOME'])
-ADDMODE = 'ml'
+CCF_FILE = '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(os.environ['HOME'])
+ADDMODE = 'simple'
 
 
 class BokehApp(VBox):
