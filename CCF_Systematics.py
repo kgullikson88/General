@@ -334,14 +334,14 @@ def make_gaussian_process_samples(df):
     # Get the median and spread in the pdf
     gp_posterior = np.array(gp_posterior)
     medians = np.median(gp_posterior, axis=0)
-    sigma_pdf = np.median(gp_posterior, axis=0)
+    sigma_pdf = np.std(gp_posterior, axis=0)
 
     # Correct the data and get the residual spread
     df['Corrected_Temperature'] = df['Temperature'].map(lambda T: medians[np.argmin(abs(T - Tvalues))])
     sigma_spread = np.std(df.Tactual - df.Corrected_Temperature)
 
     # Increase the spread in the pdf to reflect the residual spread
-    ratio = sigma_spread / sigma_pdf
+    ratio = np.maximum(np.ones(sigma_pdf.size), sigma_spread / sigma_pdf)
     gp_corrected = (gp_posterior - medians) * ratio + medians
 
     # Make confidence intervals
@@ -353,26 +353,33 @@ def make_gaussian_process_samples(df):
 
     # Finally, plot a bunch of the fits
     print "Plotting..."
-    N = 100
+    N = 300
     Tvalues = np.arange(3000, 7000, 20)
     idx = np.argsort(-sampler.lnprobability.flatten())[:N]  # Get N 'best' curves
     par_vals = sampler.flatchain[idx]
+    plot_posterior = []
     for i, pars in enumerate(par_vals):
         a, tau = np.exp(pars[:2])
         gp = george.GP(a * kernels.ExpSquaredKernel(tau))
         gp.compute(Tmeasured, error)
-        gp_samples = gp.sample_conditional(Tactual - model(pars, Tmeasured), Tvalues)
-        med = np.median(gp_samples)
-        gp_samples = (gp_samples - med) * sigma_spread / np.std(gp_samples) + med
-        s = gp_samples + model(pars, Tvalues)
-        plt.plot(Tvalues, s, 'b-', alpha=0.05)
+        s = gp.sample_conditional(Tactual - model(pars, Tmeasured), Tvalues) + model(pars, Tvalues)
+        plot_posterior.append(s)
+    plot_posterior = np.array(plot_posterior)
+    medians = np.median(plot_posterior, axis=0)
+    sigma_pdf = np.std(plot_posterior, axis=0)
+
+    # Increase the spread in the pdf to reflect the residual spread
+    ratio = np.maximum(np.ones(sigma_pdf.size), sigma_spread / sigma_pdf)
+    plot_posterior = (plot_posterior - medians) * ratio + medians
+    plt.plot(Tvalues, plot_posterior.T, 'b-', alpha=0.05)
+
     plt.draw()
     plt.savefig('Temperature_Correspondence.pdf')
 
-    return sampler, np.array(gp_posterior)
+    return sampler, gp_corrected
 
 
-def check_posterior(df, posterior, Tvalues):
+def check_posterior(df, posterior, Tvalues=np.arange(3000, 6900, 100)):
     """
     Checks the posterior samples: Are 95% of the measurements within 2-sigma of the prediction?
     :param df: The summary dataframe
@@ -382,11 +389,6 @@ def check_posterior(df, posterior, Tvalues):
     """
     # First, make 2-sigma confidence intervals
     l, m, h = np.percentile(posterior, [5.0, 50.0, 95.0], axis=0)
-
-    # Save the confidence intervals
-    # conf = pd.DataFrame(data={'Measured Temperature': Tvalues, 'Actual Temperature': m,
-    #                              'Lower Bound': l, 'Upper bound': h})
-    #conf.to_csv('Confidence_Intervals.csv', index=False)
 
     Ntot = []  # The total number of observations with the given measured temperature
     Nacc = []  # The number that have actual temperatures within the confidence interval
