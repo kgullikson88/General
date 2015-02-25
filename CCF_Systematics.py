@@ -3,6 +3,7 @@ import re
 from collections import defaultdict
 from operator import itemgetter
 import logging
+import sys
 
 import pandas as pd
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
@@ -11,11 +12,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import george
 import emcee
-import StarData
 import h5py
-import SpectralTypeRelations
-import sys
 from scipy.integrate import quad
+
+import StarData
+import SpectralTypeRelations
+
 
 def classify_filename(fname, type='bright'):
     """
@@ -313,22 +315,9 @@ def make_gaussian_process_samples(df):
     print "Running production..."
     sampler.run_mcmc(p3, 1000)
 
-    # Plot a bunch of the fits
-    print "Plotting..."
-    N = 100
-    Tvalues = np.arange(3000, 7000, 20)
-    idx = np.argsort(-sampler.lnprobability.flatten())[:N]  # Get N 'best' curves
-    par_vals = sampler.flatchain[idx]
-    for i, pars in enumerate(par_vals):
-        a, tau = np.exp(pars[:2])
-        gp = george.GP(a * kernels.ExpSquaredKernel(tau))
-        gp.compute(Tmeasured, error)
-        s = gp.sample_conditional(Tactual - model(pars, Tmeasured), Tvalues) + model(pars, Tvalues)
-        plt.plot(Tvalues, s, 'b-', alpha=0.05)
-    plt.draw()
-    plt.savefig('Temperature_Correspondence.pdf')
-
-    # Finally, get posterior samples at all the possibly measured temperatures
+    # We now need to increase the spread of the posterior distribution so that it encompasses the right number of data points
+    # This is because the way we have been treating error bars here is kind of funky...
+    # First, generate a posterior distribution of Tactual for every possible Tmeasured
     print 'Generating posterior samples at all temperatures...'
     N = 10000  # This is 1/10th of the total number of samples!
     idx = np.argsort(-sampler.lnprobability.flatten())[:N]  # Get N 'best' curves
@@ -342,12 +331,43 @@ def make_gaussian_process_samples(df):
         s = gp.sample_conditional(Tactual - model(pars, Tmeasured), Tvalues) + model(pars, Tvalues)
         gp_posterior.append(s)
 
-    # Finally, make confidence intervals for the actual temperatures
+    # Get the median and spread in the pdf
     gp_posterior = np.array(gp_posterior)
-    l, m, h = np.percentile(gp_posterior, [16.0, 50.0, 84.0], axis=0)
+    medians = np.median(gp_posterior, axis=0)
+    sigma_pdf = np.median(gp_posterior, axis=0)
+
+    # Correct the data and get the residual spread
+    df['Corrected_Temperature'] = df['Temperature'].map(lambda T: medians[np.argmin(abs(T - Tvalues))])
+    sigma_spread = np.std(df.Tactual - df.Corrected_Temperature)
+
+    # Increase the spread in the pdf to reflect the residual spread
+    ratio = sigma_spread / sigma_pdf
+    gp_corrected = (gp_posterior - medians) * ratio + medians
+
+    # Make confidence intervals
+    l, m, h = np.percentile(gp_corrected, [16.0, 50.0, 84.0], axis=0)
     conf = pd.DataFrame(data={'Measured Temperature': Tvalues, 'Actual Temperature': m,
-                                  'Lower Bound': l, 'Upper bound': h})
+                              'Lower Bound': l, 'Upper bound': h})
     conf.to_csv('Confidence_Intervals.csv', index=False)
+
+
+    # Finally, plot a bunch of the fits
+    print "Plotting..."
+    N = 100
+    Tvalues = np.arange(3000, 7000, 20)
+    idx = np.argsort(-sampler.lnprobability.flatten())[:N]  # Get N 'best' curves
+    par_vals = sampler.flatchain[idx]
+    for i, pars in enumerate(par_vals):
+        a, tau = np.exp(pars[:2])
+        gp = george.GP(a * kernels.ExpSquaredKernel(tau))
+        gp.compute(Tmeasured, error)
+        gp_samples = gp.sample_conditional(Tactual - model(pars, Tmeasured), Tvalues)
+        med = np.median(gp_samples)
+        gp_samples = (gp_samples - med) * sigma_spread / np.std(gp_samples) + med
+        s = gp_samples + model(pars, Tvalues)
+        plt.plot(Tvalues, s, 'b-', alpha=0.05)
+    plt.draw()
+    plt.savefig('Temperature_Correspondence.pdf')
 
     return sampler, np.array(gp_posterior)
 
@@ -445,7 +465,6 @@ def fit_sigma(df, i):
     """
     Tmeasured, Tactual, _, _ = get_values(df)
     Tm = Tmeasured[i]
-    print('Measured temperature = {} K'.format(Tm))
     
     # Get the possible values, and bin those with this measured value
     possible_values = sorted(pd.unique(df.Tactual))
@@ -466,8 +485,6 @@ def fit_sigma(df, i):
     x3 = bins[idx]
     x4 = bins[idx+1] if idx < len(bins)-2 else np.inf
     N = len(good)
-    print x1, x2, x3, x4
-    print N, '\n'
     probs = [get_probability(x1, x2, x3, x4, N, mean, s) for s in sigma_test]
     for s, p in zip(sigma_test, probs):
         if p > 0.5:
