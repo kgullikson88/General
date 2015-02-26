@@ -14,6 +14,7 @@ from bokeh.server.utils.plugins import object_page
 from bokeh.models.widgets import HBox, VBox, VBoxForm, Select
 
 from Analyze_CCF import CCF_Interface
+import numpy as np
 
 
 CCF_FILE = '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(os.environ['HOME'])
@@ -61,7 +62,7 @@ class BokehApp(VBox):
         """
         # create layout widgets
         obj = cls()
-        cls._ccf_interface = CCF_Interface(ccf_filename)
+        cls._ccf_interface = CCF_Interface(ccf_filename, vel=np.arange(-600, 600, 1))
         obj.mainrow = HBox()
         obj.ccfrow = HBox()
         #obj.star_input_box = VBoxForm()
