@@ -16,7 +16,7 @@ from bokeh.models.widgets import HBox, VBox, VBoxForm, Select
 from Analyze_CCF import CCF_Interface
 
 
-CCF_FILE = '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(os.environ['HOME'])
+CCF_FILE = '{}/School/Research/McDonaldData/Cross_correlations/CCF.hdf5'.format(os.environ['HOME'])
 ADDMODE = 'simple'
 
 
@@ -25,7 +25,7 @@ class BokehApp(VBox):
     jsmodel = "VBox"
 
     # data source
-    source = Instance(ColumnDataSource)
+    #source = Instance(ColumnDataSource)
     T_run = Instance(ColumnDataSource)
 
     # layout boxes
@@ -111,8 +111,8 @@ class BokehApp(VBox):
             )
 
     def make_source(self):
-        self.source = ColumnDataSource(data=self.df)
-        self.T_run = ColumnDataSource(self._ccf_interface.get_temperature_run(df=self.source.to_df()))
+        self._source = self.df
+        self.T_run = ColumnDataSource(self._ccf_interface.get_temperature_run(df=self._source))
 
     def plot_ccf(self, T, x_range=None):
         # First, find the best values where temperature = T
@@ -121,7 +121,7 @@ class BokehApp(VBox):
         pars = {'vsini': good.vsini.item(), '[Fe/H]': good['[Fe/H]'].item(), 'T': T,
                 'logg': good.logg.item(), 'addmode': 'simple'}
         t1 = time.time()
-        ccf = self._ccf_interface.get_ccf(pars, df=self.source.to_df())
+        ccf = self._ccf_interface.get_ccf(pars, df=self.df)
         t2 = time.time()
         print('Time to retrieve ccf with requested parameters: {}'.format(t2 - t1))
 
@@ -196,8 +196,8 @@ class BokehApp(VBox):
 
     def setup_events(self):
         super(BokehApp, self).setup_events()
-        if self.source:
-            self.source.on_change('selected', self, 'selection_change')
+        #if self.source:
+        #    self.source.on_change('selected', self, 'selection_change')
         if self.T_run:
             self.T_run.on_change('selected', self, 'Trun_change')
         if self.star_select:
