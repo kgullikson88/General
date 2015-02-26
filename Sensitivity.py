@@ -734,9 +734,12 @@ class HDF5_Interface(object):
             n_comps = self.hdf5[starname].attrs['n_companions']
             pmass = []
             ptemp = []
+            prad = []
             for n in range(n_comps):
                 pmass.append(self.hdf5[starname].attrs['comp{}_Mass'.format(n+1)])
                 ptemp.append(self.hdf5[starname].attrs['comp{}_Teff'.format(n+1)])
+                spt = MS.GetSpectralType('temperature', ptemp[-1], prec=0.01)
+                prad.append(MS.Interpolate('radius', spt)[0])
 
             # Get the detection information
             temperatures = self.hdf5[starname][date].keys()
@@ -755,7 +758,8 @@ class HDF5_Interface(object):
                     sec_spt = MS.GetSpectralType('temperature', float(T), prec=0.01)
                     mass = [MS.Interpolate('mass', sec_spt)] * len(logg)
                 df = pd.DataFrame(data={'star': [starname]*len(logg), 'primary masses': [pmass]*len(logg),
-                                        'primary temps': [ptemp]*len(logg), 'primary SpT': [prim_spt]*len(logg),
+                                        'primary temps': [ptemp]*len(logg), 'primary radii': [prad]*len(logg),
+                                        'primary SpT': [prim_spt]*len(logg),
                                         'primary vsini': [prim_vsini]*len(logg), 'date': [date]*len(logg),
                                         'addmode': addmode, 'mass': mass,
                                         'temperature': [T]*len(logg), 'logg': logg, '[Fe/H]': metal,
@@ -772,13 +776,19 @@ class HDF5_Interface(object):
 """
 
 
-def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True):
+def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=True):
     """
     This uses the output of a previous run of check_sensitivity, and makes plots
     :return:
     """
-    hdf5_int = HDF5_Interface(hdf5_file)
-    df = hdf5_int.to_df()
+    if not update and os.path.isfile('Sensitivity_Dataframe.csv'):
+        df = pd.read_csv('Sensitivity_Dataframe.csv')
+    else:
+        hdf5_int = HDF5_Interface(hdf5_file)
+        df = hdf5_int.to_df()
+
+        # Save the dataframe for later use
+        df.to_csv('Sensitivity_Dataframe.csv', index=False)
 
     # Group by a bunch of keys that probably don't change, but could
     groups = df.groupby(('star', 'date', '[Fe/H]', 'logg', 'vsini', 'addmode', 'primary SpT'))
@@ -793,7 +803,6 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True):
     else:
         keys = groups.groups.keys()
 
-
     # Plot
     seaborn.set_style('white')
     seaborn.set_style('ticks')
@@ -803,6 +812,8 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True):
     sig_ax = sig_fig.add_subplot(111)
     rate_fig = plt.figure('Detection Rate')
     rate_ax = rate_fig.add_subplot(111)
+    lum_fig = plt.figure('Luminosity Ratio')
+    lum_ax = lum_fig.add_subplot(111)
     df_list = []
     for key in sorted(keys, key=lambda l: MS.SpT_To_Number(l[6][:2])):
         g = groups.get_group(key)
@@ -811,12 +822,24 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True):
         Tvals = np.zeros(len(T_keys))
         rate = np.zeros(len(T_keys))
         significance = np.zeros(len(T_keys))
+        luminosity_ratio = []
+        Kband_magdiff = []
         for i, Tstring in enumerate(sorted(T_keys)):
-            numdetected = sum(T_groups.get_group(Tstring)['significance'].notnull())
-            med_sig = np.nanmedian(T_groups.get_group(Tstring)['significance'])
+            group_df = T_groups.get_group(Tstring)
+            numdetected = sum(group_df['significance'].notnull())
+            med_sig = np.nanmedian(group_df['significance'])
             Tvals[i] = float(Tstring)
-            rate[i] = 100.0 * numdetected / float(len(T_groups.get_group(Tstring)))
+            rate[i] = 100.0 * numdetected / float(len(group_df))
             significance[i] = med_sig
+
+            # Get luminosity ratio
+            lum_prim = 0
+            for T, R in zip(group_df['primary temps'].values[0], group_df['primary radii'].values[0]):
+                lum_prim += T**4 * R**2
+            s_spt = MS.GetSpectralType('temperature', Tvals[i])
+            lum_sec = Tvals[i]**4 * MS.Interpolate('radius', s_spt)[0]**2
+            luminosity_ratio.append(lum_prim/lum_sec)
+
 
         starname = key[0]
         date = key[1]
@@ -825,10 +848,12 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True):
         ls = ps_cycler.next()
         sig_ax.plot(Tvals, significance, ls, lw=2, label=labelstr)
         rate_ax.plot(Tvals, rate, ls, lw=2, label=labelstr)
+        lum_ax.semilogx(luminosity_ratio, rate, 'o', label=labelstr)
 
         # Save the summary in a dataframe
         data = pd.DataFrame(
-            data={'star': [key[0]] * rate.size, 'rate': rate, 'significance': significance, 'temperature': Tvals})
+            data={'star': [key[0]] * rate.size, 'rate': rate, 'significance': significance,
+                  'temperature': Tvals, 'luminosity ratio': luminosity_ratio})
         df_list.append(data)
 
     summary = pd.concat(df_list, ignore_index=True)
@@ -845,20 +870,29 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True):
     rate_leg = rate_ax.legend(loc='best', fancybox=True)
     rate_leg.get_frame().set_alpha(0.5)
 
+    lum_ax.set_xlabel('Luminosity Ratio', fontsize=15)
+    lum_ax.set_ylabel('Detection Rate (%)', fontsize=15)
+    lum_leg = lum_ax.legend(loc='best', fancybox=True)
+    lum_leg.get_frame().set_alpha(0.5)
+
     # Make a top set of axes that shows spectral type
     sig_top_ax = add_top_axis(sig_ax)
     sig_top_ax.set_xlabel('Spectral Type', fontsize=15)
     rate_top_ax = add_top_axis(rate_ax)
     rate_top_ax.set_xlabel('Spectral Type', fontsize=15)
+    #lum_top_ax = add_top_axis(lum_ax)
+    #lum_top_ax.set_xlabel('Spectral Type', fontsize=15)
 
     # Make sure we can see 0 and 100 on the detection rate plots
     rate_ax.set_ylim((-5, 105))
+    lum_ax.set_ylim((-5, 105))
 
     # Adjust to fit the labels
     rate_fig.subplots_adjust(left=0.12, bottom=0.12, right=0.95, top=0.88)
     sig_fig.subplots_adjust(left=0.12, bottom=0.12, right=0.95, top=0.88)
+    lum_fig.subplots_adjust(left=0.12, bottom=0.12, right=0.95, top=0.88)
 
-    return sig_fig, rate_fig, rate_ax, rate_top_ax, sig_ax, sig_top_ax
+    return sig_fig, rate_fig, lum_fig, rate_ax, rate_top_ax, sig_ax, sig_top_ax, lum_ax, lum_top_ax
 
 
 def add_top_axis(axis, spt_values=('M5', 'M0', 'K5', 'K0', 'G5', 'G0')):
