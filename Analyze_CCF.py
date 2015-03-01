@@ -65,14 +65,14 @@ class CCF_Interface(object):
             df_list = []
             star_list = self.list_stars()
             for star in star_list:
-                date_list = self.list_date(star)
+                date_list = self.list_dates(star)
                 for date in date_list:
                     df_list.append(self._compile_data(star, date, addmode=addmode))
             return pd.concat(df_list, ignore_index=True)
             
         elif starname is not None and date is None:
             df_list = []
-            date_list = self.list_date(starname)
+            date_list = self.list_dates(starname)
             for date in date_list:
                 df_list.append(self._compile_data(starname, date, addmode=addmode))
             return pd.concat(df_list)
