@@ -704,6 +704,8 @@ def save_ccf(corr, params, mode='text', update=True):
         # Get the hdf5 file
         hdf5_file = '{0:s}CCF.hdf5'.format(params['outdir'])
         print('Saving CCF to {}'.format(hdf5_file))
+        print(star, date)
+        print(params)
         f = h5py.File(hdf5_file, 'a')
 
         # Star name and date
@@ -725,20 +727,27 @@ def save_ccf(corr, params, mode='text', update=True):
 
         # Add a new dataset. The name doesn't matter
         current_datasets = d.keys()
+        attr_pars = ['vsini', 'T', 'logg', '[Fe/H]', 'addmode']
         if len(current_datasets) == 0:
             ds = d.create_dataset('ds1', data=np.array((corr.x, corr.y)))
         else:
+            # Check to see if these value are in any of the datasets. If so, overwrite instead of making a duplicate dataset
+            for ds_name in current_datasets():
+                ds_test = d[ds_name]
+                if update and all([ds_test.attrs[a] == params[a] for a in attr_pars]):
+                    ds = ds_test
+                    ds.value = np.array((corr.x, corr.y))
+                    f.flush()
+                    f.close()
+                    return
+            
+            # If we get here, no matching dataset was found.
             ds_num = max(int(d[2:]) for d in current_datasets) + 1
             ds = d.create_dataset('ds{}'.format(ds_num), data=np.array((corr.x, corr.y)))
 
         # Add attributes to the dataset
-        print(star, date)
-        print(params)
-        ds.attrs['vsini'] = params['vsini']
-        ds.attrs['T'] = params['T']
-        ds.attrs['logg'] = params['logg']
-        ds.attrs['[Fe/H]'] = params['[Fe/H]']
-        ds.attrs['addmode'] = params['addmode']
+        for a in attr_pars:
+            ds.attrs[a] = params[a]
 
         f.flush()
         f.close()
