@@ -729,21 +729,21 @@ def save_ccf(corr, params, mode='text', update=True):
         current_datasets = d.keys()
         attr_pars = ['vsini', 'T', 'logg', '[Fe/H]', 'addmode']
         if len(current_datasets) == 0:
-            ds = d.create_dataset('ds1', data=np.array((corr.x, corr.y)))
+            ds = d.create_dataset('ds1', data=np.array((corr.x, corr.y)), maxsize=(None,))
         else:
             # Check to see if these value are in any of the datasets. If so, overwrite instead of making a duplicate dataset
             for ds_name in current_datasets:
                 ds_test = d[ds_name]
                 if update and all([ds_test.attrs[a] == params[a] for a in attr_pars]):
                     ds = ds_test
-                    ds.value = np.array((corr.x, corr.y))
+                    ds[:] = np.array((corr.x, corr.y))
                     f.flush()
                     f.close()
                     return
             
             # If we get here, no matching dataset was found.
             ds_num = max(int(d[2:]) for d in current_datasets) + 1
-            ds = d.create_dataset('ds{}'.format(ds_num), data=np.array((corr.x, corr.y)))
+            ds = d.create_dataset('ds{}'.format(ds_num), data=np.array((corr.x, corr.y)), maxsize=(None,))
 
         # Add attributes to the dataset
         for a in attr_pars:
