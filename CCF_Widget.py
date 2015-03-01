@@ -62,7 +62,7 @@ class BokehApp(VBox):
         """
         # create layout widgets
         obj = cls()
-        cls._ccf_interface = CCF_Interface(ccf_filename, vel=np.arange(-600, 600, 1))
+        cls._ccf_interface = CCF_Interface(ccf_filename)#, vel=np.arange(-600, 600, 1))
         obj.mainrow = HBox()
         obj.ccfrow = HBox()
         #obj.star_input_box = VBoxForm()
