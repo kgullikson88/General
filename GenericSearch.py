@@ -704,8 +704,6 @@ def save_ccf(corr, params, mode='text', update=True):
         # Get the hdf5 file
         hdf5_file = '{0:s}CCF.hdf5'.format(params['outdir'])
         print('Saving CCF to {}'.format(hdf5_file))
-        print(star, date)
-        print(params)
         f = h5py.File(hdf5_file, 'a')
 
         # Star name and date
@@ -713,6 +711,8 @@ def save_ccf(corr, params, mode='text', update=True):
         star = header['OBJECT']
         date = header['DATE-OBS'].split('T')[0]
 
+        print(star, date)
+        print(params)
         if star in f.keys():
             s = f[star]
         else:
@@ -732,7 +732,7 @@ def save_ccf(corr, params, mode='text', update=True):
             ds = d.create_dataset('ds1', data=np.array((corr.x, corr.y)))
         else:
             # Check to see if these value are in any of the datasets. If so, overwrite instead of making a duplicate dataset
-            for ds_name in current_datasets():
+            for ds_name in current_datasets:
                 ds_test = d[ds_name]
                 if update and all([ds_test.attrs[a] == params[a] for a in attr_pars]):
                     ds = ds_test
