@@ -241,7 +241,7 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix',
                         T_high = Tvals[u_idx]
                         slope = (upper.y - lower.y) / (T_high - T_low)
                         for vsini in vsini_values:
-                            sensitivity[T][gravity][metal][alpha][vsini] = slope
+                            sensitivity[T][gravity][metal][alpha][vsini] = slope**2
         return modeldict, processed, sensitivity
 
     return modeldict, processed
