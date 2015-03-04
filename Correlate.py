@@ -356,29 +356,6 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         master_corr = total.copy()
         master_corr.y = np.sqrt(master_corr.y)
     elif addmode.lower() == "weighted":
-        """
-        # Weight the ccf by orderweights
-        total.y = np.ones(total.size())
-        #orderweights = 1.0/np.array(orderweights)
-        for i, corr in enumerate(corrlist):
-            w = orderweights[i] / np.sum(orderweights)
-            correlation = spline(corr.x, corr.y, k=1)
-            N = data[i].size()
-            print "\n"
-            print np.power(10**(-w) * (1.0 - max(correlation(total.x)) ** 2), float(N) / normalization)
-            print np.power(w * (1.0 - max(correlation(total.x)) ** 2), 1.0)#float(N) / normalization)
-            print max(corr.y)
-            print w, 10**(-w), float(N)/normalization
-            ##total.y *= np.power(10.0, (N*np.log10(1-correlation(total.x)**2) - w) / normalization)
-            #total.y *= np.power(10**(-w) * (1.0 - correlation(total.x) ** 2), float(N) / normalization)
-            ##total.y *= np.power((1.0 - (w*correlation(total.x)) ** 2), float(N) / normalization)
-            total.y *= np.power(w * (1.0 - correlation(total.x) ** 2), float(N) / normalization)
-
-            print total.y
-        master_corr = total.copy()
-        master_corr.y = np.sqrt(1.0 - total.y)
-        """
-
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
             N = data[i].size()
@@ -388,6 +365,14 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
             total.y += w * correlation(total.x) ** 2  # * float(N) / normalization
         master_corr = total.copy()
         master_corr.y = np.sqrt(master_corr.y)
+    elif addmode.lower() == 'simple-weighted':
+        total.y = np.zeros(total.size())
+        for i, corr in enumerate(corrlist):
+            w = orderweights[i] / np.sum(orderweights)
+            correlation = spline(corr.x, corr.y, k=1)
+            total.y += correlation(total.x) * w
+        total.y /= float(len(corrlist))
+        master_corr = total.copy()
 
     # master_corr.y -= np.median(master_corr.y)
     if debug:

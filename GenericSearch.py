@@ -474,8 +474,11 @@ def slow_companion_search(fileList,
     :param observatory: The name of the observatory, in a way that IRAF's rvcorrect will understand. Only needed if vbary_correct = True
     :param addmode: The way to add the CCFs for each order. Options are:
          1: 'simple': Do a simple average
-         2: 'weighted': Do a weighted average: C = \sum_i{w_i C_i^2}
-         3: 'ml': The maximum likelihood estimate. See Zucker 2003, MNRAS, 342, 1291
+         2: 'weighted': Do a weighted average: $C = \sum_i{w_i C_i^2}$ where $w_i$ is the line depth of the each pixel
+         3: 'simple-weighted': Same as weighted, but without squaring the CCFs: $C = \sum_i{w_i C_i}$
+         4: 'T-weighted': Do a weighted average: $C = \sum_i{w_i C_i}$ where $w_i$ is how fast each pixel changes with temperature
+         5: 'dc': $C = \sum_i{C_i^2}$  (basically, weighting by the CCF itself)
+         6: 'ml': The maximum likelihood estimate. See Zucker 2003, MNRAS, 342, 1291
     :param output_mode: How to output. Valid options are:
          1: text, which is just ascii data with a filename convention. This is the default option
          2: hdf5, which ouputs a single hdf5 file with all the metadata necessary to classify the output
@@ -489,10 +492,16 @@ def slow_companion_search(fileList,
                                            temperature=Tvalues,
                                            metal=metal_values,
                                            logg=logg_values)
-    modeldict, processed = StellarModel.MakeModelDicts(model_list, type='hdf5', hdf5_file=hdf5_file,
+    if addmode.lower() == 't-weighted':
+        modeldict, processed, sensitivity = StellarModel.MakeModelDicts(model_list, type='hdf5', hdf5_file=hdf5_file,
+                                                       vsini_values=vsini_values, vac2air=True, logspace=True,
+                                                       get_T_sens=True)
+    else:
+        modeldict, processed = StellarModel.MakeModelDicts(model_list, type='hdf5', hdf5_file=hdf5_file,
                                                        vsini_values=vsini_values, vac2air=True, logspace=True)
+        sensitivity = None
 
-    get_weights = True if addmode.lower() == "weighted" else False
+    get_weights = True if addmode.lower() == "weighted" or addmode.lower() == 'simple-weighted' else False
     orderweights = None
 
     MS = SpectralTypeRelations.MainSequence()
@@ -514,6 +523,11 @@ def slow_companion_search(fileList,
                     model = Broaden.RotBroad(model, vsini_sec * u.km.to(u.cm), linear=True)
                     if resolution is not None:
                         model = FittingUtilities.ReduceResolutionFFT(model, resolution)
+
+                    # Interpolate the temperature weights, if addmode='T-weighted'
+                    x = modeldict[temp][gravity][metallicity][alpha][vsini_sec].x
+                    y = sensitivity[temp][gravity][metallicity][alpha][vsini_sec]
+                    temperature_weights = spline(x,y)
 
                     for i, (fname, vsini_prim) in enumerate(zip(fileList, primary_vsini)):
                         if vbary_correct:
@@ -541,6 +555,13 @@ def slow_companion_search(fileList,
                         # Now, process the model
                         model_orders = process_model(model.copy(), orders, vsini_primary=vsini_prim, maxvel=1000.0,
                                                      debug=debug, oversample=1, logspace=False)
+
+                        # Get order weights if addmode='T-weighted'
+                        if addmode.lower() == 't-weighted':
+                            orderweights = []
+                            get_weights = False
+                            orderweights = [np.sum(temperature_weights(o.x)) for o in orders]
+                            addmode = 'simple-weighted'
 
                         if debug and makeplots:
                             fig = plt.figure('T={}   vsini={}'.format(temp, vsini_sec))

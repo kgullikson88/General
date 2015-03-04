@@ -265,7 +265,6 @@ def get_model(mdict, Tvals, i, logg, metal, vsini, alpha=None, mode='same'):
         idx = i - 1
         idx = max(0, idx)
         idx = min(len(Tvals), idx)
-        print idx, len(Tvals)
         while not done:
             if idx == 0 or idx == len(Tvals) - 1:
                 return get_model(mdict, Tvals, idx, logg, metal, vsini, alpha, mode='same'), idx
@@ -278,7 +277,6 @@ def get_model(mdict, Tvals, i, logg, metal, vsini, alpha=None, mode='same'):
         idx = i +1
         idx = max(0, idx)
         idx = min(len(Tvals)-1, idx)
-        print 'upper', idx, len(Tvals)
         while not done:
             if idx == 0 or idx == len(Tvals) - 1:
                 return get_model(mdict, Tvals, idx, logg, metal, vsini, alpha, mode='same'), idx
