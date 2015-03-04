@@ -558,7 +558,6 @@ def slow_companion_search(fileList,
 
                         # Get order weights if addmode='T-weighted'
                         if addmode.lower() == 't-weighted':
-                            orderweights = []
                             get_weights = False
                             orderweights = [np.sum(temperature_weights(o.x)) for o in orders]
                             addmode = 'simple-weighted'
@@ -608,7 +607,7 @@ def slow_companion_search(fileList,
 
                         corr = Correlate.Correlate(orders, model_orders, addmode=addmode, outputdir=output_dir,
                                                    get_weights=get_weights, prim_teff=temperature_dict[fname],
-                                                   debug=debug)
+                                                   orderweights=orderweights, debug=debug)
                         if debug:
                             corr, ccf_orders = corr
 

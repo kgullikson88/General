@@ -251,7 +251,7 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
 def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
               orderweights=None, get_weights=False, prim_teff=10000.0):
     # Error checking
-    if addmode.lower() == "weighted" and orderweights is None and not get_weights:
+    if "weighted" in addmode.lower() and orderweights is None and not get_weights:
         raise ValueError("Must give orderweights if addmode == weighted")
 
     corrlist = []
