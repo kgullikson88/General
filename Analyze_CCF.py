@@ -41,7 +41,7 @@ class CCF_Interface(object):
         return sorted(self.hdf5[star].keys())
 
 
-    def _compile_data(self, starname, date, addmode='simple'):
+    def _compile_data(self, starname=None, date=None, addmode='simple'):
         """
         Private function. This reads in all the datasets for the given star and date
         :param starname: the name of the star. Must be in self.hdf5
@@ -61,26 +61,43 @@ class CCF_Interface(object):
                   - rv (at maximum CCF value)
                   - CCF height (maximum)
         """
-        datasets = self.hdf5[starname][date].keys()
-        data = defaultdict(list)
-        for ds_name in datasets:
-            ds = self.hdf5[starname][date][ds_name]
-            am = ds.attrs['addmode']
-            if addmode == 'all' or addmode == am:
-                data['T'].append(ds.attrs['T'])
-                data['logg'].append(ds.attrs['logg'])
-                data['[Fe/H]'].append(ds.attrs['[Fe/H]'])
-                data['vsini'].append(ds.attrs['vsini'])
-                data['addmode'].append(am)
-                v = ds.value
-                vel, corr = v[0], v[1]
-                fcn = spline(vel, corr)
-                data['ccf'].append(fcn(self.velocities))
+        if starname is None:
+            df_list = []
+            star_list = self.list_stars()
+            for star in star_list:
+                date_list = self.list_dates(star)
+                for date in date_list:
+                    df_list.append(self._compile_data(star, date, addmode=addmode))
+            return pd.concat(df_list, ignore_index=True)
+            
+        elif starname is not None and date is None:
+            df_list = []
+            date_list = self.list_dates(starname)
+            for date in date_list:
+                df_list.append(self._compile_data(starname, date, addmode=addmode))
+            return pd.concat(df_list)
+            
+        else:
+            datasets = self.hdf5[starname][date].keys()
+            data = defaultdict(list)
+            for ds_name in datasets:
+                ds = self.hdf5[starname][date][ds_name]
+                am = ds.attrs['addmode']
+                if addmode == 'all' or addmode == am:
+                    data['T'].append(ds.attrs['T'])
+                    data['logg'].append(ds.attrs['logg'])
+                    data['[Fe/H]'].append(ds.attrs['[Fe/H]'])
+                    data['vsini'].append(ds.attrs['vsini'])
+                    data['addmode'].append(am)
+                    v = ds.value
+                    vel, corr = v[0], v[1]
+                    fcn = spline(vel, corr)
+                    data['ccf'].append(fcn(self.velocities))
 
-        #data['Star'] = [starname] * len(data['T'])
-        #data['Date'] = [date] * len(data['T'])
-        df = pd.DataFrame(data=data)
-        return df
+            data['Star'] = [starname] * len(data['T'])
+            data['Date'] = [date] * len(data['T'])
+            df = pd.DataFrame(data=data)
+            return df
 
     def get_temperature_run(self, starname=None, date=None, df=None):
         """

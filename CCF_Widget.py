@@ -5,6 +5,7 @@ Bokeh widget for analyzing CCF data.
 import os
 import time
 from collections import OrderedDict
+import sys
 
 from bokeh.models import ColumnDataSource, Plot, HoverTool
 from bokeh.plotting import figure, curdoc
@@ -12,13 +13,27 @@ from bokeh.properties import String, Instance
 from bokeh.server.app import bokeh_app
 from bokeh.server.utils.plugins import object_page
 from bokeh.models.widgets import HBox, VBox, VBoxForm, Select
-
 from Analyze_CCF import CCF_Interface
 
 
-CCF_FILE = '{}/School/Research/McDonaldData/Cross_correlations/CCF.hdf5'.format(os.environ['HOME'])
+# Parse command-line arguments 
 ADDMODE = 'simple'
+instrument = 'IGRINS'
+for arg in sys.argv[1:]:
+    if '--instrument' in arg:
+        instrument = arg.split('=')[-1].upper()
+    elif '--addmode' in arg:
+        ADDMODE = arg.split('=')[-1]
 
+home = os.environ['HOME']
+root_dirs = {'TS23': '{}/School/Research/McDonaldData'.format(home),
+             'HRS': '{}/School/Research/HET_data'.format(home),
+             'CHIRON': '{}/School/Research/CHIRON_data'.format(home),
+             'IGRINS': '{}/School/Research/IGRINS_data'.format(home)}
+
+#CCF_FILE = '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(os.environ['HOME'])
+CCF_FILE = '{}/Cross_correlations/CCF.hdf5'.format(root_dirs[instrument])
+print('Instrument: {}\nCCF_FILE = {}'.format(instrument, CCF_FILE))
 
 class BokehApp(VBox):
     extra_generated_classes = [["BokehApp", "BokehApp", "VBox"]]
@@ -61,7 +76,7 @@ class BokehApp(VBox):
         """
         # create layout widgets
         obj = cls()
-        cls._ccf_interface = CCF_Interface(ccf_filename)
+        cls._ccf_interface = CCF_Interface(ccf_filename)#, vel=np.arange(-600, 600, 1))
         obj.mainrow = HBox()
         obj.ccfrow = HBox()
         #obj.star_input_box = VBoxForm()
