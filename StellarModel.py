@@ -242,7 +242,7 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix',
                         slope = (upper.y - lower.y) / (T_high - T_low)
                         for vsini in vsini_values:
                             sensitivity[T][gravity][metal][alpha][vsini] = slope
-        return modeldict, process, sensitivity
+        return modeldict, processed, sensitivity
 
     return modeldict, processed
 
@@ -263,9 +263,12 @@ def get_model(mdict, Tvals, i, logg, metal, vsini, alpha=None, mode='same'):
     elif mode == 'lower':
         done = False
         idx = i - 1
+        idx = max(0, idx)
+        idx = min(len(Tvals), idx)
+        print idx, len(Tvals)
         while not done:
             if idx == 0 or idx == len(Tvals) - 1:
-                return get_model(mdict, Tvals, i, logg, metal, vsini, alpha, mode='same'), i
+                return get_model(mdict, Tvals, idx, logg, metal, vsini, alpha, mode='same'), idx
             try:
                 return get_model(mdict, Tvals, idx, logg, metal, vsini, alpha, mode='same'), idx
             except KeyError:
@@ -273,9 +276,12 @@ def get_model(mdict, Tvals, i, logg, metal, vsini, alpha=None, mode='same'):
     elif mode == 'upper':
         done = False
         idx = i +1
+        idx = max(0, idx)
+        idx = min(len(Tvals)-1, idx)
+        print 'upper', idx, len(Tvals)
         while not done:
             if idx == 0 or idx == len(Tvals) - 1:
-                return get_model(mdict, Tvals, i, logg, metal, vsini, alpha, mode='same'), i
+                return get_model(mdict, Tvals, idx, logg, metal, vsini, alpha, mode='same'), idx
             try:
                 return get_model(mdict, Tvals, idx, logg, metal, vsini, alpha, mode='same'), idx
             except KeyError:
