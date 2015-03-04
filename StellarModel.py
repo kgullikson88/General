@@ -257,9 +257,9 @@ def get_model(mdict, Tvals, i, logg, metal, vsini, alpha=None, mode='same'):
     """
     if mode == 'same':
         if alpha is None:
-            mdict[Tvals[i]][logg][metallicity][vsini]
+            mdict[Tvals[i]][logg][metal][vsini]
         else:
-            return mdict[Tvals[i]][logg][metallicity][alpha][vsini]
+            return mdict[Tvals[i]][logg][metal][alpha][vsini]
     elif mode == 'lower':
         done = False
         idx = i - 1
