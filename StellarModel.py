@@ -128,7 +128,7 @@ def ClassifyModel(filename, type='phoenix'):
 
 
 def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix',
-                   vac2air=True, logspace=False, hdf5_file=HDF5_FILE):
+                   vac2air=True, logspace=False, hdf5_file=HDF5_FILE, get_T_sens=False):
     """This will take a list of models, and output two dictionaries that are
     used by GenericSearch.py and Sensitivity.py
 
@@ -138,6 +138,8 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix',
     :param vac2air: If true, assumes the model is in vacuum wavelengths and converts to air
     :param logspace: If true, it will rebin the data to a constant log-spacing
     :param hdf5_file: The absolute path to the HDF5 file with the models. Only used if type=hdf5
+    :param get_T_sens: Boolean flag for getting the temperature sensitivity.
+                       If true, it finds the derivative of each pixel dF/dT
     :return: A dictionary containing the model with keys of temperature, gravity, metallicity, and vsini,
              and another one with a processed flag with the same keys
     """
@@ -220,7 +222,64 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix',
     else:
         raise NotImplementedError("Sorry, the model type ({:s}) is not available!".format(type))
 
+    if get_T_sens:
+        # Get the temperature sensitivity. Warning! This assumes the wavelength grid is the same in all models.
+        sensitivity = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(DataStructures.xypoint)))))
+        Tvals = sorted(modeldict.keys())
+        for i, T in enumerate(Tvals):
+            gvals = sorted(modeldict[T].keys())
+            for gravity in gvals:
+                metal_vals = sorted(modeldict[T][gravity].keys())
+                for metal in metal_vals:
+                    alpha_vals = sorted(modeldict[T][gravity][metal].keys())
+                    for alpha in alpha_vals:
+                        # get the temperature just under this one
+                        lower, l_idx = get_model(modeldict, Tvals, i, gravity, metal, vsini_values[0], alpha, mode='lower')
+                        upper, u_idx = get_model(modeldict, Tvals, i, gravity, metal, vsini_values[0], alpha, mode='upper')
+                        T_low = Tvals[l_idx]
+                        T_high = Tvals[u_idx]
+                        slope = (upper.y - lower.y) / (T_high - T_low)
+                        sensitivity[T][gravity][metal][alpha][vsini] = slope
+        return modeldict, process, sensitivity
+
     return modeldict, processed
+
+
+def get_model(mdict, Tvals, i, logg, metal, vsini, alpha=None, mode='same'):
+    """
+    Get the model with the requested parameters
+    :param mode: How to get the model. valid options:
+        - 'same': Get the model with the exact requested parameters.
+        - 'lower': Get model with the exact values of everything except temperature (find the next lowest temperature)
+        - 'upper': Get model with the exact values of everything except temperature (find the next highest temperature)
+    """
+    if mode == 'same':
+        if alpha is None:
+            mdict[Tvals[i]][logg][metallicity][vsini]
+        else:
+            return mdict[Tvals[i]][logg][metallicity][alpha][vsini]
+    elif mode == 'lower':
+        done = False
+        idx = i - 1
+        while not done:
+            if idx == 0 or idx == len(Tvals) - 1:
+                return get_model(mdict, Tvals, i, logg, metal, vsini, alpha, mode='same'), i
+            try:
+                return get_model(mdict, Tvals, idx, logg, metal, vsini, alpha, mode='same'), idx
+            except KeyError:
+                idx -= 1
+    elif mode == 'upper':
+        done = False
+        idx = i +1
+        while not done:
+            if idx == 0 or idx == len(Tvals) - 1:
+                return get_model(mdict, Tvals, i, logg, metal, vsini, alpha, mode='same'), i
+            try:
+                return get_model(mdict, Tvals, idx, logg, metal, vsini, alpha, mode='same'), idx
+            except KeyError:
+                idx += 1
+
 
 
 class HDF5Interface:
