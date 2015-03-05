@@ -5,18 +5,18 @@
 import os
 import csv
 from collections import defaultdict
+
 from scipy.optimize import bisect
 from scipy.stats import scoreatpercentile
 from scipy.signal import kaiserord, firwin, lfilter
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-
 from astropy.io import fits as pyfits
 import numpy as np
 from astropy import units, constants
-import DataStructures
 from lmfit import Model, Parameters
 from astropy.time import Time
 
+import DataStructures
 import pySIMBAD as sim
 import SpectralTypeRelations
 import readmultispec as multispec
@@ -967,6 +967,14 @@ def radec2altaz(ra, dec, obstime, lat=None, long=None, debug=False):
     return alt * 180.0 / np.pi, az * 180.0 / np.pi
 
 
+def safe_convert(s, default=0):
+    try:
+        v = float(s)
+    except ValueError:
+        v = default
+    return v
+
+
 def convert_hex_string(string, delimiter=":", debug=False):
     """
     Converts a hex coordinate string to a decimal
@@ -977,9 +985,8 @@ def convert_hex_string(string, delimiter=":", debug=False):
     if debug:
         print('Parsing hex string {}'.format(string))
     segments = string.split(delimiter)
-    #s = np.sign(float(segments[0]))
     s = -1.0 if '-' in string else 1.0
-    return s * (abs(float(segments[0])) + float(segments[1]) / 60.0 + float(segments[2]) / 3600.0)
+    return s * (abs(safe_convert(segments[0])) + safe_convert(segments[1]) / 60.0 + safe_convert(segments[2]) / 3600.0)
 
 
 def GetZenithDistance(header=None, date=None, ut=None, ra=None, dec=None, lat=None, long=None, debug=False):
