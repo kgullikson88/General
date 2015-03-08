@@ -8,8 +8,8 @@ It is called by several smaller scripts in each of the instrument-specific repos
 import FittingUtilities
 
 import numpy as np
-import DataStructures
 
+import DataStructures
 import Correlate
 import HelperFunctions
 import StellarModel
@@ -672,10 +672,10 @@ def save_synthetic_ccf(corr, params, mode='text', update=True):
         f = h5py.File(hdf5_file, 'a')
 
         # Star combination
-        segments = params['outbase'].split('_')[:-1]
-        str = ' '.join(segments)
-        star1 = str.split('+')[0]
-        star2 = str.split('+')[1]
+        segments = params['outbase'].replace('_', ' ')  # .split('_')[:-1]
+        # str = ' '.join(segments)
+        star1 = segments.split('+')[0]
+        star2 = segments.split('+')[1]
 
         # Make the heirarchy if the file does not have it
         p = f[star1] if star1 in f.keys() else f.create_group(star1)
