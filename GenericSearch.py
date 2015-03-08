@@ -525,9 +525,10 @@ def slow_companion_search(fileList,
                         model = FittingUtilities.ReduceResolutionFFT(model, resolution)
 
                     # Interpolate the temperature weights, if addmode='T-weighted'
-                    x = modeldict[temp][gravity][metallicity][alpha][vsini_sec].x
-                    y = sensitivity[temp][gravity][metallicity][alpha][vsini_sec]
-                    temperature_weights = spline(x,y)
+                    if addmode.lower() == 't-weighted':
+                        x = modeldict[temp][gravity][metallicity][alpha][vsini_sec].x
+                        y = sensitivity[temp][gravity][metallicity][alpha][vsini_sec]
+                        temperature_weights = spline(x, y)
 
                     for i, (fname, vsini_prim) in enumerate(zip(fileList, primary_vsini)):
                         if vbary_correct:
