@@ -6,6 +6,7 @@ from astroquery.simbad import Simbad
 import pandas as pd
 from astropy.io import fits
 
+
 Simbad.add_votable_fields('sp', 'flux(V)', 'plx')
 
 data_cache = {}
@@ -36,6 +37,11 @@ def GetData(starname):
 
 
 def get_vsini(file_list):
+    """
+    Get the vsini for every fits file in file_list. Uses the OBJECT keyword and a pre-tabulated vsini table
+    :param file_list:
+    :return:
+    """
     homedir = os.environ['HOME']
     vsini = pd.read_csv("{}/School/Research/Useful_Datafiles/Vsini.csv".format(homedir), sep='|', skiprows=8)[1:]
     vsini_dict = {}
