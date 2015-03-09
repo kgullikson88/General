@@ -352,10 +352,11 @@ class MainSequence:
         self.AbsMag['M5'] = 12.3
 
     def SpT_To_Number(self, SpT):
-        SpT = re.search(SPT_PATTERN, SpT).group()
-        if SpT[1:] == "":
+        SpT_match = re.search(SPT_PATTERN, SpT)
+        if SpT_match is None or SpT_match.group()[1:] == '':
             basenum = 5.0
         else:
+            SpT = SpT_match.group()
             basenum = float(SpT[1:])
         SpectralClass = SpT[0]
         if SpectralClass == "O":
@@ -372,6 +373,12 @@ class MainSequence:
             return basenum + 50
         elif SpectralClass == "M":
             return basenum + 60
+        elif SpectralClass == "L":
+            return basenum + 70
+        elif SpectralClass == "T":
+            return basenum + 80
+        elif SpectralClass == "Y":
+            return basenum + 90
         else:
             print "Something weird happened! Spectral type = ", SpT
             return -1
