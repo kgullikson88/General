@@ -7,7 +7,7 @@ import pandas as pd
 from astropy.io import fits
 
 
-Simbad.add_votable_fields('sp', 'flux(V)', 'plx')
+Simbad.add_votable_fields('sp', 'flux(V)', 'flux(K)', 'plx')
 
 data_cache = {}
 
@@ -16,6 +16,7 @@ class stardata:
         self.main_id = ''
         self.spectype = ""
         self.Vmag = 0.0
+        self.Kmag = 0.0
         self.ra = ""
         self.dec = ""
         self.par = 0.0  # parallax in arcseconds
@@ -29,6 +30,7 @@ def GetData(starname):
     data.main_id = star['MAIN_ID'].item()
     data.spectype = star['SP_TYPE'].item()
     data.Vmag = star['FLUX_V'].item()
+    data.Kmag = star['FLUX_K'].item()
     data.ra = star['RA'].item().strip().replace(' ', ':')
     data.dec = star['DEC'].item().strip().replace(' ', ':')
     data.par = star['PLX_VALUE'].item()
