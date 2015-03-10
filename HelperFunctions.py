@@ -908,6 +908,24 @@ def mad(arr):
     return np.median(np.abs(arr - median))
 
 
+def split_radec(radec, to_float=False):
+    """
+    Splits an RA/DEC string into separate RA and DEC strings
+    :param radec: The string of the form "00 10 02.20293 +11 08 44.9280"
+    :keyword to_float: If true, it will convert the RA and DEC values to floats
+    """
+    delim = '+' if '+' in radec else '-'
+    segments = radec.split(delim)
+    ra = segments[0].strip()
+    dec = delim + segments[1].strip()
+
+    if to_float:
+        ra = 15 * convert_hex_string(ra, delimiter=' ')
+        dec = convert_hex_string(dec, delimiter=' ')
+
+    return ra, dec
+
+
 def radec2altaz(ra, dec, obstime, lat=None, long=None, debug=False):
     """
     calculates the altitude and azimuth, given an ra, dec, time, and observatory location
