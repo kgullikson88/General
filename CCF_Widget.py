@@ -18,7 +18,7 @@ from Analyze_CCF import CCF_Interface
 
 # Parse command-line arguments 
 ADDMODE = 'simple'
-instrument = 'IGRINS'
+instrument = 'CHIRON'
 for arg in sys.argv[1:]:
     if '--instrument' in arg:
         instrument = arg.split('=')[-1].upper()
