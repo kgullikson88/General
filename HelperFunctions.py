@@ -1007,6 +1007,29 @@ def convert_hex_string(string, delimiter=":", debug=False):
     return s * (abs(safe_convert(segments[0])) + safe_convert(segments[1]) / 60.0 + safe_convert(segments[2]) / 3600.0)
 
 
+def convert_to_hex(val, delimiter=':', force_sign=False, debug=False):
+    """
+    Converts a numerical value into a hexidecimal string
+    """
+    s = np.sign(val)
+    s_factor = 1 if s > 0 else -1
+    val = np.abs(val)
+    degree = int(val)
+    minute = int((val  - degree)*60)
+    second = (val - degree - minute/60.0)*3600.
+    print degree, s_factor, val
+    if degree == 0 and s_factor < 0:
+        deg_str = '-00'
+        return '-00{2:s}{0:d}{2:s}{1:.2f}'.format(minute, second, delimiter)
+    elif force_sign or s_factor < 0:
+        deg_str = '{:+03d}'.format(degree * s_factor)
+        #return '{0:+d}{3:s}{1:d}{3:s}{2:.2f}'.format(degree*s_factor, minute, second, delimiter)
+    else:
+        deg_str = '{:02d}'.format(degree * s_factor)
+    return '{0:s}{3:s}{1:d}{3:s}{2:.2f}'.format(deg_str, minute, second, delimiter)
+    #return '{0: s}{3:s}{1:d}{3:s}{2:.2f}'.format(degree*s_factor, minute, second, delimiter)
+
+
 def GetZenithDistance(header=None, date=None, ut=None, ra=None, dec=None, lat=None, long=None, debug=False):
     """
     Function to get the zenith distance to an object
