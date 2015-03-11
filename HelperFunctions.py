@@ -1017,7 +1017,6 @@ def convert_to_hex(val, delimiter=':', force_sign=False, debug=False):
     degree = int(val)
     minute = int((val  - degree)*60)
     second = (val - degree - minute/60.0)*3600.
-    print degree, s_factor, val
     if degree == 0 and s_factor < 0:
         deg_str = '-00'
         return '-00{2:s}{0:02d}{2:s}{1:.2f}'.format(minute, second, delimiter)
