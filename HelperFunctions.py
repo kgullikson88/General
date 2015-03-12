@@ -1021,7 +1021,8 @@ def convert_to_hex(val, delimiter=':', force_sign=False, debug=False):
         deg_str = '-00'
         return '-00{2:s}{0:02d}{2:s}{1:.2f}'.format(minute, second, delimiter)
     elif force_sign or s_factor < 0:
-        deg_str = '{:+03d}'.format(degree * s_factor)    else:
+        deg_str = '{:+03d}'.format(degree * s_factor)    
+    else:
         deg_str = '{:02d}'.format(degree * s_factor)
     return '{0:s}{3:s}{1:02d}{3:s}{2:.2f}'.format(deg_str, minute, second, delimiter)
 
