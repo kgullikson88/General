@@ -94,7 +94,7 @@ def get_ccf_data(basedir, primary_name=None, secondary_name=None, vel_arr=np.ara
 
 
 def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
-                    velocity='highest', addmode='simple', debug=False):
+                    velocity='highest', addmode='simple', Tmin=3000, Tmax=7000, debug=False):
     """
     Goes through the given HDF5 file, and finds the best set of parameters for each combination of primary/secondary star
     :param hdf5_filename: The HDF5 file containing the CCF data
@@ -102,6 +102,7 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
     :keyword vel_arr: The velocities to interpolate each ccf at
     :keyword addmode: The way the CCF orders were added while generating the ccfs
     :keyword debug: If True, it prints the progress. Otherwise, does its work silently and takes a while
+    :keyword Tmin, Tmax: The minimum and maximum temperatures to include in the output.
     :return: pandas DataFrame summarizing the best parameters.
              This is the type of dataframe to give to the other function here
     """
@@ -126,13 +127,14 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
                         sys.stdout.write('\r\t\tDataset {}/{}'.format(i+1, len(datasets)))
                         sys.stdout.flush()
                     ds = f[p][s][addmode][d]
-                    vel, corr = ds.attrs['velocity'], ds.value
-                    fcn = spline(vel, corr)
-                    vsini_values.append(ds.attrs['vsini'])
-                    temperature.append(ds.attrs['T'])
-                    gravity.append(ds.attrs['logg'])
-                    metallicity.append(ds.attrs['[Fe/H]'])
-                    ccf.append(fcn(vel_arr))
+                    if Tmin <= ds.attrs['T'] <= Tmax:
+                        vel, corr = ds.attrs['velocity'], ds.value
+                        fcn = spline(vel, corr)
+                        vsini_values.append(ds.attrs['vsini'])
+                        temperature.append(ds.attrs['T'])
+                        gravity.append(ds.attrs['logg'])
+                        metallicity.append(ds.attrs['[Fe/H]'])
+                        ccf.append(fcn(vel_arr))
                 if debug:
                     print()
                 data = pd.DataFrame(data={'Primary': [p]*len(ccf), 'Secondary': [s]*len(ccf),
