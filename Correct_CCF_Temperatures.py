@@ -57,6 +57,13 @@ def get_kernel(instrument, Tmeasured, Tvalues=np.arange(3000, 6900, 100)):
     return kde, np.min(posterior[idx]), np.max(posterior[idx])
 
 
+def check_temp(T):
+    try:
+        return float(T)
+    except ValueError:
+        return np.nan
+
+
 def get_real_temperature(df, addmode='simple'):
     """
     Given a dataframe of observations, find the actual temperature and uncertainty for each star
@@ -74,14 +81,22 @@ def get_real_temperature(df, addmode='simple'):
     starnames = star_groups.groups.keys()
     metal = []
     vsini = []
+    temperature_latex = []
     temperature = []
+    temperature_lowerr = []
+    temperature_uperr = []
     for starname in starnames:
         star_df = star_groups.get_group(starname)
+        star_df['Temperature'] = star_df.Temperature.map(check_temp)
+        star_df['Temperature'] = star_df.Temperature.astype(float)
         star_df = star_df.loc[star_df.Temperature.notnull()]
         if len(star_df) == 0:
             metal.append(np.nan)
             vsini.append(np.nan)
+            temperature_latex.append(np.nan)
             temperature.append(np.nan)
+            temperature_lowerr.append(np.nan)
+            temperature_uperr.append(np.nan)
             continue
 
         kernels = []
@@ -92,6 +107,7 @@ def get_real_temperature(df, addmode='simple'):
         for i, row in star_df.iterrows():
             metal_values.append(row['[Fe/H]'])
             vsini_values.append(row['vsini'])
+            # print row
             kde, minimum, maximum = get_kernel(row['Instrument'], row['Temperature'])
             kernels.append(kde)
             low = min(low, minimum)
@@ -106,7 +122,7 @@ def get_real_temperature(df, addmode='simple'):
             # plt.plot(x, d, lw=2, label='input')
             dens *= d
         # plt.plot(x, dens, lw=2, label='final')
-        #plt.legend(loc='best')
+        # plt.legend(loc='best')
         #plt.show()
         values = np.random.choice(x, size=N, p=dens / dens.sum())
 
@@ -115,6 +131,11 @@ def get_real_temperature(df, addmode='simple'):
         # Store in lists
         metal.append(np.mean(metal_values))
         vsini.append(np.mean(vsini_values))
-        temperature.append(r'${:d}^{{+{:d}}}_{{-{:d}}}$'.format(int(m), int(h - m), int(m - l)))
+        temperature_latex.append(r'${:d}^{{+{:d}}}_{{-{:d}}}$'.format(int(m), int(h - m), int(m - l)))
+        temperature.append(int(m))
+        temperature_lowerr.append(int(m - l))
+        temperature_uperr.append(int(h - m))
 
-    return pd.DataFrame(data={'Star': starnames, 'Temperature': temperature, '[Fe/H]': metal, 'vsini': vsini})
+    return pd.DataFrame(data={'Star': starnames, 'Temperature_tex': temperature_latex,
+                              '[Fe/H]': metal, 'vsini': vsini, 'Temperature': temperature,
+                              'temperature_lowerr': temperature_lowerr, 'temperature_uperr': temperature_uperr})
