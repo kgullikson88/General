@@ -673,7 +673,7 @@ def save_synthetic_ccf(corr, params, mode='text', update=True):
         f = h5py.File(hdf5_file, 'a')
 
         # Star combination
-        segments = params['outbase'].replace('_', ' ')  # .split('_')[:-1]
+        segments = params['outbase'].split('_bright')[0].replace('_', ' ')  # .split('_')[:-1]
         # str = ' '.join(segments)
         star1 = segments.split('+')[0]
         star2 = segments.split('+')[1]
