@@ -130,6 +130,7 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
                     if Tmin <= ds.attrs['T'] <= Tmax:
                         vel, corr = ds.attrs['velocity'], ds.value
                         fcn = spline(vel, corr)
+                        
                         vsini_values.append(ds.attrs['vsini'])
                         temperature.append(ds.attrs['T'])
                         gravity.append(ds.attrs['logg'])
@@ -141,6 +142,7 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
                                           'Temperature': temperature, 'vsini': vsini_values,
                                           'logg': gravity, '[Fe/H]': metallicity, 'CCF': ccf})
                 summary_dfs.append(find_best_pars(data, velocity=velocity, vel_arr=vel_arr))
+                del data
 
     return pd.concat(summary_dfs, ignore_index=True)
 
