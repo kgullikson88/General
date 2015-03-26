@@ -804,12 +804,14 @@ def get_contrast(row, band='V'):
     :param band: The Johnson filter to get the contrast ratio in
     :return:
     """
-    pri_spts = [MS.GetSpectralType('temperature', T, prec=1e-3) for T in row['primary_temps']]
+    pri_spts = [MS.GetSpectralType(MS.Temperature, T, prec=1e-3) for T in row['primary temps']]
     pri_mags = [MS.GetAbsoluteMagnitude(s, color=band) for s in pri_spts]
     pri_total_mag = HelperFunctions.add_magnitudes(pri_mags)
 
     Tsec = float(row['temperature'])
-    sec_mag = MS.GetAbsoluteMagnitude(MS.GetSpectralType(Tsec), color=band)
+    sec_mag = MS.GetAbsoluteMagnitude(MS.GetSpectralType(MS.Temperature, Tsec, prec=1e-3), color=band)
+
+    return sec_mag - pri_total_mag
 
 
 def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=True, combine=False):
@@ -830,6 +832,7 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
         # Get the luminosity ratio
         df['lum_ratio'] = df.apply(get_luminosity_ratio, axis=1)
         df['logL'] = np.log10(df.lum_ratio)
+        df['contrast'] = df.apply(lambda r: get_contrast(r, band='V'), axis=1)
 
         # Save the dataframe for later use
         df.to_csv('Sensitivity_Dataframe.csv', index=False)
@@ -851,9 +854,10 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
     dataframes = defaultdict(lambda: defaultdict(pd.DataFrame))
     for key in keys:
         g = groups.get_group(key)
-        detrate = g.groupby(('temperature', 'vsini', 'logL')).apply(
+        detrate = g.groupby(('temperature', 'vsini', 'logL', 'contrast')).apply(
             lambda df: float(sum(df.significance.notnull())) / float(len(df)))
-        significance = g.groupby(('temperature', 'vsini', 'logL')).apply(lambda df: np.nanmean(df.significance))
+        significance = g.groupby(('temperature', 'vsini', 'logL', 'contrast')).apply(
+            lambda df: np.nanmean(df.significance))
         dataframes['detrate'][key] = detrate.reset_index().rename(columns={0: 'detection rate'})
         dataframes['significance'][key] = significance.reset_index().rename(columns={0: 'significance'})
 
@@ -874,7 +878,7 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
         plt.title('Detection Significance for {} ({}) on {}'.format(star, spt, date))
 
         plt.figure(i * 3 + 3)
-        p = dataframes['detrate'][key].pivot('logL', 'vsini', 'detection rate')
+        p = dataframes['detrate'][key].pivot('contrast', 'vsini', 'detection rate')
         ylabels = [round(float(L), 2) for L in p.index]
         sns.heatmap(p, yticklabels=ylabels)
         plt.title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
