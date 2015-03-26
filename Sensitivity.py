@@ -797,6 +797,21 @@ def get_luminosity_ratio(row):
     return lum_prim / lum_sec
 
 
+def get_contrast(row, band='V'):
+    """
+    Given a row in the overall dataframe, work out the contrast ratio in the requested magnitude filter
+    :param row:
+    :param band: The Johnson filter to get the contrast ratio in
+    :return:
+    """
+    pri_spts = [MS.GetSpectralType('temperature', T, prec=1e-3) for T in row['primary_temps']]
+    pri_mags = [MS.GetAbsoluteMagnitude(s, color=band) for s in pri_spts]
+    pri_total_mag = HelperFunctions.add_magnitudes(pri_mags)
+
+    Tsec = float(row['temperature'])
+    sec_mag = MS.GetAbsoluteMagnitude(MS.GetSpectralType(Tsec), color=band)
+
+
 def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=True, combine=False):
     """
     This uses the output of a previous run of check_sensitivity, and makes plots
@@ -814,6 +829,7 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
 
         # Get the luminosity ratio
         df['lum_ratio'] = df.apply(get_luminosity_ratio, axis=1)
+        df['logL'] = np.log10(df.lum_ratio)
 
         # Save the dataframe for later use
         df.to_csv('Sensitivity_Dataframe.csv', index=False)
@@ -835,35 +851,42 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
     dataframes = defaultdict(lambda: defaultdict(pd.DataFrame))
     for key in keys:
         g = groups.get_group(key)
-        detrate = g.groupby(('temperature', 'vsini')).apply(
+        detrate = g.groupby(('temperature', 'vsini', 'logL')).apply(
             lambda df: float(sum(df.significance.notnull())) / float(len(df)))
-        significance = g.groupby(('temperature', 'vsini')).apply(lambda df: np.nanmean(df.significance))
+        significance = g.groupby(('temperature', 'vsini', 'logL')).apply(lambda df: np.nanmean(df.significance))
         dataframes['detrate'][key] = detrate.reset_index().rename(columns={0: 'detection rate'})
         dataframes['significance'][key] = significance.reset_index().rename(columns={0: 'significance'})
 
     # TODO: Make heatmap plots for each key. Figure out how to combine if requested, to get average values...
-    for key in keys:
+    for i, key in enumerate(keys):
         star = key[0]
         date = key[1]
         spt = key[5]
         #fig1, ax1 = plt.subplots()
         #fig2, ax2 = plt.subplots()
-        plt.figure(1)
+        plt.figure(i * 3 + 1)
         sns.heatmap(dataframes['detrate'][key].pivot('temperature', 'vsini', 'detection rate'))
         plt.title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
 
-        plt.figure(2)
+        plt.figure(i * 3 + 2)
         sns.heatmap(dataframes['significance'][key].pivot('temperature', 'vsini', 'significance'),
-                    vmin=2, vmax=15)
+                    robust=True)  # vmin=2, vmax=15)
         plt.title('Detection Significance for {} ({}) on {}'.format(star, spt, date))
+
+        plt.figure(i * 3 + 3)
+        p = dataframes['detrate'][key].pivot('logL', 'vsini', 'detection rate')
+        ylabels = [round(float(L), 2) for L in p.index]
+        sns.heatmap(p, yticklabels=ylabels)
+        plt.title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
 
         #ax1.set_title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
         #ax2.set_title('Detection Significance for {} ({}) on {}'.format(star, spt, date))
 
-        plt.show()
+    plt.show()
+    return dataframes
 
 
-
+def old():
     # Plot
     seaborn.set_style('white')
     seaborn.set_style('ticks')
