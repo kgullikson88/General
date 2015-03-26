@@ -1110,4 +1110,7 @@ def add_magnitudes(mag_list):
     :param mag_list: a list-like object of magnitudes
     :return: the total magnitude
     """
-    pass
+    flux_list = [10 ** (-m / 2.5) for m in mag_list]
+    total_flux = np.sum(flux_list)
+    total_mag = -2.5 * np.log10(total_flux)
+    return total_mag
