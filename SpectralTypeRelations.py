@@ -129,12 +129,14 @@ class FunctionFits():
                 independent_var = [re.search(SPT_PATTERN, s).group() for s in independent_var]
                 x = np.array([self.MS.SpT_To_Number(s) for s in independent_var])
                 if not all([fv.valid[0] < n < fv.valid[1] for n in x]):
-                    logging.warn('Evaluating function outside of valid range!')
+                    logging.warn('Evaluating function outside of valid range!\n'
+                                 'Value = {}\nRange = {} - {}'.format(x, fv.valid[0], fv.valid[1]))
             else:
                 independent_var = re.search(SPT_PATTERN, independent_var).group()
                 x = self.MS.SpT_To_Number(independent_var)
                 if not fv.valid[0] < x < fv.valid[1]:
-                    logging.warn('Evaluating function outside of valid range!')
+                    logging.warn('Evaluating function outside of valid range!\n'
+                                 'Value = {}\nRange = {} - {}'.format(x, fv.valid[0], fv.valid[1]))
         else:
             x = independent_var
 
