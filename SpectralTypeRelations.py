@@ -2,13 +2,13 @@ from collections import defaultdict
 import warnings
 import sys
 import re
-import pickle
 import logging
-import os
 
 from scipy.interpolate import UnivariateSpline, griddata
-import DataStructures
 import pandas
+
+import DataStructures
+
 
 
 
@@ -227,7 +227,7 @@ class MainSequence:
         self.Lifetime = defaultdict(float)
         self.BC = defaultdict(float)
         self.BmV = defaultdict(float)  #B-V color
-        self.UmV = defaultdict(float)  #U-V color
+        self.UmB = defaultdict(float)  # U-B color
         self.VmR = defaultdict(float)  #V-R color
         self.VmI = defaultdict(float)  #V-I color
         self.VmJ = defaultdict(float)  #V-J color
@@ -237,9 +237,10 @@ class MainSequence:
 
         # Read in the data from Pecaut & Mamajek 2013 for Teff and color indices
         pfilename = "{:s}/Dropbox/School/Research/Databases/SpT_Relations/Pecaut2013.tsv".format(os.environ['HOME'])
-        pdata = pandas.read_csv(pfilename, skiprows=55, sep="|")[2:-1]
+        # pdata = pandas.read_csv(pfilename, skiprows=55, sep="|")[2:-1]
+        pdata = pandas.read_csv(pfilename, sep="|", skip_blank_lines=True, comment='#')[2:]
         pdata.apply(fill_dict, axis=1, args=(self.Temperature, 'Teff', True))
-        pdata.apply(fill_dict, axis=1, args=(self.UmV, 'U-B', True))
+        pdata.apply(fill_dict, axis=1, args=(self.UmB, 'U-B', True))
         pdata.apply(fill_dict, axis=1, args=(self.BmV, 'B-V', True))
         pdata.apply(fill_dict, axis=1, args=(self.VmR, 'V-Rc', True))
         pdata.apply(fill_dict, axis=1, args=(self.VmI, 'V-Ic', True))
