@@ -116,6 +116,8 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
             for s in secondaries:
                 if debug:
                     print('\t{}'.format(s))
+                if addmode not in f[p][s].keys():
+                    continue
                 datasets = f[p][s][addmode].keys()
                 vsini_values = []
                 temperature = []
@@ -446,7 +448,7 @@ def integrate_gauss(x1, x2, amp, mean, sigma):
     return result[0]
 
 
-def get_probability(x1, x2, x3, x4, N, mean, sigma):
+def get_probability(x1, x2, x3, x4, N, mean, sigma, debug=False):
     """
     Get the probability of the given value of sigma
     x1-x4 are the four limits, which are the bin edges of the possible values Tactual can take
@@ -460,6 +462,13 @@ def get_probability(x1, x2, x3, x4, N, mean, sigma):
     A = float(N) / int1
     int2 = 0 if x1 < 100 else integrate_gauss(x1, x2, A, mean, sigma)
     int3 = 0 if x4 > 1e6 else integrate_gauss(x3, x4, A, mean, sigma)
+    if debug:
+        print('\n')
+        print(x1, x2, x3, x4, N, mean, sigma)
+        print(int1)
+        print(A)
+        print(int2)
+        print(int3)
     if int2 > 1 or int3 > 1:
         return 0
     return 1
@@ -486,6 +495,7 @@ def fit_sigma(df, i):
     
     sigma_test = np.arange(500, 10, -10) #Just test a bunch of values
     idx = np.searchsorted(bins, mean)
+    idx = np.argmin(abs(np.array(bins) - mean))
     x1 = bins[idx-2] if idx > 2 else -1
     x2 = bins[idx-1]
     x3 = bins[idx]
@@ -496,7 +506,10 @@ def fit_sigma(df, i):
         if p > 0.5:
             return s
     
-    raise ValueError('No probability > 0!')
+    # If we get here, just return a guess value
+    return 200.0
+
+    #raise ValueError('No probability > 0!')
 
 
 if __name__ == '__main__':
