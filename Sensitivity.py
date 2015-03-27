@@ -29,7 +29,7 @@ import HelperFunctions
 import Broaden
 import Correlate
 
-logging.basicConfig(level=logging.ERROR)
+# logging.basicConfig(level=logging.ERROR)
 
 
 sns.set_context('poster')
@@ -806,14 +806,18 @@ def get_contrast(row, band='V'):
     :param band: The Johnson filter to get the contrast ratio in
     :return:
     """
-    pri_spts = [MS.GetSpectralType(MS.Temperature, T, prec=1e-3) for T in row['primary temps']]
-    pri_mags = [MS.GetAbsoluteMagnitude(s, color=band) for s in pri_spts]
+    # pri_spts = [MS.GetSpectralType(MS.Temperature, T, prec=1e-3) for T in row['primary temps']]
+    #pri_spts = [MS.GetSpectralType('temperature', T, prec=1e-3) for T in row['primary temps']]
+    #pri_mags = [MS.GetAbsoluteMagnitude(s, color=band) for s in pri_spts]
+    pri_spts = MS.GetSpectralType('temperature', row['primary temps'], prec=1e-3)
+    pri_mags = MS.GetAbsoluteMagnitude(pri_spts, color=band)
     pri_total_mag = HelperFunctions.add_magnitudes(pri_mags)
 
     Tsec = float(row['temperature'])
-    sec_mag = MS.GetAbsoluteMagnitude(MS.GetSpectralType(MS.Temperature, Tsec, prec=1e-3), color=band)
+    # sec_mag = MS.GetAbsoluteMagnitude(MS.GetSpectralType(MS.Temperature, Tsec, prec=1e-3), color=band)
+    sec_mag = MS.GetAbsoluteMagnitude(MS.GetSpectralType('temperature', Tsec, prec=1e-3), color=band)
 
-    return sec_mag - pri_total_mag
+    return float(sec_mag - pri_total_mag)
 
 
 def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=True, combine=False):
@@ -828,13 +832,22 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
     if not update and os.path.isfile('Sensitivity_Dataframe.csv'):
         df = pd.read_csv('Sensitivity_Dataframe.csv')
     else:
+        logging.info('Reading HDF5 file {}'.format(hdf5_file))
         hdf5_int = HDF5_Interface(hdf5_file)
         df = hdf5_int.to_df()
 
         # Get the luminosity ratio
+        logging.info('Estimating the luminosity ratio for each trial')
         df['lum_ratio'] = df.apply(get_luminosity_ratio, axis=1)
         df['logL'] = np.log10(df.lum_ratio)
-        df['contrast'] = df.apply(lambda r: get_contrast(r, band='V'), axis=1)
+
+        # Get the contrast. Split by group and then merge to limit the amount of calculation needed
+        logging.info('Estimating the V-band contrast ratio for each trial')
+        keys = [u'primary temps', u'temperature']
+        temp = df.groupby(('star')).apply(lambda df: df.loc[(df.rv == 0) & (df.vsini == 0)][keys]).reset_index()
+        temp['contrast'] = temp.apply(lambda r: get_contrast(r, band='V'), axis=1)
+        df = pd.merge(df, temp[['star', 'temperature', 'contrast']], on=['star', 'temperature'], how='left')
+        #df['contrast'] = df.apply(lambda r: get_contrast(r, band='V'), axis=1)
 
         # Save the dataframe for later use
         df.to_csv('Sensitivity_Dataframe.csv', index=False)
