@@ -207,7 +207,6 @@ def get_detected_objects(df, tol=1.0):
     for secondary in secondary_names:
         rv = df.loc[df.Secondary == secondary]['rv'].median()
         secondary_to_rv[secondary] = rv
-        print secondary, rv
 
     keys = df.Secondary.values
     good = df.loc[abs(df.rv.values - np.array(itemgetter(*keys)(secondary_to_rv))) < tol]
@@ -240,13 +239,7 @@ def add_actual_temperature(df, method='excel', filename='SecondaryStar_Temperatu
 
     elif method.lower() == 'excel':
         table = pd.read_excel(filename, 0)
-        #print(secondary_names)
-        #print(table)
-        print(table.keys())
         for secondary in secondary_names:
-            print(secondary)
-            print(table.Star)
-            #print table.loc[table.Star.str.lower().str.contains(secondary.strip().lower())]
             T_sec = table.loc[table.Star.str.lower().str.contains(secondary.strip().lower())]['Literature_Temp'].item()
             T_error = table.loc[table.Star.str.lower().str.contains(secondary.strip().lower())][
                 'Literature_error'].item()
