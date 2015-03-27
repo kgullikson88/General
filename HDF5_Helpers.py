@@ -1,5 +1,6 @@
 import h5py
 import numpy as np
+import logging
 
 
 def create_group(current, name, attrs, overwrite):
@@ -47,13 +48,19 @@ def combine_hdf5_synthetic(file_list, output_file, overwrite=True):
     with h5py.File(output_file, 'w') as output:
         # Loop over the files in file_list
         for fname in file_list:
-            with h5py.File(file_list[0], 'r') as f:
+            with h5py.File(fname, 'r') as f:
+                logging.debug('\n\nFile {}'.format(fname))
                 # Primary star
                 for p_name, primary in f.iteritems():
+                    logging.debug('Primary {}'.format(p_name))
                     p = create_group(output, p_name, primary.attrs, overwrite)
 
                     # Secondary star
                     for s_name, secondary in primary.iteritems():
+                        if 'bright' in s_name:
+                            logging.warn('Ignoring entry {}!'.format(s_name))
+                            continue
+                        logging.debug('\tSecondary {}'.format(s_name))
                         s = create_group(p, s_name, secondary.attrs, overwrite)
 
                         # Add mode
