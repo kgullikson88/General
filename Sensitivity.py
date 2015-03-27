@@ -29,6 +29,8 @@ import HelperFunctions
 import Broaden
 import Correlate
 
+logging.basicConfig(level=logging.ERROR)
+
 
 sns.set_context('poster')
 
@@ -861,7 +863,7 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
         dataframes['detrate'][key] = detrate.reset_index().rename(columns={0: 'detection rate'})
         dataframes['significance'][key] = significance.reset_index().rename(columns={0: 'significance'})
 
-    # TODO: Make heatmap plots for each key. Figure out how to combine if requested, to get average values...
+    # Make heatmap plots for each key. Figure out how to combine if requested, to get average values...
     for i, key in enumerate(keys):
         star = key[0]
         date = key[1]
