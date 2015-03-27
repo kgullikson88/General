@@ -130,7 +130,12 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
                         sys.stdout.flush()
                     ds = f[p][s][addmode][d]
                     if Tmin <= ds.attrs['T'] <= Tmax:
-                        vel, corr = ds.attrs['velocity'], ds.value
+                        if ds.value.shape[0] == 2:
+                            vel, corr = ds.value
+                        elif 'velocity' in ds.attrs:
+                            vel, corr = ds.attrs['velocity'], ds.value
+                        else:
+                            raise KeyError('Cannot find velocity information for dataset {}'.format(ds.name))
                         fcn = spline(vel, corr)
                         
                         vsini_values.append(ds.attrs['vsini'])
