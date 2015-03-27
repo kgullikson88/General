@@ -8,6 +8,7 @@ from scipy.interpolate import UnivariateSpline, griddata
 import pandas
 
 import DataStructures
+import os
 
 
 
