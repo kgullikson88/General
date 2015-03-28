@@ -34,7 +34,9 @@ def create_dataset(group, name, attrs, data, overwrite, **kwargs):
         return new_ds
 
     new_ds = group.create_dataset(data=data, name=name, **kwargs)
-
+    for k in attrs:
+        new_ds.attrs[k] = attrs[k]
+    return new_ds
 
 def combine_hdf5_synthetic(file_list, output_file, overwrite=True):
     """
