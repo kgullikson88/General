@@ -17,6 +17,7 @@ from scipy.integrate import quad
 
 import StarData
 import SpectralTypeRelations
+from HelperFunctions import mad
 
 
 def classify_filename(fname, type='bright'):
@@ -93,12 +94,18 @@ def get_ccf_data(basedir, primary_name=None, secondary_name=None, vel_arr=np.ara
     return df
 
 
-def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
+def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1), excel_filename=None,
                     velocity='highest', addmode='simple', Tmin=3000, Tmax=7000, debug=False):
     """
     Goes through the given HDF5 file, and finds the best set of parameters for each combination of primary/secondary star
     :param hdf5_filename: The HDF5 file containing the CCF data
-    :keyword velocity: The velocity to measure the CCF at. The default is 'highest', and uses the maximum of the ccf
+    :keyword excel_filename: The filename of an MS excel file giving the velocity for each secondary star.
+                             The data must be in the first sheet, and three must be columns labeled 
+                             'Star' and 'CCF RV'. Only used if velocity='excel'
+    :keyword velocity: The velocity to measure the CCF at. Options are:
+                       - 'highest' (default): uses the maximum of the ccf
+                       - value: A numeric type giving the velocity to to use.
+                       - 'excel': Search the filename excel_filename for the velocity of each secondary star
     :keyword vel_arr: The velocities to interpolate each ccf at
     :keyword addmode: The way the CCF orders were added while generating the ccfs
     :keyword debug: If True, it prints the progress. Otherwise, does its work silently and takes a while
@@ -106,6 +113,9 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
     :return: pandas DataFrame summarizing the best parameters.
              This is the type of dataframe to give to the other function here
     """
+    if velocity.lower() == 'excel':
+        table = pd.read_excel(excel_filename, 0)
+
     summary_dfs = []
     with h5py.File(hdf5_filename, 'r') as f:
         primaries = f.keys()
@@ -118,6 +128,10 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
                     print('\t{}'.format(s))
                 if addmode not in f[p][s].keys():
                     continue
+                if velocity.lower() == 'excel':
+                    vel_max = table.loc[table.Star.str.lower().str.contains(s.strip().lower())]['CCF RV'].item()
+                else:
+                    vel_max = velocity
                 datasets = f[p][s][addmode].keys()
                 vsini_values = []
                 temperature = []
@@ -148,7 +162,7 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
                 data = pd.DataFrame(data={'Primary': [p]*len(ccf), 'Secondary': [s]*len(ccf),
                                           'Temperature': temperature, 'vsini': vsini_values,
                                           'logg': gravity, '[Fe/H]': metallicity, 'CCF': ccf})
-                summary_dfs.append(find_best_pars(data, velocity=velocity, vel_arr=vel_arr))
+                summary_dfs.append(find_best_pars(data, velocity=vel_max, vel_arr=vel_arr))
                 del data
 
     return pd.concat(summary_dfs, ignore_index=True)
@@ -176,6 +190,7 @@ def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1)
         # df['ccf_max'] = df['CCF'].map(np.max)
     else:
         df['ccf_max'] = df['CCF'].map(lambda arr: arr[np.argmin(np.abs(vel_arr - velocity))])
+        df['rv'] = vel_arr[np.argmin(np.abs(vel_arr - velocity))]
 
     # Find the best parameter for each combination
     d = defaultdict(list)
@@ -190,6 +205,12 @@ def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1)
             d['logg'].append(best['logg'].item())
             d['[Fe/H]'].append(best['[Fe/H]'].item())
             d['rv'].append(best['rv'].item())
+
+            # Measure the detection significance
+            std = mad(best.CCF.item())
+            mean = np.median(best.CCF.item())
+            d['significance'].append((best.ccf_max.item() - mean) / std)
+
 
     return pd.DataFrame(data=d)
 
