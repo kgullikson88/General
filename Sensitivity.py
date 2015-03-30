@@ -620,6 +620,7 @@ def check_detection(corr, params, mode='text', tol=5):
         else:
             star_data = StarData.GetData(star)
             s = f.create_group(star)
+            print(params)
             s.attrs['vsini'] = params['primary_vsini']
             s.attrs['RA'] = star_data.ra
             s.attrs['DEC'] = star_data.dec
@@ -847,7 +848,6 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
         temp = df.groupby(('star')).apply(lambda df: df.loc[(df.rv == 0) & (df.vsini == 0)][keys]).reset_index()
         temp['contrast'] = temp.apply(lambda r: get_contrast(r, band='V'), axis=1)
         df = pd.merge(df, temp[['star', 'temperature', 'contrast']], on=['star', 'temperature'], how='left')
-        #df['contrast'] = df.apply(lambda r: get_contrast(r, band='V'), axis=1)
 
         # Save the dataframe for later use
         df.to_csv('Sensitivity_Dataframe.csv', index=False)
@@ -876,32 +876,33 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
         dataframes['detrate'][key] = detrate.reset_index().rename(columns={0: 'detection rate'})
         dataframes['significance'][key] = significance.reset_index().rename(columns={0: 'significance'})
 
-    # Make heatmap plots for each key. Figure out how to combine if requested, to get average values...
+    # Make heatmap plots for each key.
+    HelperFunctions.ensure_dir('Figures/')
     for i, key in enumerate(keys):
         star = key[0]
         date = key[1]
         spt = key[5]
-        #fig1, ax1 = plt.subplots()
-        #fig2, ax2 = plt.subplots()
         plt.figure(i * 3 + 1)
         sns.heatmap(dataframes['detrate'][key].pivot('temperature', 'vsini', 'detection rate'))
         plt.title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
+        plt.savefig('Figures/T_vsini_Detrate_{}.{}.pdf'.format(star, date))
 
         plt.figure(i * 3 + 2)
         sns.heatmap(dataframes['significance'][key].pivot('temperature', 'vsini', 'significance'),
                     robust=True)  # vmin=2, vmax=15)
         plt.title('Detection Significance for {} ({}) on {}'.format(star, spt, date))
+        plt.savefig('Figures/T_vsini_Significance_{}.{}.pdf'.format(star, date))
 
         plt.figure(i * 3 + 3)
         p = dataframes['detrate'][key].pivot('contrast', 'vsini', 'detection rate')
         ylabels = [round(float(L), 2) for L in p.index]
         sns.heatmap(p, yticklabels=ylabels)
         plt.title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
+        plt.savefig('Figures/contrast_vsini_Detrate_{}.{}.pdf'.format(star, date))
 
-        #ax1.set_title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
-        #ax2.set_title('Detection Significance for {} ({}) on {}'.format(star, spt, date))
-
-    plt.show()
+    if interactive:
+        plt.show()
+    
     return dataframes
 
 
