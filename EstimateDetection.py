@@ -9,6 +9,9 @@ from scipy.optimize import minimize_scalar
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import os
 from astropy import units as u, constants
+import Sensitivity
+import logging
+from collections import defaultdict
 
 # Read in the Barnes & Kim (2010) table (it is in LaTex format)
 home = os.environ['HOME']
@@ -121,4 +124,58 @@ def get_vsini_pdf(T_sec, age, age_err=None, P0_min=0.1, P0_max=5, N_age=1000, N_
 
     return vsini
 
+
+def read_detection_rate(infilename):
+    """
+    Read in the detection rate information for a given star/date combination.
+    :param infilename: The file to read in. It can be one of two things:
+                       1. A csv file (must have the extension .csv) containing the information for all the stars.
+                          This is the file output as Sensitivity_Dataframe.csv in Sensitivity.analyze_sensitivity.
+                       2. An hdf5 file containing the raw sensitivity information.
+    :return:
+    """
+
+    # Read in the data, however it was stored.
+    if infilename.endswith('csv'):
+        df = pd.read_csv(infilename)
+    else:
+        # Assume an HDF5 file. Eventually, I should have it throw an informative error...
+        logging.info('Reading {} as an HDF5 file'.format(infilename))
+        hdf5_int = Sensitivity.HDF5_Interface(infilename)
+        df = hdf5_int.to_df()
+
+        # Get the luminosity ratio
+        logging.info('Estimating the luminosity ratio for each trial')
+        df['lum_ratio'] = df.apply(Sensitivity.get_luminosity_ratio, axis=1)
+        df['logL'] = np.log10(df.lum_ratio)
+
+        # Get the contrast. Split by group and then merge to limit the amount of calculation needed
+        logging.info('Estimating the V-band contrast ratio for each trial')
+        keys = [u'primary temps', u'temperature']
+        temp = df.groupby(('star')).apply(lambda df: df.loc[(df.rv == 0) & (df.vsini == 0)][keys]).reset_index()
+        temp['contrast'] = temp.apply(lambda r: Sensitivity.get_contrast(r, band='V'), axis=1)
+        df = pd.merge(df, temp[['star', 'temperature', 'contrast']], on=['star', 'temperature'], how='left')
+
+    # Group by primary star, date observed, and the way the CCFs were added.
+    groups = df.groupby(('star', 'date', '[Fe/H]', 'addmode'))
+
+    # Have the user choose which groups to analyze
+    for i, key in enumerate(groups.groups.keys()):
+        print('[{}]: {}'.format(i + 1, key))
+    inp = raw_input('Enter the numbers of the keys you want to plot (, or - delimited): ')
+    chosen = Sensitivity.parse_input(inp)
+    keys = [k for i, k in enumerate(groups.groups.keys()) if i + 1 in chosen]
+
+    # Compile dataframes for each star
+    dataframes = defaultdict(lambda: defaultdict(pd.DataFrame))
+    for key in keys:
+        g = groups.get_group(key)
+        detrate = g.groupby(('temperature', 'vsini', 'logL', 'contrast')).apply(
+            lambda df: float(sum(df.significance.notnull())) / float(len(df)))
+        significance = g.groupby(('temperature', 'vsini', 'logL', 'contrast')).apply(
+            lambda df: np.nanmean(df.significance))
+        dataframes['detrate'][key] = detrate.reset_index().rename(columns={0: 'detection rate'})
+        dataframes['significance'][key] = significance.reset_index().rename(columns={0: 'significance'})
+
+    return dataframes
 
