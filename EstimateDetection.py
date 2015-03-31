@@ -132,7 +132,8 @@ def read_detection_rate(infilename):
                        1. A csv file (must have the extension .csv) containing the information for all the stars.
                           This is the file output as Sensitivity_Dataframe.csv in Sensitivity.analyze_sensitivity.
                        2. An hdf5 file containing the raw sensitivity information.
-    :return:
+    :return: a pandas dataframe with the detection rate and average significance
+             for all star/date combinations the user chooses.
     """
 
     # Read in the data, however it was stored.
