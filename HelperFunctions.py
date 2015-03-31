@@ -5,18 +5,18 @@
 import os
 import csv
 from collections import defaultdict
-
 from scipy.optimize import bisect
 from scipy.stats import scoreatpercentile
 from scipy.signal import kaiserord, firwin, lfilter
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
+
 from astropy.io import fits as pyfits
 import numpy as np
 from astropy import units, constants
 from lmfit import Model, Parameters
 from astropy.time import Time
-
 import DataStructures
+
 import pySIMBAD as sim
 import SpectralTypeRelations
 import readmultispec as multispec
@@ -1056,11 +1056,11 @@ def GetZenithDistance(header=None, date=None, ut=None, ra=None, dec=None, lat=No
 
 def get_max_velocity(p_spt, s_temp):
     MS = SpectralTypeRelations.MainSequence()
-    s_spt = MS.GetSpectralType(MS.Temperature, s_temp, interpolate=True)
-    R1 = MS.Interpolate(MS.Radius, p_spt)
-    T1 = MS.Interpolate(MS.Temperature, p_spt)
-    M1 = MS.Interpolate(MS.Mass, p_spt)
-    M2 = MS.Interpolate(MS.Mass, s_spt)
+    s_spt = MS.GetSpectralType('temperature', s_temp, prec=1e-3)
+    R1 = MS.Interpolate('radius', p_spt)
+    T1 = MS.Interpolate('temperature', p_spt)
+    M1 = MS.Interpolate('mass', p_spt)
+    M2 = MS.Interpolate('mass', s_spt)
     G = constants.G.cgs.value
     Msun = constants.M_sun.cgs.value
     Rsun = constants.R_sun.cgs.value
@@ -1104,3 +1104,13 @@ def RobustFit(x,y, fitorder=3, weight_fcn=TukeyBiweight()):
     return results.predict(X)
 
 
+def add_magnitudes(mag_list):
+    """
+    Combine magnitudes in the right way
+    :param mag_list: a list-like object of magnitudes
+    :return: the total magnitude
+    """
+    flux_list = [10 ** (-m / 2.5) for m in mag_list]
+    total_flux = np.sum(flux_list)
+    total_mag = -2.5 * np.log10(total_flux)
+    return total_mag

@@ -17,6 +17,7 @@ from scipy.integrate import quad
 
 import StarData
 import SpectralTypeRelations
+from HelperFunctions import mad
 
 
 def classify_filename(fname, type='bright'):
@@ -93,12 +94,18 @@ def get_ccf_data(basedir, primary_name=None, secondary_name=None, vel_arr=np.ara
     return df
 
 
-def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
+def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1), excel_filename=None,
                     velocity='highest', addmode='simple', Tmin=3000, Tmax=7000, debug=False):
     """
     Goes through the given HDF5 file, and finds the best set of parameters for each combination of primary/secondary star
     :param hdf5_filename: The HDF5 file containing the CCF data
-    :keyword velocity: The velocity to measure the CCF at. The default is 'highest', and uses the maximum of the ccf
+    :keyword excel_filename: The filename of an MS excel file giving the velocity for each secondary star.
+                             The data must be in the first sheet, and three must be columns labeled 
+                             'Star' and 'CCF RV'. Only used if velocity='excel'
+    :keyword velocity: The velocity to measure the CCF at. Options are:
+                       - 'highest' (default): uses the maximum of the ccf
+                       - value: A numeric type giving the velocity to to use.
+                       - 'excel': Search the filename excel_filename for the velocity of each secondary star
     :keyword vel_arr: The velocities to interpolate each ccf at
     :keyword addmode: The way the CCF orders were added while generating the ccfs
     :keyword debug: If True, it prints the progress. Otherwise, does its work silently and takes a while
@@ -106,6 +113,9 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
     :return: pandas DataFrame summarizing the best parameters.
              This is the type of dataframe to give to the other function here
     """
+    if velocity.lower() == 'excel':
+        table = pd.read_excel(excel_filename, 0)
+
     summary_dfs = []
     with h5py.File(hdf5_filename, 'r') as f:
         primaries = f.keys()
@@ -116,6 +126,12 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
             for s in secondaries:
                 if debug:
                     print('\t{}'.format(s))
+                if addmode not in f[p][s].keys():
+                    continue
+                if velocity.lower() == 'excel':
+                    vel_max = table.loc[table.Star.str.lower().str.contains(s.strip().lower())]['CCF RV'].item()
+                else:
+                    vel_max = velocity
                 datasets = f[p][s][addmode].keys()
                 vsini_values = []
                 temperature = []
@@ -128,8 +144,14 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
                         sys.stdout.flush()
                     ds = f[p][s][addmode][d]
                     if Tmin <= ds.attrs['T'] <= Tmax:
-                        vel, corr = ds.attrs['velocity'], ds.value
+                        if ds.value.shape[0] == 2:
+                            vel, corr = ds.value
+                        elif 'velocity' in ds.attrs:
+                            vel, corr = ds.attrs['velocity'], ds.value
+                        else:
+                            raise KeyError('Cannot find velocity information for dataset {}'.format(ds.name))
                         fcn = spline(vel, corr)
+                        
                         vsini_values.append(ds.attrs['vsini'])
                         temperature.append(ds.attrs['T'])
                         gravity.append(ds.attrs['logg'])
@@ -140,7 +162,8 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1),
                 data = pd.DataFrame(data={'Primary': [p]*len(ccf), 'Secondary': [s]*len(ccf),
                                           'Temperature': temperature, 'vsini': vsini_values,
                                           'logg': gravity, '[Fe/H]': metallicity, 'CCF': ccf})
-                summary_dfs.append(find_best_pars(data, velocity=velocity, vel_arr=vel_arr))
+                summary_dfs.append(find_best_pars(data, velocity=vel_max, vel_arr=vel_arr))
+                del data
 
     return pd.concat(summary_dfs, ignore_index=True)
 
@@ -167,6 +190,7 @@ def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1)
         # df['ccf_max'] = df['CCF'].map(np.max)
     else:
         df['ccf_max'] = df['CCF'].map(lambda arr: arr[np.argmin(np.abs(vel_arr - velocity))])
+        df['rv'] = vel_arr[np.argmin(np.abs(vel_arr - velocity))]
 
     # Find the best parameter for each combination
     d = defaultdict(list)
@@ -181,6 +205,12 @@ def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1)
             d['logg'].append(best['logg'].item())
             d['[Fe/H]'].append(best['[Fe/H]'].item())
             d['rv'].append(best['rv'].item())
+
+            # Measure the detection significance
+            std = mad(best.CCF.item())
+            mean = np.median(best.CCF.item())
+            d['significance'].append((best.ccf_max.item() - mean) / std)
+
 
     return pd.DataFrame(data=d)
 
@@ -198,7 +228,6 @@ def get_detected_objects(df, tol=1.0):
     for secondary in secondary_names:
         rv = df.loc[df.Secondary == secondary]['rv'].median()
         secondary_to_rv[secondary] = rv
-        print secondary, rv
 
     keys = df.Secondary.values
     good = df.loc[abs(df.rv.values - np.array(itemgetter(*keys)(secondary_to_rv))) < tol]
@@ -231,13 +260,7 @@ def add_actual_temperature(df, method='excel', filename='SecondaryStar_Temperatu
 
     elif method.lower() == 'excel':
         table = pd.read_excel(filename, 0)
-        #print(secondary_names)
-        #print(table)
-        print(table.keys())
         for secondary in secondary_names:
-            print(secondary)
-            print(table.Star)
-            #print table.loc[table.Star.str.lower().str.contains(secondary.strip().lower())]
             T_sec = table.loc[table.Star.str.lower().str.contains(secondary.strip().lower())]['Literature_Temp'].item()
             T_error = table.loc[table.Star.str.lower().str.contains(secondary.strip().lower())][
                 'Literature_error'].item()
@@ -444,7 +467,7 @@ def integrate_gauss(x1, x2, amp, mean, sigma):
     return result[0]
 
 
-def get_probability(x1, x2, x3, x4, N, mean, sigma):
+def get_probability(x1, x2, x3, x4, N, mean, sigma, debug=False):
     """
     Get the probability of the given value of sigma
     x1-x4 are the four limits, which are the bin edges of the possible values Tactual can take
@@ -458,6 +481,13 @@ def get_probability(x1, x2, x3, x4, N, mean, sigma):
     A = float(N) / int1
     int2 = 0 if x1 < 100 else integrate_gauss(x1, x2, A, mean, sigma)
     int3 = 0 if x4 > 1e6 else integrate_gauss(x3, x4, A, mean, sigma)
+    if debug:
+        print('\n')
+        print(x1, x2, x3, x4, N, mean, sigma)
+        print(int1)
+        print(A)
+        print(int2)
+        print(int3)
     if int2 > 1 or int3 > 1:
         return 0
     return 1
@@ -484,6 +514,7 @@ def fit_sigma(df, i):
     
     sigma_test = np.arange(500, 10, -10) #Just test a bunch of values
     idx = np.searchsorted(bins, mean)
+    idx = np.argmin(abs(np.array(bins) - mean))
     x1 = bins[idx-2] if idx > 2 else -1
     x2 = bins[idx-1]
     x3 = bins[idx]
@@ -494,7 +525,10 @@ def fit_sigma(df, i):
         if p > 0.5:
             return s
     
-    raise ValueError('No probability > 0!')
+    # If we get here, just return a guess value
+    return 200.0
+
+    #raise ValueError('No probability > 0!')
 
 
 if __name__ == '__main__':

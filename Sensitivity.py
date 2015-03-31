@@ -4,19 +4,20 @@ from re import search
 from collections import defaultdict
 import itertools
 import logging
+from scipy.interpolate import InterpolatedUnivariateSpline as interp
+import pandas as pd
 
 import FittingUtilities
 import numpy as np
-from scipy.interpolate import InterpolatedUnivariateSpline as interp
 from astropy.io import fits
 from astropy.io import ascii
-import pandas as pd
 from astropy import units, constants
 from astropy.analytic_functions import blackbody_lambda
 import h5py
 import matplotlib.pyplot as plt
 import seaborn
 import DataStructures
+import seaborn as sns
 
 import GenericSearch
 import StellarModel
@@ -27,6 +28,11 @@ import GenericSmooth
 import HelperFunctions
 import Broaden
 import Correlate
+
+# logging.basicConfig(level=logging.ERROR)
+
+
+sns.set_context('poster')
 
 
 MS = SpectralTypeRelations.MainSequence()
@@ -614,6 +620,7 @@ def check_detection(corr, params, mode='text', tol=5):
         else:
             star_data = StarData.GetData(star)
             s = f.create_group(star)
+            print(params)
             s.attrs['vsini'] = params['primary_vsini']
             s.attrs['RA'] = star_data.ra
             s.attrs['DEC'] = star_data.dec
@@ -776,22 +783,77 @@ class HDF5_Interface(object):
 """
 
 
-def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=True):
+def get_luminosity_ratio(row):
+    """
+    Given a row in the overall dataframe, figure out the luminosity ratio. This is meant to be called via df.map
+    :param row:
+    :return:
+    """
+    # Get luminosity ratio
+    lum_prim = 0
+    for T, R in zip(row['primary temps'], row['primary radii']):
+        lum_prim += T ** 4 * R ** 2
+    T_sec = float(row['temperature'])
+    s_spt = MS.GetSpectralType('temperature', T_sec)
+    lum_sec = T_sec ** 4 * MS.Interpolate('radius', s_spt)[0] ** 2
+
+    return lum_prim / lum_sec
+
+
+def get_contrast(row, band='V'):
+    """
+    Given a row in the overall dataframe, work out the contrast ratio in the requested magnitude filter
+    :param row:
+    :param band: The Johnson filter to get the contrast ratio in
+    :return:
+    """
+    # pri_spts = [MS.GetSpectralType(MS.Temperature, T, prec=1e-3) for T in row['primary temps']]
+    #pri_spts = [MS.GetSpectralType('temperature', T, prec=1e-3) for T in row['primary temps']]
+    #pri_mags = [MS.GetAbsoluteMagnitude(s, color=band) for s in pri_spts]
+    pri_spts = MS.GetSpectralType('temperature', row['primary temps'], prec=1e-3)
+    pri_mags = MS.GetAbsoluteMagnitude(pri_spts, color=band)
+    pri_total_mag = HelperFunctions.add_magnitudes(pri_mags)
+
+    Tsec = float(row['temperature'])
+    # sec_mag = MS.GetAbsoluteMagnitude(MS.GetSpectralType(MS.Temperature, Tsec, prec=1e-3), color=band)
+    sec_mag = MS.GetAbsoluteMagnitude(MS.GetSpectralType('temperature', Tsec, prec=1e-3), color=band)
+
+    return float(sec_mag - pri_total_mag)
+
+
+def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=True, combine=False):
     """
     This uses the output of a previous run of check_sensitivity, and makes plots
+    :keyword interactive: If True, the user will pick which stars to plot
+    :keyword update: If True, always update the Sensitivity_Dataframe.csv file.
+                     Otherwise, try to load that file instead of reading the hdf5 file
+    :keyword combine: If True, combine the sensitivity matrix for all stars to get an average sensitivity
     :return:
     """
     if not update and os.path.isfile('Sensitivity_Dataframe.csv'):
         df = pd.read_csv('Sensitivity_Dataframe.csv')
     else:
+        logging.info('Reading HDF5 file {}'.format(hdf5_file))
         hdf5_int = HDF5_Interface(hdf5_file)
         df = hdf5_int.to_df()
+
+        # Get the luminosity ratio
+        logging.info('Estimating the luminosity ratio for each trial')
+        df['lum_ratio'] = df.apply(get_luminosity_ratio, axis=1)
+        df['logL'] = np.log10(df.lum_ratio)
+
+        # Get the contrast. Split by group and then merge to limit the amount of calculation needed
+        logging.info('Estimating the V-band contrast ratio for each trial')
+        keys = [u'primary temps', u'temperature']
+        temp = df.groupby(('star')).apply(lambda df: df.loc[(df.rv == 0) & (df.vsini == 0)][keys]).reset_index()
+        temp['contrast'] = temp.apply(lambda r: get_contrast(r, band='V'), axis=1)
+        df = pd.merge(df, temp[['star', 'temperature', 'contrast']], on=['star', 'temperature'], how='left')
 
         # Save the dataframe for later use
         df.to_csv('Sensitivity_Dataframe.csv', index=False)
 
     # Group by a bunch of keys that probably don't change, but could
-    groups = df.groupby(('star', 'date', '[Fe/H]', 'logg', 'vsini', 'addmode', 'primary SpT'))
+    groups = df.groupby(('star', 'date', '[Fe/H]', 'logg', 'addmode', 'primary SpT'))
 
     # Have the user choose keys
     if interactive:
@@ -803,6 +865,48 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
     else:
         keys = groups.groups.keys()
 
+    # Compile dataframes for each star
+    dataframes = defaultdict(lambda: defaultdict(pd.DataFrame))
+    for key in keys:
+        g = groups.get_group(key)
+        detrate = g.groupby(('temperature', 'vsini', 'logL', 'contrast')).apply(
+            lambda df: float(sum(df.significance.notnull())) / float(len(df)))
+        significance = g.groupby(('temperature', 'vsini', 'logL', 'contrast')).apply(
+            lambda df: np.nanmean(df.significance))
+        dataframes['detrate'][key] = detrate.reset_index().rename(columns={0: 'detection rate'})
+        dataframes['significance'][key] = significance.reset_index().rename(columns={0: 'significance'})
+
+    # Make heatmap plots for each key.
+    HelperFunctions.ensure_dir('Figures/')
+    for i, key in enumerate(keys):
+        star = key[0]
+        date = key[1]
+        spt = key[5]
+        plt.figure(i * 3 + 1)
+        sns.heatmap(dataframes['detrate'][key].pivot('temperature', 'vsini', 'detection rate'))
+        plt.title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
+        plt.savefig('Figures/T_vsini_Detrate_{}.{}.pdf'.format(star, date))
+
+        plt.figure(i * 3 + 2)
+        sns.heatmap(dataframes['significance'][key].pivot('temperature', 'vsini', 'significance'),
+                    robust=True)  # vmin=2, vmax=15)
+        plt.title('Detection Significance for {} ({}) on {}'.format(star, spt, date))
+        plt.savefig('Figures/T_vsini_Significance_{}.{}.pdf'.format(star, date))
+
+        plt.figure(i * 3 + 3)
+        p = dataframes['detrate'][key].pivot('contrast', 'vsini', 'detection rate')
+        ylabels = [round(float(L), 2) for L in p.index]
+        sns.heatmap(p, yticklabels=ylabels)
+        plt.title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
+        plt.savefig('Figures/contrast_vsini_Detrate_{}.{}.pdf'.format(star, date))
+
+    if interactive:
+        plt.show()
+    
+    return dataframes
+
+
+def old():
     # Plot
     seaborn.set_style('white')
     seaborn.set_style('ticks')
