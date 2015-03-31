@@ -166,3 +166,6 @@ def read_detection_rate(infilename):
 
     return dataframes
 
+
+#TODO: write function to marginalize the detection rate over vsini.
+#TODO:   It will probably need to interpolate or fit a function to the (T,vsini,rate) space.
