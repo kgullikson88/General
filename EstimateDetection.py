@@ -140,21 +140,7 @@ def read_detection_rate(infilename):
         df = pd.read_csv(infilename)
     else:
         # Assume an HDF5 file. Eventually, I should have it throw an informative error...
-        logging.info('Reading {} as an HDF5 file'.format(infilename))
-        hdf5_int = Sensitivity.HDF5_Interface(infilename)
-        df = hdf5_int.to_df()
-
-        # Get the luminosity ratio
-        logging.info('Estimating the luminosity ratio for each trial')
-        df['lum_ratio'] = df.apply(Sensitivity.get_luminosity_ratio, axis=1)
-        df['logL'] = np.log10(df.lum_ratio)
-
-        # Get the contrast. Split by group and then merge to limit the amount of calculation needed
-        logging.info('Estimating the V-band contrast ratio for each trial')
-        keys = [u'primary temps', u'temperature']
-        temp = df.groupby(('star')).apply(lambda df: df.loc[(df.rv == 0) & (df.vsini == 0)][keys]).reset_index()
-        temp['contrast'] = temp.apply(lambda r: Sensitivity.get_contrast(r, band='V'), axis=1)
-        df = pd.merge(df, temp[['star', 'temperature', 'contrast']], on=['star', 'temperature'], how='left')
+        df = Sensitivity.read_hdf5(infilename)
 
     # Group by primary star, date observed, and the way the CCFs were added.
     groups = df.groupby(('star', 'date', '[Fe/H]', 'addmode'))

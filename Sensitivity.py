@@ -821,6 +821,31 @@ def get_contrast(row, band='V'):
     return float(sec_mag - pri_total_mag)
 
 
+def read_hdf5(hdf5_file):
+    """
+    Reads the hdf5 file into a dataframe. Assumes a very specific format!
+    :param hdf5_file: the full path to the hdf5 file.
+    :return: a pandas dataframe containing summary information
+    """
+    logging.info('Reading HDF5 file {}'.format(hdf5_file))
+    hdf5_int = HDF5_Interface(hdf5_file)
+    df = hdf5_int.to_df()
+
+    # Get the luminosity ratio
+    logging.info('Estimating the luminosity ratio for each trial')
+    df['lum_ratio'] = df.apply(get_luminosity_ratio, axis=1)
+    df['logL'] = np.log10(df.lum_ratio)
+
+    # Get the contrast. Split by group and then merge to limit the amount of calculation needed
+    logging.info('Estimating the V-band contrast ratio for each trial')
+    keys = [u'primary temps', u'temperature']
+    temp = df.groupby(('star')).apply(lambda df: df.loc[(df.rv == 0) & (df.vsini == 0)][keys]).reset_index()
+    temp['contrast'] = temp.apply(lambda r: get_contrast(r, band='V'), axis=1)
+    df = pd.merge(df, temp[['star', 'temperature', 'contrast']], on=['star', 'temperature'], how='left')
+
+    return df
+
+
 def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=True, combine=False):
     """
     This uses the output of a previous run of check_sensitivity, and makes plots
@@ -833,21 +858,7 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
     if not update and os.path.isfile('Sensitivity_Dataframe.csv'):
         df = pd.read_csv('Sensitivity_Dataframe.csv')
     else:
-        logging.info('Reading HDF5 file {}'.format(hdf5_file))
-        hdf5_int = HDF5_Interface(hdf5_file)
-        df = hdf5_int.to_df()
-
-        # Get the luminosity ratio
-        logging.info('Estimating the luminosity ratio for each trial')
-        df['lum_ratio'] = df.apply(get_luminosity_ratio, axis=1)
-        df['logL'] = np.log10(df.lum_ratio)
-
-        # Get the contrast. Split by group and then merge to limit the amount of calculation needed
-        logging.info('Estimating the V-band contrast ratio for each trial')
-        keys = [u'primary temps', u'temperature']
-        temp = df.groupby(('star')).apply(lambda df: df.loc[(df.rv == 0) & (df.vsini == 0)][keys]).reset_index()
-        temp['contrast'] = temp.apply(lambda r: get_contrast(r, band='V'), axis=1)
-        df = pd.merge(df, temp[['star', 'temperature', 'contrast']], on=['star', 'temperature'], how='left')
+        df = read_hdf5(hdf5_file)
 
         # Save the dataframe for later use
         df.to_csv('Sensitivity_Dataframe.csv', index=False)
