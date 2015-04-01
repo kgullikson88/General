@@ -3,15 +3,18 @@ This module is generally for estimating the latest detectable spectral type.
 For now, it has a function to get the expected vsini PDF of a given companion, given the age of the system.
 """
 
+import os
+import logging
+from collections import defaultdict
+
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize_scalar
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
-import os
+from scipy.interpolate import InterpolatedUnivariateSpline as spline, griddata
 from astropy import units as u, constants
+
 import Sensitivity
-import logging
-from collections import defaultdict
+
 
 # Read in the Barnes & Kim (2010) table (it is in LaTex format)
 home = os.environ['HOME']
@@ -142,6 +145,7 @@ def read_detection_rate(infilename):
     else:
         # Assume an HDF5 file. Eventually, I should have it throw an informative error...
         df = Sensitivity.read_hdf5(infilename)
+        df.to_csv('temp.csv', index=False)
 
     # Group by primary star, date observed, and the way the CCFs were added.
     groups = df.groupby(('star', 'date', '[Fe/H]', 'addmode'))
@@ -167,5 +171,53 @@ def read_detection_rate(infilename):
     return dataframes
 
 
-#TODO: write function to marginalize the detection rate over vsini.
-#TODO:   It will probably need to interpolate or fit a function to the (T,vsini,rate) space.
+def marginalize_vsini(df, age, age_err=None, P0_min=0.1, P0_max=5, N_age=1000, N_P0=1000, k_C=0.646, k_I=452):
+    """
+    Get the detection rate as a function of temperature by marginalizing over vsini.
+    :param df: A dataframe with keys 'temperature', 'vsini', and 'detection rate' (at least)
+    :param age: float, or numpy array: If a numpy array, should be a bunch of random samples of the age using
+                whatever PDF you want for the age. Could be MCMC samples, for instance. If a float, this
+                function will generate N_age samples from a gaussian distribution with mean age and
+                standard deviation age_err. Units: Myr
+    :param age_err: float - Only used if age is a float or length-1 array. Gives the standard deviation
+                    of the gaussian with which we will draw ages.
+    :param P0_min: float - The minimum inital period (days). Should be near the breakup velocity of the star.
+    :param P0_max: float - The maximum initial period, in days. Generally, should be of order 1-10.
+    :param N_age: The number of age samples to draw. Ignored if age is an numpy array with size > 1
+    :param N_P0: The number of initial period samples to draw.
+    :param k_C: The parameter fit from Barnes (2010). Probably shouldn't change this...
+    :param k_I: The parameter fit from Barnes (2010). Probably shouldn't change this...
+    :return: A pandas dataframe with keys 'temperature' and 'detection rate'
+    """
+
+    # Make sure the dataframe is all floats
+    df = df.astype(float)
+
+    # Get the vsini pdf for each temperature
+    T_vals = df['temperature'].unique()
+    vsini_pdfs = defaultdict(np.ndarray)
+    T_grid_list = []
+    vsini_grid_list = []
+    for T in T_vals:
+        logging.info('Generating vsini pdf for T = {} K'.format(T))
+        vsini_pdfs[T] = get_vsini_pdf(T, age, age_err, P0_min, P0_max, N_age, N_P0, k_C, k_I)
+        T_grid_list.append(np.ones(vsini_pdfs[T].size) * T)
+        vsini_grid_list.append(vsini_pdfs[T])
+
+    # Interpolate the detection grid at all temperatures and vsini values in the
+    X = (df.temperature.values, df.vsini.values)
+    T_vals = np.hstack(T_grid_list)
+    vsini_vals = np.hstack(vsini_grid_list)
+    X_predict = np.array((T_vals, vsini_vals)).T
+    detprob = griddata(X, df['detection rate'].values, X_predict)
+
+    # Turn the predicted stuff into a dataframe
+    predicted = pd.DataFrame(data={'temperature': X_predict[:, 0],
+                                   'vsini': X_predict[:, 1],
+                                   'detection rate': detprob})
+
+    # Marginalize over vsini
+    marginalized = predicted.groupby('temperature').apply(np.mean)
+
+    return marginalized.rename(columns={'vsini': 'mean vsini'})[['detection rate', 'mean vsini']].reset_index()
+
