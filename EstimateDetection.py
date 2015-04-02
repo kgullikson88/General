@@ -12,9 +12,9 @@ import pandas as pd
 from scipy.optimize import minimize_scalar
 from scipy.interpolate import InterpolatedUnivariateSpline as spline, griddata
 from astropy import units as u, constants
+import StarData
 
 import Sensitivity
-
 
 # Read in the Barnes & Kim (2010) table (it is in LaTex format)
 home = os.environ['HOME']
@@ -171,7 +171,7 @@ def read_detection_rate(infilename):
     return dataframes
 
 
-def marginalize_vsini(df, age, age_err=None, P0_min=0.1, P0_max=5, N_age=1000, N_P0=1000, k_C=0.646, k_I=452):
+def marginalize_vsini(df, age, age_err=None, P0_min=0.1, P0_max=5, N_age=100, N_P0=100, k_C=0.646, k_I=452):
     """
     Get the detection rate as a function of temperature by marginalizing over vsini.
     :param df: A dataframe with keys 'temperature', 'vsini', and 'detection rate' (at least)
@@ -221,3 +221,43 @@ def marginalize_vsini(df, age, age_err=None, P0_min=0.1, P0_max=5, N_age=1000, N
 
     return marginalized.rename(columns={'vsini': 'mean vsini'})[['detection rate', 'mean vsini']].reset_index()
 
+
+
+def get_ages(starname, N_age=100):
+    """
+    Get age samples for the given star. This function will first try to sample from
+    the posterior PDFs that Trevor David gave me (from the paper Trevor & Hillenbrand (2015)).
+
+    If my star is not in there, it will try to uniformly sample from the main sequence lifetime of the star.
+    :param starname: The name of the star. To find in the posteriod data, it must be of the form HIPNNNNN
+                     (giving the hipparchos number)
+    :param N_age: The number of age samples to take
+    :return: a numpy array of random samples from the age of the star
+    """
+    post_dir = '{}/Dropbox/School/Research/AstarStuff/TargetLists/David_and_Hillenbrand2015/'.format(home)
+    file_dict = {s.split('-')[0]: '{}{}'.format(post_dir, s) for s in os.listdir(post_dir) if s.endswith('age.txt')}
+    if starname in file_dict:
+        logging.debug(file_dict[starname])
+        # Read in the PDF, cut out the very small values, and interpolate
+        t, P = np.loadtxt(file_dict[starname], unpack=True)
+        t = t[P>P.max()/1e3]
+        P = P[P>P.max()/1e3]
+        pdf = spline(t, P)
+
+        # Make an array to sample from. It should be about 100x more points than N_age
+        # to ensure the discretization doesn't do bad things.
+        t_arr = np.linspace(t.min(), t.max(), N_age*100)
+        dens = pdf(t_arr)
+        dens[dens<0] = 0.0
+
+        # Sample N_age samples from the posterior distribution
+        samples = 10**np.random.choice(t_arr, size=N_age, p=dens/dens.sum()) / 1e6
+
+    else:
+        # This star was not in the DH2015 sample. Just use the main sequence lifetime
+        data = StarData.GetData(starname)
+        spt = data.spectype
+
+
+
+    return samples
