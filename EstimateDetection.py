@@ -12,10 +12,12 @@ import pandas as pd
 from scipy.optimize import minimize_scalar
 from scipy.interpolate import InterpolatedUnivariateSpline as spline, griddata
 from astropy import units as u, constants
+
 import StarData
 import SpectralTypeRelations
 import Sensitivity
 import Mamajek_Table
+
 
 # Read in the Barnes & Kim (2010) table (it is in LaTex format)
 home = os.environ['HOME']
@@ -152,7 +154,7 @@ def read_detection_rate(infilename):
         df.to_csv('temp.csv', index=False)
 
     # Group by primary star, date observed, and the way the CCFs were added.
-    groups = df.groupby(('star', 'date', '[Fe/H]', 'addmode'))
+    groups = df.groupby(('star', 'date', 'addmode'))
 
     # Have the user choose which groups to analyze
     for i, key in enumerate(groups.groups.keys()):
