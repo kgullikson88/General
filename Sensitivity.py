@@ -4,9 +4,9 @@ from re import search
 from collections import defaultdict
 import itertools
 import logging
+
 from scipy.interpolate import InterpolatedUnivariateSpline as interp
 import pandas as pd
-
 import FittingUtilities
 import numpy as np
 from astropy.io import fits
@@ -15,7 +15,6 @@ from astropy import units, constants
 from astropy.analytic_functions import blackbody_lambda
 import h5py
 import matplotlib.pyplot as plt
-import seaborn
 import DataStructures
 import seaborn as sns
 
@@ -28,6 +27,8 @@ import GenericSmooth
 import HelperFunctions
 import Broaden
 import Correlate
+import EstimateDetection
+
 
 # logging.basicConfig(level=logging.ERROR)
 
@@ -917,97 +918,45 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
     return dataframes
 
 
-def old():
-    # Plot
-    seaborn.set_style('white')
-    seaborn.set_style('ticks')
-    plot_styles = ['-', '-.', '--', ':']
+def marginalize_sensitivity(infilename='Sensitivity_Dataframe.csv'):
+    """
+    Take the csv output of analyze_sensitivity above, and make 1d plots of temperature vs detection rate
+    :param infilename: The name of the csv file to read in. This CAN be the original HDF5 file, but why repeat work?
+    :return: A figure and axes instance containing the sensitivity plot
+    """
+    # Set seaborn settings
+    sns.set_context('poster')
+    sns.set_style('white')
+    sns.set_style('ticks')
+    plot_styles = ['-', '--', ':', '-.']
     ps_cycler = itertools.cycle(plot_styles)
-    sig_fig = plt.figure('Significance Summary')
-    sig_ax = sig_fig.add_subplot(111)
-    rate_fig = plt.figure('Detection Rate')
-    rate_ax = rate_fig.add_subplot(111)
-    lum_fig = plt.figure('Luminosity Ratio')
-    lum_ax = lum_fig.add_subplot(111)
-    df_list = []
-    for key in sorted(keys, key=lambda l: MS.SpT_To_Number(l[6][:2])):
-        g = groups.get_group(key)
-        T_groups = g.groupby('temperature')
-        T_keys = T_groups.groups.keys()
-        Tvals = np.zeros(len(T_keys))
-        rate = np.zeros(len(T_keys))
-        significance = np.zeros(len(T_keys))
-        luminosity_ratio = []
-        Kband_magdiff = []
-        for i, Tstring in enumerate(sorted(T_keys)):
-            group_df = T_groups.get_group(Tstring)
-            numdetected = sum(group_df['significance'].notnull())
-            med_sig = np.nanmedian(group_df['significance'])
-            Tvals[i] = float(Tstring)
-            rate[i] = 100.0 * numdetected / float(len(group_df))
-            significance[i] = med_sig
 
-            # Get luminosity ratio
-            lum_prim = 0
-            for T, R in zip(group_df['primary temps'].values[0], group_df['primary radii'].values[0]):
-                lum_prim += T**4 * R**2
-            s_spt = MS.GetSpectralType('temperature', Tvals[i])
-            lum_sec = Tvals[i]**4 * MS.Interpolate('radius', s_spt)[0]**2
-            luminosity_ratio.append(lum_prim/lum_sec)
+    # marginalize over vsini to get 1d temperature vs. detection rate plots
+    df = EstimateDetection.read_detection_rate('Sensitivity_Dataframe.csv')
+    detrate = df['detrate']
+    fig, ax = plt.subplots()
+    for key in detrate.keys():
+        # Get ages from either the measured ages in David & Hillenbrand 2015, or from main sequence ages
+        starname = key[0].replace(' ', '')
+        ages = EstimateDetection.get_ages(starname.replace(' ', ''), N_age=300)
 
+        # marginalize over vsini
+        marg_df = EstimateDetection.marginalize_vsini(detrate[key], age=ages)
 
-        starname = key[0]
-        date = key[1]
-        prim_spt = key[6]
-        labelstr = '{} ({}) - {}'.format(starname, prim_spt, date)
+        # Plot
         ls = ps_cycler.next()
-        sig_ax.plot(Tvals, significance, ls, lw=2, label=labelstr)
-        rate_ax.plot(Tvals, rate, ls, lw=2, label=labelstr)
-        lum_ax.semilogx(luminosity_ratio, rate, 'o', label=labelstr)
+        ax.plot(marg_df.temperature, marg_df['detection rate'], ls, label='{} ({})'.format(key[0], key[1]))
 
-        # Save the summary in a dataframe
-        data = pd.DataFrame(
-            data={'star': [key[0]] * rate.size, 'rate': rate, 'significance': significance,
-                  'temperature': Tvals, 'luminosity ratio': luminosity_ratio})
-        df_list.append(data)
+    # Add a spectral type axis on top
+    top = add_top_axis(ax)
 
-    summary = pd.concat(df_list, ignore_index=True)
-    summary.to_csv('Sensitivity_Summary.csv', index=False)
+    # Add a legend
+    leg = ax.legend(loc='best', fancybox=True)
+    leg.get_frame().set_alpha(0.45)
 
-    # Put labels on the plots
-    sig_ax.set_xlabel('Temperature (K)', fontsize=15)
-    sig_ax.set_ylabel('Median Significance', fontsize=15)
-    sig_leg = sig_ax.legend(loc='best', fancybox=True)
-    sig_leg.get_frame().set_alpha(0.5)
+    # Return
+    return fig, ax
 
-    rate_ax.set_xlabel('Temperature (K)', fontsize=15)
-    rate_ax.set_ylabel('Detection Rate (%)', fontsize=15)
-    rate_leg = rate_ax.legend(loc='best', fancybox=True)
-    rate_leg.get_frame().set_alpha(0.5)
-
-    lum_ax.set_xlabel('Luminosity Ratio', fontsize=15)
-    lum_ax.set_ylabel('Detection Rate (%)', fontsize=15)
-    lum_leg = lum_ax.legend(loc='best', fancybox=True)
-    lum_leg.get_frame().set_alpha(0.5)
-
-    # Make a top set of axes that shows spectral type
-    sig_top_ax = add_top_axis(sig_ax)
-    sig_top_ax.set_xlabel('Spectral Type', fontsize=15)
-    rate_top_ax = add_top_axis(rate_ax)
-    rate_top_ax.set_xlabel('Spectral Type', fontsize=15)
-    #lum_top_ax = add_top_axis(lum_ax)
-    #lum_top_ax.set_xlabel('Spectral Type', fontsize=15)
-
-    # Make sure we can see 0 and 100 on the detection rate plots
-    rate_ax.set_ylim((-5, 105))
-    lum_ax.set_ylim((-5, 105))
-
-    # Adjust to fit the labels
-    rate_fig.subplots_adjust(left=0.12, bottom=0.12, right=0.95, top=0.88)
-    sig_fig.subplots_adjust(left=0.12, bottom=0.12, right=0.95, top=0.88)
-    lum_fig.subplots_adjust(left=0.12, bottom=0.12, right=0.95, top=0.88)
-
-    return sig_fig, rate_fig, lum_fig, rate_ax, rate_top_ax, sig_ax, sig_top_ax, lum_ax, lum_top_ax
 
 
 def add_top_axis(axis, spt_values=('M5', 'M0', 'K5', 'K0', 'G5', 'G0')):
