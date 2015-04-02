@@ -84,9 +84,6 @@ def get_period_dist(ages, P0_min, P0_max, T_star, N_P0=1000, k_C=0.646, k_I=452)
     tau = teff2tau(T_star)
     period_list = []
     for age in ages:
-        if age < 25:
-            # Don't do this for really young systems...
-            continue
         P0_vals = 10**np.random.uniform(np.log10(P0_min), np.log10(P0_max), size=N_P0)
         for P0 in P0_vals:
             out = minimize_scalar(lnlike, bracket=[1.0, 5.0], bounds=[0.1, 100], method='golden',
