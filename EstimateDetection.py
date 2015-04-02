@@ -151,7 +151,7 @@ def read_detection_rate(infilename):
         df.to_csv('temp.csv', index=False)
 
     # Group by primary star, date observed, and the way the CCFs were added.
-    groups = df.groupby(('star', 'date', 'addmode', 'SpT'))
+    groups = df.groupby(('star', 'date', 'addmode', 'primary SpT'))
 
     # Have the user choose which groups to analyze
     for i, key in enumerate(groups.groups.keys()):
