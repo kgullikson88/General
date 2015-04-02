@@ -16,14 +16,20 @@ class MamajekTable(object):
     def __init__(self, filename=TABLE_FILENAME):
         MS = SpectralTypeRelations.MainSequence()
 
+        # Read in the table.
         colspecs=[[0,7], [7,14], [14,21], [21,28], [28,34], [34,40], [40,47], [47,55],
                   [55,63], [63,70], [70,78], [78,86], [86,94], [94,103], [103,110],
                   [110,116], [116,122], [122,130], [130,137], [137,144], [144,151],
                   [151,158]]
-        dtype_dict = {'Teff': np.float, 'logT': np.float, 'BCv': np.float, 'Mv': np.float,
-                      'logL': np.float}
         mam_df = pd.read_fwf(filename, header=20, colspecs=colspecs, na_values=['...'])[:92]
+
+        # Strip the * from the logAge column. Probably should but...
+        mam_df['logAge'] = mam_df['logAge'].map(lambda s: s.strip('*') if isinstance(s, basestring) else s)
+
+        # Convert everything to floats
         self.mam_df = mam_df.convert_objects(convert_numeric=True)
+
+        # Add the spectral type number for interpolation
         self.mam_df['SpTNum'] = mam_df['SpT'].map(MS.SpT_To_Number)
 
 

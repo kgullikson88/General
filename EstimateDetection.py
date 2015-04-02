@@ -13,8 +13,9 @@ from scipy.optimize import minimize_scalar
 from scipy.interpolate import InterpolatedUnivariateSpline as spline, griddata
 from astropy import units as u, constants
 import StarData
-
+import SpectralTypeRelations
 import Sensitivity
+import Mamajek_Table
 
 # Read in the Barnes & Kim (2010) table (it is in LaTex format)
 home = os.environ['HOME']
@@ -46,6 +47,9 @@ def teff2radius(T):
     elif T > Tmax:
         return teff2radius_int(Tmax)
     return teff2radius_int(T)
+
+# Make a mainsequence instance
+MS = SpectralTypeRelations.MainSequence()
 
 
 def lnlike(P, P_0, t, tau, k_C, k_I):
@@ -204,7 +208,7 @@ def marginalize_vsini(df, age, age_err=None, P0_min=0.1, P0_max=5, N_age=100, N_
         T_grid_list.append(np.ones(vsini_pdfs[T].size) * T)
         vsini_grid_list.append(vsini_pdfs[T])
 
-    # Interpolate the detection grid at all temperatures and vsini values in the
+    # Interpolate the detection grid at all temperatures and vsini values in the posterior
     X = (df.temperature.values, df.vsini.values)
     T_vals = np.hstack(T_grid_list)
     vsini_vals = np.hstack(vsini_grid_list)
@@ -237,7 +241,7 @@ def get_ages(starname, N_age=100):
     post_dir = '{}/Dropbox/School/Research/AstarStuff/TargetLists/David_and_Hillenbrand2015/'.format(home)
     file_dict = {s.split('-')[0]: '{}{}'.format(post_dir, s) for s in os.listdir(post_dir) if s.endswith('age.txt')}
     if starname in file_dict:
-        logging.debug(file_dict[starname])
+        logging.info('Found posterior age distribution: {}'.format(file_dict[starname]))
         # Read in the PDF, cut out the very small values, and interpolate
         t, P = np.loadtxt(file_dict[starname], unpack=True)
         t = t[P>P.max()/1e3]
@@ -254,10 +258,19 @@ def get_ages(starname, N_age=100):
         samples = 10**np.random.choice(t_arr, size=N_age, p=dens/dens.sum()) / 1e6
 
     else:
+        logging.info('Using main sequence age')
         # This star was not in the DH2015 sample. Just use the main sequence lifetime
         data = StarData.GetData(starname)
         spt = data.spectype
+        sptnum = MS.SpT_To_Number(spt)
 
+        # Get the age from the Mamajek table
+        mt = Mamajek_Table.MamajekTable()
+        fcn = mt.get_interpolator('SpTNum', 'logAge')
+        ms_age = 10**fcn(sptnum) / 1e6
+        logging.info('Main Sequence age for {} is {:.0f} Myr'.format(starname, ms_age))
 
+        # Sample from 0 to the ms_age
+        samples = np.random.uniform(0, ms_age, size=N_age)
 
     return samples
