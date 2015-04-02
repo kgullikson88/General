@@ -28,6 +28,8 @@ import HelperFunctions
 import Broaden
 import Correlate
 import EstimateDetection
+import Mamajek_Table
+
 
 
 
@@ -971,7 +973,11 @@ def add_top_axis(axis, spt_values=('M5', 'M0', 'K5', 'K0', 'G5', 'G0')):
 
     # Find the temperatures at each spectral type
     MS = SpectralTypeRelations.MainSequence()
-    temp_values = MS.Interpolate('Temperature', spt_values)
+    # temp_values = MS.Interpolate('Temperature', spt_values)
+    MT = Mamajek_Table.MamajekTable()
+    sptnums = np.array([MS.SpT_To_Number(spt) for spt in spt_values])
+    sptnum2teff = MT.get_interpolator('SpTNum', 'Teff')
+    temp_values = sptnum2teff(sptnums)
 
     # make the axis
     top = axis.twiny()
