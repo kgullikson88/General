@@ -949,7 +949,7 @@ def marginalize_sensitivity(infilename='Sensitivity_Dataframe.csv'):
 
         # Plot
         ls = ps_cycler.next()
-        ax.plot(marg_df.temperature, marg_df['detection rate'], ls, label='{} ({})'.format(key[0], key[1]))
+        ax.plot(marg_df.temperature, marg_df['detection rate'], ls, label='{} ({})'.format(key[0], key[-1]))
 
     # Add a spectral type axis on top
     top = add_top_axis(ax)
