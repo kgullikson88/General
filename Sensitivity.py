@@ -30,6 +30,7 @@ import Correlate
 import EstimateDetection
 
 
+
 # logging.basicConfig(level=logging.ERROR)
 
 
@@ -949,6 +950,11 @@ def marginalize_sensitivity(infilename='Sensitivity_Dataframe.csv'):
 
     # Add a spectral type axis on top
     top = add_top_axis(ax)
+
+    # Axis labels
+    ax.set_xlabel('Temperature (K)')
+    ax.set_ylabel('Detection Rate')
+    top.set_xlabel('Spectral Type')
 
     # Add a legend
     leg = ax.legend(loc='best', fancybox=True)
