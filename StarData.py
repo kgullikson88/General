@@ -7,6 +7,7 @@ import pandas as pd
 from astropy.io import fits
 
 Simbad.SIMBAD_URL = 'http://simbak.cfa.harvard.edu/simbad/sim-script'
+Simbad.TIMEOUT = 120
 Simbad.add_votable_fields('sp', 'flux(V)', 'flux(K)', 'plx')
 
 data_cache = {}
@@ -19,7 +20,7 @@ class stardata:
         self.Kmag = 0.0
         self.ra = ""
         self.dec = ""
-        self.par = 0.0  # parallax in arcseconds
+        self.par = 0.0  # parallax in milli-arcseconds
 
 def GetData(starname, safe_spt=False):
     """
@@ -72,6 +73,7 @@ def get_vsini(file_list):
     for fname, vsini in zip(file_list, prim_vsini):
         print fname, vsini
     return prim_vsini
+
 
 if __name__ == "__main__":
     for starname in sys.argv[1:]:
