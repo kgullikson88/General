@@ -388,6 +388,9 @@ def get_companions(starname, sep_max=1.5):
     # Split by the components in the system
     match = match.fillna('AB')
     components = split_by_component(match.copy())
+
+    # Fix spectral type
+    components['SpT'] = components['SpT'].map(lambda s: s.replace('m', '5'))
     print(components)
     print(components['SpT'])
     components['companion_mass'] = components['SpT'].map(lambda s: MS.Interpolate('mass', s))
