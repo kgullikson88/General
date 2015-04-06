@@ -6,7 +6,7 @@ from astroquery.simbad import Simbad
 import pandas as pd
 from astropy.io import fits
 
-
+Simbad.SIMBAD_URL = 'http://simbak.cfa.harvard.edu/simbad/sim-script'
 Simbad.add_votable_fields('sp', 'flux(V)', 'flux(K)', 'plx')
 
 data_cache = {}
