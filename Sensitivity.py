@@ -352,7 +352,7 @@ def return_primary(data):
 mult_filename = '{}/Dropbox/School/Research/Databases/A_star/SB9andWDS.csv'.format(os.environ['HOME'])
 multiples = pd.read_csv(mult_filename)
 def get_companions(starname, sep_max=1.5):
-    data = StarData.GetData(starname)
+    data = StarData.GetData(starname, safe_spt=True)
 
     # Search for the given star in the database
     match = multiples.loc[multiples.main_id == data.main_id]
@@ -388,6 +388,8 @@ def get_companions(starname, sep_max=1.5):
     # Split by the components in the system
     match = match.fillna('AB')
     components = split_by_component(match.copy())
+    print(components)
+    print(components['SpT'])
     components['companion_mass'] = components['SpT'].map(lambda s: MS.Interpolate('mass', s))
     components['companion_teff'] = components['SpT'].map(lambda s: MS.Interpolate('temperature', s))
     components['companion_radius'] = components['SpT'].map(lambda s: MS.Interpolate('radius', s))
