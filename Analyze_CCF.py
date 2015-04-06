@@ -14,6 +14,7 @@ class CCF_Interface(object):
     def __init__(self, filename, vel=np.arange(-900, 900, 1)):
         self.hdf5 = h5py.File(filename, 'r')
         self.velocities = vel
+        self._df = None
 
 
     def list_stars(self, print2screen=False):
@@ -39,6 +40,16 @@ class CCF_Interface(object):
             for date in sorted(self.hdf5[star].keys()):
                 print(date)
         return sorted(self.hdf5[star].keys())
+
+    def load_cache(self, addmode='simple'):
+        """
+        Read in the whole HDF5 file. This will take a while and take a few Gb of memory, but will speed things up considerably
+        :keyword addmode: The way the individual CCFs were added. Options are:
+                          - 'simple'
+                          - 'ml'
+                          - 'all'  (saves all addmodes)
+        """
+        self._df = self._compile_data(addmode=addmode)
 
 
     def _compile_data(self, starname=None, date=None, addmode='simple'):
@@ -78,6 +89,8 @@ class CCF_Interface(object):
             return pd.concat(df_list)
             
         else:
+            if self._df is not None:
+                return self._df.loc[(self._df['Star'] == starname) & (self._df['Date'] == date)].copy()
             datasets = self.hdf5[starname][date].keys()
             data = defaultdict(list)
             for ds_name in datasets:
@@ -139,8 +152,6 @@ class CCF_Interface(object):
         """
         Get the ccf with the given parameters. A dataframe can be given to speed things up
         :param params: All the parameters necessary to define a single ccf
-        :param starname:
-        :param date:
         :param df: a pandas DataFrame such as outputted by _compile_data
         :return: ??
         """
@@ -152,8 +163,7 @@ class CCF_Interface(object):
 
         good = df.loc[(df['T'] == params['T']) & (df.logg == params['logg']) & (df.vsini == params['vsini']) \
                       & (df['[Fe/H]'] == params['[Fe/H]']) & (df.addmode == params['addmode'])]
-
-
+                      
         return pd.DataFrame(data={'velocity': self.velocities, 'CCF': good['ccf'].item()})
 
 
