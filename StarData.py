@@ -21,7 +21,12 @@ class stardata:
         self.dec = ""
         self.par = 0.0  # parallax in arcseconds
 
-def GetData(starname):
+def GetData(starname, safe_spt=False):
+    """
+    Search simbad for information about the given star. 
+    :param starname: A simbad-queryable name for the star
+    :param safe_spt: If True, convert spectral types with 'm' in them to '5': eg. 'Am' --> 'A5'
+    """
     if starname in data_cache:
         return data_cache[starname]
 
@@ -29,6 +34,8 @@ def GetData(starname):
     data = stardata()
     data.main_id = star['MAIN_ID'].item()
     data.spectype = star['SP_TYPE'].item()
+    if safe_spt:
+        data.spectype = data.spectype.replace('m', '5')
     data.Vmag = star['FLUX_V'].item()
     data.Kmag = star['FLUX_K'].item()
     data.ra = star['RA'].item().strip().replace(' ', ':')
