@@ -91,6 +91,7 @@ class CCF_Interface(object):
         else:
             if self._df is not None:
                 return self._df.loc[(self._df['Star'] == starname) & (self._df['Date'] == date)].copy()
+            #print('Stars: ', self.list_stars())
             datasets = self.hdf5[starname][date].keys()
             data = defaultdict(list)
             for ds_name in datasets:
@@ -161,9 +162,11 @@ class CCF_Interface(object):
             except KeyError:
                 raise KeyError('Must give get_ccf params with starname and date keywords, if df is not given!')
 
-        good = df.loc[(df['T'] == params['T']) & (df.logg == params['logg']) & (df.vsini == params['vsini']) \
+        Tvals = df['T'].unique()
+        T = Tvals[np.argmin(abs(Tvals - params['T']))]
+        good = df.loc[(df['T'] == T) & (df.logg == params['logg']) & (df.vsini == params['vsini']) \
                       & (df['[Fe/H]'] == params['[Fe/H]']) & (df.addmode == params['addmode'])]
-                      
+
         return pd.DataFrame(data={'velocity': self.velocities, 'CCF': good['ccf'].item()})
 
 
