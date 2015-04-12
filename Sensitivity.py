@@ -904,6 +904,11 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
         date = key[1]
         spt = key[5]
         plt.figure(i * 3 + 1)
+        if len(dataframes['detrate'][key]) == 0:
+            dataframes['detrate'].pop(key)
+            dataframes['significance'].pop(key)
+            continue
+
         sns.heatmap(dataframes['detrate'][key].pivot('temperature', 'vsini', 'detection rate'))
         plt.title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
         plt.savefig('Figures/T_vsini_Detrate_{}.{}.pdf'.format(star, date))
@@ -945,6 +950,11 @@ def marginalize_sensitivity(infilename='Sensitivity_Dataframe.csv'):
     detrate = df['detrate']
     fig, ax = plt.subplots()
     for key in detrate.keys():
+        print detrate[key]
+        print pd.unique(detrate[key]['vsini'])
+        if len(detrate[key]) == 0:
+            continue
+
         # Get ages from either the measured ages in David & Hillenbrand 2015, or from main sequence ages
         starname = key[0].replace(' ', '')
         ages = EstimateDetection.get_ages(starname.replace(' ', ''), N_age=300)
@@ -955,6 +965,11 @@ def marginalize_sensitivity(infilename='Sensitivity_Dataframe.csv'):
         # Plot
         ls = ps_cycler.next()
         ax.plot(marg_df.temperature, marg_df['detection rate'], ls, label='{} ({})'.format(key[0], key[-1]))
+
+        # Save the marginalized dataframe
+        df_outname = '{}_{}_{}.csv'.format(starname, key[1], key[2])
+        logging.info('Saving marginalized dataframe to {}'.format(df_outname))
+        marg_df.to_csv(df_outname, index=False)
 
     # Add a spectral type axis on top
     top = add_top_axis(ax)
