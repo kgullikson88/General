@@ -183,7 +183,12 @@ def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1)
 
     # Find the ccf value at the given velocity
     if velocity == 'highest':
-        fcn = lambda row: (np.max(row), vel_arr[np.argmax(row)])
+        #fcn = lambda row: (np.max(row), vel_arr[np.argmax(row)])
+        def fcn(ccf):
+            idx = np.argmax(ccf)
+            rv = vel_arr[idx]
+            sigma = np.std(ccf[np.abs(vel_arr - rv) > 200])
+            return ccf[idx]/sigma, rv
         vals = df['CCF'].map(fcn)
         df['ccf_max'] = vals.map(lambda l: l[0])
         df['rv'] = vals.map(lambda l: l[1])
@@ -215,7 +220,7 @@ def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1)
     return pd.DataFrame(data=d)
 
 
-def get_detected_objects(df, tol=1.0):
+def get_detected_objects(df, tol=1.0, debug=False):
     """
     Takes a summary dataframe with RV information. Finds the median rv for each star,
       and removes objects that are more than 'tol' km/s from the median value
@@ -228,6 +233,10 @@ def get_detected_objects(df, tol=1.0):
     for secondary in secondary_names:
         rv = df.loc[df.Secondary == secondary]['rv'].median()
         secondary_to_rv[secondary] = rv
+
+    if debug:
+        for secondary in sorted(secondary_to_rv.keys()):
+            print 'RV for {}: {:.2f} km/s'.format(secondary, secondary_to_rv[secondary])
 
     keys = df.Secondary.values
     good = df.loc[abs(df.rv.values - np.array(itemgetter(*keys)(secondary_to_rv))) < tol]
