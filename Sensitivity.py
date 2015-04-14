@@ -35,6 +35,7 @@ import Mamajek_Table
 
 
 
+
 # logging.basicConfig(level=logging.ERROR)
 
 
@@ -1024,3 +1025,70 @@ def parse_input(inp):
         else:
             final_list.append(int(l))
     return pd.unique(sorted(final_list))
+
+
+def plot_expected(orders, prim_spt, Tsec, instrument, vsini=None, rv=0.0):
+    """
+    Plot the orders, with a model spectrum added at appropriate flux ratio
+    :param orders: A list of Datastructures.xypoint instances
+    :param prim_spt: The primary star spectral type
+    :param Tsec: The secondary temperature
+    :param instrument: The name of the instrument the observation came from
+    :param vsini: the vsini of the companion
+    :param rv: the rv shift of the companion
+    :return:
+    """
+
+    # First, get the model
+    inst2hdf5 = {'TS23': '/media/ExtraSpace/PhoenixGrid/TS23_Grid.hdf5',
+                 'HRS': '/media/ExtraSpace/PhoenixGrid/HRS_Grid.hdf5',
+                 'CHIRON': '/media/ExtraSpace/PhoenixGrid/CHIRON_Grid.hdf5',
+                 'IGRINS': '/media/ExtraSpace/PhoenixGrid/IGRINS_Grid.hdf5'}
+    hdf5_int = StellarModel.HDF5Interface(inst2hdf5[instrument])
+    wl = hdf5_int.wl
+    pars = {'temp': Tsec, 'logg': 4.5, 'Z': 0.0, 'alpha': 0.0}
+    fl = hdf5_int.load_flux(pars)
+
+    # Broaden, if requested
+    if vsini is not None:
+        m = DataStructures.xypoint(x=wl, y=fl)
+        m = Broaden.RotBroad(m, vsini * units.km.to(units.cm))
+        wl, fl = m.x, m.y
+
+    # get model continuum
+    c = FittingUtilities.Continuum(wl, fl, fitorder=5, lowreject=2, highreject=10)
+
+    # Interpolate the model
+    x = wl * units.angstrom
+    plt.plot(wl, fl)
+    plt.plot(wl, c)
+    plt.show()
+    modelfcn = interp(x.to(units.nm), fl / c)
+
+    # Get the wavelength-specific flux ratio between the primary and secondary star
+    MS = SpectralTypeRelations.MainSequence()
+    Tprim = MS.Interpolate('temperature', prim_spt)
+    Rprim = MS.Interpolate('radius', prim_spt)
+    sec_spt = MS.GetSpectralType('temperature', Tsec, prec=1e-3)
+    Rsec = MS.Interpolate('radius', sec_spt)
+    flux_ratio = blackbody_lambda(x, Tprim) / blackbody_lambda(x, Tsec) * (Rprim / Rsec) ** 2
+    fluxratio_fcn = interp(x.to(units.nm), 1.0 / flux_ratio)
+
+    # Loop over the orders:
+    fig, axes = plt.subplots(2, 1, sharex=True)
+    top, bottom = axes
+    for order in orders:
+        order.cont = FittingUtilities.Continuum(order.x, order.y, fitorder=3, lowreject=2, highreject=5)
+        top.plot(order.x, order.y, 'k-', alpha=0.4)
+        top.plot(order.x, order.cont, 'r--')
+
+        total = order.copy()
+
+        xarr = total.x * (1 + rv / constants.c.to(units.km / units.s).value)
+        model = (modelfcn(xarr) - 1.0) * fluxratio_fcn(xarr)
+        total.y += total.cont * model
+        top.plot(total.x, total.y, 'g-', alpha=0.4)
+
+        bottom.plot(total.x, total.y - order.y, 'k-', alpha=0.4)
+
+    return fig, [top, bottom], orders
