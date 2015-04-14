@@ -950,8 +950,8 @@ def marginalize_sensitivity(infilename='Sensitivity_Dataframe.csv'):
     detrate = df['detrate']
     fig, ax = plt.subplots()
     for key in detrate.keys():
-        print detrate[key]
-        print pd.unique(detrate[key]['vsini'])
+        #print detrate[key]
+        #print pd.unique(detrate[key]['vsini'])
         if len(detrate[key]) == 0:
             continue
 
