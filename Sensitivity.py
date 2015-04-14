@@ -4,10 +4,10 @@ from re import search
 from collections import defaultdict
 import itertools
 import logging
+import FittingUtilities
 
 from scipy.interpolate import InterpolatedUnivariateSpline as interp
 import pandas as pd
-import FittingUtilities
 import numpy as np
 from astropy.io import fits
 from astropy.io import ascii
@@ -15,9 +15,9 @@ from astropy import units, constants
 from astropy.analytic_functions import blackbody_lambda
 import h5py
 import matplotlib.pyplot as plt
-import DataStructures
 import seaborn as sns
 
+import DataStructures
 import GenericSearch
 import StellarModel
 import StarData
@@ -29,6 +29,7 @@ import Broaden
 import Correlate
 import EstimateDetection
 import Mamajek_Table
+
 
 
 
@@ -950,8 +951,6 @@ def marginalize_sensitivity(infilename='Sensitivity_Dataframe.csv'):
     detrate = df['detrate']
     fig, ax = plt.subplots()
     for key in detrate.keys():
-        #print detrate[key]
-        #print pd.unique(detrate[key]['vsini'])
         if len(detrate[key]) == 0:
             continue
 
