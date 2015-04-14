@@ -182,20 +182,23 @@ def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1)
     secondary_names = pd.unique(df.Secondary)
 
     # Find the ccf value at the given velocity
-    if velocity == 'highest':
-        #fcn = lambda row: (np.max(row), vel_arr[np.argmax(row)])
-        def fcn(ccf):
+    def val_fcn(ccf, idx=None):
+        if idx is None:
             idx = np.argmax(ccf)
-            rv = vel_arr[idx]
-            sigma = np.std(ccf[np.abs(vel_arr - rv) > 200])
-            return ccf[idx]/sigma, rv
-        vals = df['CCF'].map(fcn)
+        rv = vel_arr[idx]
+        sigma = np.std(ccf[np.abs(vel_arr - rv) > 200])
+        return ccf[idx], ccf[idx] / sigma, rv
+    if velocity == 'highest':
+        vals = df['CCF'].map(val_fcn)
         df['ccf_max'] = vals.map(lambda l: l[0])
-        df['rv'] = vals.map(lambda l: l[1])
-        # df['ccf_max'] = df['CCF'].map(np.max)
+        df['significance'] = vals.map(lambda l: l[1])
+        df['rv'] = vals.map(lambda l: l[2])
     else:
-        df['ccf_max'] = df['CCF'].map(lambda arr: arr[np.argmin(np.abs(vel_arr - velocity))])
-        df['rv'] = vel_arr[np.argmin(np.abs(vel_arr - velocity))]
+        idx = np.argmin(np.abs(vel_arr - velocity))
+        vals = df['CCF'].map(lambda c: val_fcn(c, idx))
+        df['ccf_max'] = vals.map(lambda l: l[0])
+        df['significance'] = vals.map(lambda l: l[1])
+        df['rv'] = vals.map(lambda l: l[2])
 
     # Find the best parameter for each combination
     d = defaultdict(list)
@@ -203,6 +206,7 @@ def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1)
         for secondary in secondary_names:
             good = df.loc[(df.Primary == primary) & (df.Secondary == secondary)]
             best = good.loc[good.ccf_max == good.ccf_max.max()]
+            # best = good.loc[good.significance == good.significance.max()]
             d['Primary'].append(primary)
             d['Secondary'].append(secondary)
             d['Temperature'].append(best['Temperature'].item())
