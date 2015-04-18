@@ -37,6 +37,7 @@ import Mamajek_Table
 
 
 
+
 # logging.basicConfig(level=logging.ERROR)
 
 
@@ -787,8 +788,9 @@ class HDF5_Interface(object):
                                             'primary SpT': [prim_spt] * len(logg),
                                             'primary vsini': [prim_vsini] * len(logg), 'date': [date] * len(logg),
                                             'addmode': addmode, 'mass': mass,
-                                            'temperature': [T] * len(logg), 'logg': logg, '[Fe/H]': metal,
+                                            'temperature': temp, 'logg': logg, '[Fe/H]': metal,
                                             'vsini': vsini, 'significance': significance, 'rv': rv})
+                    df_list.append(df)
 
             except KeyError:
                 logging.warn('Something weird happened with {}. Check the HDF5 file manually!'.format(starname))
@@ -799,7 +801,7 @@ class HDF5_Interface(object):
                                         'addmode': [], 'mass': [],
                                         'temperature': [], 'logg': [], '[Fe/H]': [],
                                         'vsini': [], 'significance': [], 'rv': []})
-            df_list.append(df)
+            df_list = [df]
         return pd.concat(df_list, ignore_index=True)
         
         
@@ -932,8 +934,11 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
         plt.savefig('Figures/T_vsini_Detrate_{}.{}.pdf'.format(star, date))
 
         plt.figure(i * 3 + 2)
+        print key
+        print dataframes['significance'][key]
+        print dataframes['significance'][key].pivot('temperature', 'vsini', 'significance')
         sns.heatmap(dataframes['significance'][key].pivot('temperature', 'vsini', 'significance'),
-                    robust=True)  # vmin=2, vmax=15)
+                    robust=True)
         plt.title('Detection Significance for {} ({}) on {}'.format(star, spt, date))
         plt.savefig('Figures/T_vsini_Significance_{}.{}.pdf'.format(star, date))
 
