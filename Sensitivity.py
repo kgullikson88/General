@@ -36,6 +36,7 @@ import Mamajek_Table
 
 
 
+
 # logging.basicConfig(level=logging.ERROR)
 
 
@@ -748,42 +749,57 @@ class HDF5_Interface(object):
                 df_list.append(self.to_df(starname=starname, date=date))
         else:
             # Get the primary information
-            prim_spt = self.hdf5[starname].attrs['SpT']
-            prim_vsini = self.hdf5[starname].attrs['vsini']
-            n_comps = self.hdf5[starname].attrs['n_companions']
-            pmass = []
-            ptemp = []
-            prad = []
-            for n in range(n_comps):
-                pmass.append(self.hdf5[starname].attrs['comp{}_Mass'.format(n+1)])
-                ptemp.append(self.hdf5[starname].attrs['comp{}_Teff'.format(n+1)])
-                spt = MS.GetSpectralType('temperature', ptemp[-1], prec=0.01)
-                prad.append(MS.Interpolate('radius', spt)[0])
+            print(starname)
+            # g = self.hdf5[starname]
+            #for a in g.attrs:
+            #    print(a, g.attrs[a])
+            try:
+                prim_spt = self.hdf5[starname].attrs['SpT']
+                prim_vsini = self.hdf5[starname].attrs['vsini']
+                n_comps = self.hdf5[starname].attrs['n_companions']
+                pmass = []
+                ptemp = []
+                prad = []
+                for n in range(n_comps):
+                    pmass.append(self.hdf5[starname].attrs['comp{}_Mass'.format(n + 1)])
+                    ptemp.append(self.hdf5[starname].attrs['comp{}_Teff'.format(n + 1)])
+                    spt = MS.GetSpectralType('temperature', ptemp[-1], prec=0.01)
+                    prad.append(MS.Interpolate('radius', spt)[0])
 
-            # Get the detection information
-            temperatures = self.hdf5[starname][date].keys()
-            for T in temperatures:
-                datasets = self.hdf5[starname][date][T].items()
-                logg = [ds[1].attrs['logg'] for ds in datasets]
-                metal = [ds[1].attrs['[Fe/H]'] for ds in datasets]
-                vsini = [ds[1].attrs['vsini'] for ds in datasets]
-                addmode = [ds[1].attrs['addmode'] for ds in datasets]
-                rv = [ds[1].attrs['rv'] for ds in datasets]
-                significance = [ds[1].attrs['significance'] for ds in datasets]
-                temp = [T] * len(logg)
-                try:
-                    mass = [self.hdf5[starname][date][T].attrs['mass']] * len(logg)
-                except:
-                    sec_spt = MS.GetSpectralType('temperature', float(T), prec=0.01)
-                    mass = [MS.Interpolate('mass', sec_spt)] * len(logg)
-                df = pd.DataFrame(data={'star': [starname]*len(logg), 'primary masses': [pmass]*len(logg),
-                                        'primary temps': [ptemp]*len(logg), 'primary radii': [prad]*len(logg),
-                                        'primary SpT': [prim_spt]*len(logg),
-                                        'primary vsini': [prim_vsini]*len(logg), 'date': [date]*len(logg),
-                                        'addmode': addmode, 'mass': mass,
-                                        'temperature': [T]*len(logg), 'logg': logg, '[Fe/H]': metal,
-                                        'vsini': vsini, 'significance': significance, 'rv': rv})
-                df_list.append(df)
+                # Get the detection information
+                temperatures = self.hdf5[starname][date].keys()
+                for T in temperatures:
+                    datasets = self.hdf5[starname][date][T].items()
+                    logg = [ds[1].attrs['logg'] for ds in datasets]
+                    metal = [ds[1].attrs['[Fe/H]'] for ds in datasets]
+                    vsini = [ds[1].attrs['vsini'] for ds in datasets]
+                    addmode = [ds[1].attrs['addmode'] for ds in datasets]
+                    rv = [ds[1].attrs['rv'] for ds in datasets]
+                    significance = [ds[1].attrs['significance'] for ds in datasets]
+                    temp = [T] * len(logg)
+                    try:
+                        mass = [self.hdf5[starname][date][T].attrs['mass']] * len(logg)
+                    except:
+                        sec_spt = MS.GetSpectralType('temperature', float(T), prec=0.01)
+                        mass = [MS.Interpolate('mass', sec_spt)] * len(logg)
+                    df = pd.DataFrame(data={'star': [starname] * len(logg), 'primary masses': [pmass] * len(logg),
+                                            'primary temps': [ptemp] * len(logg), 'primary radii': [prad] * len(logg),
+                                            'primary SpT': [prim_spt] * len(logg),
+                                            'primary vsini': [prim_vsini] * len(logg), 'date': [date] * len(logg),
+                                            'addmode': addmode, 'mass': mass,
+                                            'temperature': [T] * len(logg), 'logg': logg, '[Fe/H]': metal,
+                                            'vsini': vsini, 'significance': significance, 'rv': rv})
+
+            except KeyError:
+                logging.warn('Something weird happened with {}. Check the HDF5 file manually!'.format(starname))
+                df = pd.DataFrame(data={'star': [], 'primary masses': [],
+                                        'primary temps': [], 'primary radii': [],
+                                        'primary SpT': [],
+                                        'primary vsini': [], 'date': [],
+                                        'addmode': [], 'mass': [],
+                                        'temperature': [], 'logg': [], '[Fe/H]': [],
+                                        'vsini': [], 'significance': [], 'rv': []})
+            df_list.append(df)
         return pd.concat(df_list, ignore_index=True)
         
         
