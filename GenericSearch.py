@@ -739,7 +739,7 @@ def save_ccf(corr, params, mode='text', update=True):
         else:
             star_data = StarData.GetData(star)
             s = f.create_group(star)
-            s.attrs['vsini'] = params['vsini_prim']
+            s.attrs['vsini'] = -1 if params['vsini_prim'] is None else params['vsini_prim']
             s.attrs['RA'] = star_data.ra
             s.attrs['DEC'] = star_data.dec
             s.attrs['SpT'] = star_data.spectype
