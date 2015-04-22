@@ -748,7 +748,7 @@ def save_ccf(corr, params, mode='text', update=True):
 
         # Add a new dataset. The name doesn't matter
         current_datasets = d.keys()
-        attr_pars = ['vsini', 'T', 'logg', '[Fe/H]', 'addmode']
+        attr_pars = ['vsini', 'T', 'logg', '[Fe/H]', 'addmode', 'fname']
         if len(current_datasets) == 0:
             ds = d.create_dataset('ds1', data=np.array((corr.x, corr.y)), maxshape=(2, None))
         else:
