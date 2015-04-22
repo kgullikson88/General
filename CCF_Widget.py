@@ -16,6 +16,7 @@ from bokeh.models.widgets import HBox, VBox, VBoxForm, Select
 from Analyze_CCF import CCF_Interface
 
 
+
 # Parse command-line arguments 
 ADDMODE = 'simple'
 instrument = 'IGRINS'
@@ -31,9 +32,10 @@ root_dirs = {'TS23': '{}/School/Research/McDonaldData'.format(home),
              'CHIRON': '{}/School/Research/CHIRON_data'.format(home),
              'IGRINS': '{}/School/Research/IGRINS_data'.format(home)}
 
-#CCF_FILE = '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(os.environ['HOME'])
+# CCF_FILE = '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(os.environ['HOME'])
 CCF_FILE = '{}/Cross_correlations/CCF.hdf5'.format(root_dirs[instrument])
 print('Instrument: {}\nCCF_FILE = {}'.format(instrument, CCF_FILE))
+
 
 class BokehApp(VBox):
     extra_generated_classes = [["BokehApp", "BokehApp", "VBox"]]
@@ -76,7 +78,7 @@ class BokehApp(VBox):
         """
         # create layout widgets
         obj = cls()
-        cls._ccf_interface = CCF_Interface(ccf_filename)#, vel=np.arange(-600, 600, 1))
+        cls._ccf_interface = CCF_Interface(ccf_filename)  #, vel=np.arange(-600, 600, 1))
         obj.mainrow = HBox()
         obj.ccfrow = HBox()
         #obj.star_input_box = VBoxForm()

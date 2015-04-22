@@ -4,10 +4,10 @@ from re import search
 from collections import defaultdict
 import itertools
 import logging
+import FittingUtilities
 
 from scipy.interpolate import InterpolatedUnivariateSpline as interp
 import pandas as pd
-import FittingUtilities
 import numpy as np
 from astropy.io import fits
 from astropy.io import ascii
@@ -15,9 +15,9 @@ from astropy import units, constants
 from astropy.analytic_functions import blackbody_lambda
 import h5py
 import matplotlib.pyplot as plt
-import DataStructures
 import seaborn as sns
 
+import DataStructures
 import GenericSearch
 import StellarModel
 import StarData
@@ -29,6 +29,10 @@ import Broaden
 import Correlate
 import EstimateDetection
 import Mamajek_Table
+
+
+
+
 
 
 
@@ -746,42 +750,58 @@ class HDF5_Interface(object):
                 df_list.append(self.to_df(starname=starname, date=date))
         else:
             # Get the primary information
-            prim_spt = self.hdf5[starname].attrs['SpT']
-            prim_vsini = self.hdf5[starname].attrs['vsini']
-            n_comps = self.hdf5[starname].attrs['n_companions']
-            pmass = []
-            ptemp = []
-            prad = []
-            for n in range(n_comps):
-                pmass.append(self.hdf5[starname].attrs['comp{}_Mass'.format(n+1)])
-                ptemp.append(self.hdf5[starname].attrs['comp{}_Teff'.format(n+1)])
-                spt = MS.GetSpectralType('temperature', ptemp[-1], prec=0.01)
-                prad.append(MS.Interpolate('radius', spt)[0])
+            print(starname)
+            # g = self.hdf5[starname]
+            #for a in g.attrs:
+            #    print(a, g.attrs[a])
+            try:
+                prim_spt = self.hdf5[starname].attrs['SpT']
+                prim_vsini = self.hdf5[starname].attrs['vsini']
+                n_comps = self.hdf5[starname].attrs['n_companions']
+                pmass = []
+                ptemp = []
+                prad = []
+                for n in range(n_comps):
+                    pmass.append(self.hdf5[starname].attrs['comp{}_Mass'.format(n + 1)])
+                    ptemp.append(self.hdf5[starname].attrs['comp{}_Teff'.format(n + 1)])
+                    spt = MS.GetSpectralType('temperature', ptemp[-1], prec=0.01)
+                    prad.append(MS.Interpolate('radius', spt)[0])
 
-            # Get the detection information
-            temperatures = self.hdf5[starname][date].keys()
-            for T in temperatures:
-                datasets = self.hdf5[starname][date][T].items()
-                logg = [ds[1].attrs['logg'] for ds in datasets]
-                metal = [ds[1].attrs['[Fe/H]'] for ds in datasets]
-                vsini = [ds[1].attrs['vsini'] for ds in datasets]
-                addmode = [ds[1].attrs['addmode'] for ds in datasets]
-                rv = [ds[1].attrs['rv'] for ds in datasets]
-                significance = [ds[1].attrs['significance'] for ds in datasets]
-                temp = [T] * len(logg)
-                try:
-                    mass = [self.hdf5[starname][date][T].attrs['mass']] * len(logg)
-                except:
-                    sec_spt = MS.GetSpectralType('temperature', float(T), prec=0.01)
-                    mass = [MS.Interpolate('mass', sec_spt)] * len(logg)
-                df = pd.DataFrame(data={'star': [starname]*len(logg), 'primary masses': [pmass]*len(logg),
-                                        'primary temps': [ptemp]*len(logg), 'primary radii': [prad]*len(logg),
-                                        'primary SpT': [prim_spt]*len(logg),
-                                        'primary vsini': [prim_vsini]*len(logg), 'date': [date]*len(logg),
-                                        'addmode': addmode, 'mass': mass,
-                                        'temperature': [T]*len(logg), 'logg': logg, '[Fe/H]': metal,
-                                        'vsini': vsini, 'significance': significance, 'rv': rv})
-                df_list.append(df)
+                # Get the detection information
+                temperatures = self.hdf5[starname][date].keys()
+                for T in temperatures:
+                    datasets = self.hdf5[starname][date][T].items()
+                    logg = [ds[1].attrs['logg'] for ds in datasets]
+                    metal = [ds[1].attrs['[Fe/H]'] for ds in datasets]
+                    vsini = [ds[1].attrs['vsini'] for ds in datasets]
+                    addmode = [ds[1].attrs['addmode'] for ds in datasets]
+                    rv = [ds[1].attrs['rv'] for ds in datasets]
+                    significance = [ds[1].attrs['significance'] for ds in datasets]
+                    temp = [T] * len(logg)
+                    try:
+                        mass = [self.hdf5[starname][date][T].attrs['mass']] * len(logg)
+                    except:
+                        sec_spt = MS.GetSpectralType('temperature', float(T), prec=0.01)
+                        mass = [MS.Interpolate('mass', sec_spt)] * len(logg)
+                    df = pd.DataFrame(data={'star': [starname] * len(logg), 'primary masses': [pmass] * len(logg),
+                                            'primary temps': [ptemp] * len(logg), 'primary radii': [prad] * len(logg),
+                                            'primary SpT': [prim_spt] * len(logg),
+                                            'primary vsini': [prim_vsini] * len(logg), 'date': [date] * len(logg),
+                                            'addmode': addmode, 'mass': mass,
+                                            'temperature': temp, 'logg': logg, '[Fe/H]': metal,
+                                            'vsini': vsini, 'significance': significance, 'rv': rv})
+                    df_list.append(df)
+
+            except KeyError:
+                logging.warn('Something weird happened with {}. Check the HDF5 file manually!'.format(starname))
+                df = pd.DataFrame(data={'star': [], 'primary masses': [],
+                                        'primary temps': [], 'primary radii': [],
+                                        'primary SpT': [],
+                                        'primary vsini': [], 'date': [],
+                                        'addmode': [], 'mass': [],
+                                        'temperature': [], 'logg': [], '[Fe/H]': [],
+                                        'vsini': [], 'significance': [], 'rv': []})
+            df_list = [df]
         return pd.concat(df_list, ignore_index=True)
         
         
@@ -904,13 +924,21 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
         date = key[1]
         spt = key[5]
         plt.figure(i * 3 + 1)
+        if len(dataframes['detrate'][key]) == 0:
+            dataframes['detrate'].pop(key)
+            dataframes['significance'].pop(key)
+            continue
+
         sns.heatmap(dataframes['detrate'][key].pivot('temperature', 'vsini', 'detection rate'))
         plt.title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
         plt.savefig('Figures/T_vsini_Detrate_{}.{}.pdf'.format(star, date))
 
         plt.figure(i * 3 + 2)
+        print key
+        print dataframes['significance'][key]
+        print dataframes['significance'][key].pivot('temperature', 'vsini', 'significance')
         sns.heatmap(dataframes['significance'][key].pivot('temperature', 'vsini', 'significance'),
-                    robust=True)  # vmin=2, vmax=15)
+                    robust=True)
         plt.title('Detection Significance for {} ({}) on {}'.format(star, spt, date))
         plt.savefig('Figures/T_vsini_Significance_{}.{}.pdf'.format(star, date))
 
@@ -945,6 +973,9 @@ def marginalize_sensitivity(infilename='Sensitivity_Dataframe.csv'):
     detrate = df['detrate']
     fig, ax = plt.subplots()
     for key in detrate.keys():
+        if len(detrate[key]) == 0:
+            continue
+
         # Get ages from either the measured ages in David & Hillenbrand 2015, or from main sequence ages
         starname = key[0].replace(' ', '')
         ages = EstimateDetection.get_ages(starname.replace(' ', ''), N_age=300)
@@ -955,6 +986,11 @@ def marginalize_sensitivity(infilename='Sensitivity_Dataframe.csv'):
         # Plot
         ls = ps_cycler.next()
         ax.plot(marg_df.temperature, marg_df['detection rate'], ls, label='{} ({})'.format(key[0], key[-1]))
+
+        # Save the marginalized dataframe
+        df_outname = '{}_{}_{}.csv'.format(starname, key[1], key[2])
+        logging.info('Saving marginalized dataframe to {}'.format(df_outname))
+        marg_df.to_csv(df_outname, index=False)
 
     # Add a spectral type axis on top
     top = add_top_axis(ax)
@@ -1010,3 +1046,70 @@ def parse_input(inp):
         else:
             final_list.append(int(l))
     return pd.unique(sorted(final_list))
+
+
+def plot_expected(orders, prim_spt, Tsec, instrument, vsini=None, rv=0.0):
+    """
+    Plot the orders, with a model spectrum added at appropriate flux ratio
+    :param orders: A list of Datastructures.xypoint instances
+    :param prim_spt: The primary star spectral type
+    :param Tsec: The secondary temperature
+    :param instrument: The name of the instrument the observation came from
+    :param vsini: the vsini of the companion
+    :param rv: the rv shift of the companion
+    :return:
+    """
+
+    # First, get the model
+    inst2hdf5 = {'TS23': '/media/ExtraSpace/PhoenixGrid/TS23_Grid.hdf5',
+                 'HRS': '/media/ExtraSpace/PhoenixGrid/HRS_Grid.hdf5',
+                 'CHIRON': '/media/ExtraSpace/PhoenixGrid/CHIRON_Grid.hdf5',
+                 'IGRINS': '/media/ExtraSpace/PhoenixGrid/IGRINS_Grid.hdf5'}
+    hdf5_int = StellarModel.HDF5Interface(inst2hdf5[instrument])
+    wl = hdf5_int.wl
+    pars = {'temp': Tsec, 'logg': 4.5, 'Z': 0.0, 'alpha': 0.0}
+    fl = hdf5_int.load_flux(pars)
+
+    # Broaden, if requested
+    if vsini is not None:
+        m = DataStructures.xypoint(x=wl, y=fl)
+        m = Broaden.RotBroad(m, vsini * units.km.to(units.cm))
+        wl, fl = m.x, m.y
+
+    # get model continuum
+    c = FittingUtilities.Continuum(wl, fl, fitorder=5, lowreject=2, highreject=10)
+
+    # Interpolate the model
+    x = wl * units.angstrom
+    plt.plot(wl, fl)
+    plt.plot(wl, c)
+    plt.show()
+    modelfcn = interp(x.to(units.nm), fl / c)
+
+    # Get the wavelength-specific flux ratio between the primary and secondary star
+    MS = SpectralTypeRelations.MainSequence()
+    Tprim = MS.Interpolate('temperature', prim_spt)
+    Rprim = MS.Interpolate('radius', prim_spt)
+    sec_spt = MS.GetSpectralType('temperature', Tsec, prec=1e-3)
+    Rsec = MS.Interpolate('radius', sec_spt)
+    flux_ratio = blackbody_lambda(x, Tprim) / blackbody_lambda(x, Tsec) * (Rprim / Rsec) ** 2
+    fluxratio_fcn = interp(x.to(units.nm), 1.0 / flux_ratio)
+
+    # Loop over the orders:
+    fig, axes = plt.subplots(2, 1, sharex=True)
+    top, bottom = axes
+    for order in orders:
+        order.cont = FittingUtilities.Continuum(order.x, order.y, fitorder=3, lowreject=2, highreject=5)
+        top.plot(order.x, order.y, 'k-', alpha=0.4)
+        top.plot(order.x, order.cont, 'r--')
+
+        total = order.copy()
+
+        xarr = total.x * (1 + rv / constants.c.to(units.km / units.s).value)
+        model = (modelfcn(xarr) - 1.0) * fluxratio_fcn(xarr)
+        total.y += total.cont * model
+        top.plot(total.x, total.y, 'g-', alpha=0.4)
+
+        bottom.plot(total.x, total.y - order.y, 'k-', alpha=0.4)
+
+    return fig, [top, bottom], orders
