@@ -750,10 +750,10 @@ class HDF5_Interface(object):
                 df_list.append(self.to_df(starname=starname, date=date))
         else:
             # Get the primary information
-            print(starname)
-            # g = self.hdf5[starname]
-            #for a in g.attrs:
-            #    print(a, g.attrs[a])
+            logging.info(starname)
+            g = self.hdf5[starname]
+            for a in g.attrs:
+                logging.debug(a, g.attrs[a])
             try:
                 prim_spt = self.hdf5[starname].attrs['SpT']
                 prim_vsini = self.hdf5[starname].attrs['vsini']
@@ -801,7 +801,7 @@ class HDF5_Interface(object):
                                         'addmode': [], 'mass': [],
                                         'temperature': [], 'logg': [], '[Fe/H]': [],
                                         'vsini': [], 'significance': [], 'rv': []})
-            df_list = [df]
+                df_list = [df]
         return pd.concat(df_list, ignore_index=True)
         
         
