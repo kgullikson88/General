@@ -247,11 +247,13 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
 
     # Divide by the same smoothing kernel as we used for the data
     if vsini_primary is not None:
+
         smooth_factor = 0.8
         d_logx = np.log(xgrid[1] / xgrid[0])
         theta = GenericSmooth.roundodd(vsini_primary / 3e5 * smooth_factor / d_logx)
         print "Window size = {}\ndlogx = {}\nvsini = {}".format(theta, d_logx, vsini_primary)
         smooth = FittingUtilities.savitzky_golay(model.y, theta, 5)
+
         model.y = model.y - smooth
         minval = min(model.y)
         model.y += abs(minval)

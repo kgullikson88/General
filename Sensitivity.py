@@ -543,7 +543,7 @@ def Analyze(fileList,
                                                                 vsini=vsini_prim, logspacing=True,
                                                                 reject_outliers=True)
                             model_orders = GenericSearch.process_model(model.copy(), orders,
-                                                                       vsini_model=vsini_sec, vsini_primary=vsini_prim,
+                                                                       vsini_model=vsini_sec, vsini_primary=None,
                                                                        debug=debug, logspace=False)
 
                             # Do the correlation
