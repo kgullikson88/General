@@ -152,9 +152,21 @@ class CCF_Interface(object):
     def get_ccf(self, params, df=None):
         """
         Get the ccf with the given parameters. A dataframe can be given to speed things up
-        :param params: All the parameters necessary to define a single ccf
+        :param params: All the parameters necessary to define a single ccf. This should be
+                       a python dictionary with the keys:
+                       - 'starname': The name of the star. Try self.list_stars() for the options.
+                       - 'date': The UT date of the observations. Try self.list_dates() for the options.
+                       - 'T': temperature of the model
+                       - 'logg': the log(g) of the model
+                       - 'vsini': the vsini by which the model was broadened before correlation
+                       - '[Fe/H]': the metallicity of the model
+                       - 'addmode': The way the order CCFs were added to make a total one. Can be:
+                          - 'simple'
+                          - 'ml'
+                          - 'weighted'
+                          - 'dc'
         :param df: a pandas DataFrame such as outputted by _compile_data
-        :return: ??
+        :return: a pandas DataFrame with columns of velocity and CCF power
         """
         if df is None:
             try:
