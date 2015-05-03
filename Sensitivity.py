@@ -5,18 +5,18 @@ from collections import defaultdict
 import itertools
 import logging
 import FittingUtilities
-
 from scipy.interpolate import InterpolatedUnivariateSpline as interp
-import pandas as pd
 import numpy as np
+from astropy import units, constants
+
+import matplotlib.pyplot as plt
+
+import pandas as pd
 from astropy.io import fits
 from astropy.io import ascii
-from astropy import units, constants
 from astropy.analytic_functions import blackbody_lambda
 import h5py
-import matplotlib.pyplot as plt
 import seaborn as sns
-
 import DataStructures
 import GenericSearch
 import StellarModel
@@ -29,6 +29,7 @@ import Broaden
 import Correlate
 import EstimateDetection
 import Mamajek_Table
+
 
 
 
@@ -543,7 +544,7 @@ def Analyze(fileList,
                                                                 vsini=vsini_prim, logspacing=True,
                                                                 reject_outliers=True)
                             model_orders = GenericSearch.process_model(model.copy(), orders,
-                                                                       vsini_model=vsini_sec, vsini_primary=None,
+                                                                       vsini_model=vsini_sec, vsini_primary=vsini_prim,
                                                                        debug=debug, logspace=False)
 
                             # Do the correlation
