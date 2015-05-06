@@ -7,20 +7,23 @@ from collections import OrderedDict
 import sys
 
 import time
+
 from bokeh.models import ColumnDataSource, Plot, HoverTool
 from bokeh.plotting import figure, curdoc
 from bokeh.properties import String, Instance
 from bokeh.server.app import bokeh_app
 from bokeh.server.utils.plugins import object_page
 from bokeh.models.widgets import HBox, VBox, VBoxForm, Select
+
 from Analyze_CCF import CCF_Interface
+
 
 
 
 
 # Parse command-line arguments 
 ADDMODE = 'simple'
-instrument = 'TS23'
+instrument = 'IGRINS'
 for arg in sys.argv[1:]:
     if '--instrument' in arg:
         instrument = arg.split('=')[-1].upper()
