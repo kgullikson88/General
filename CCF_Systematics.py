@@ -95,7 +95,7 @@ def get_ccf_data(basedir, primary_name=None, secondary_name=None, vel_arr=np.ara
 
 
 def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1), excel_filename=None,
-                    velocity='highest', addmode='simple', Tmin=3000, Tmax=7000, debug=False):
+                    velocity='highest', addmode='simple', Tmin=3000, Tmax=7000, N_best=1, debug=False):
     """
     Goes through the given HDF5 file, and finds the best set of parameters for each combination of primary/secondary star
     :param hdf5_filename: The HDF5 file containing the CCF data
@@ -110,6 +110,7 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1), excel_
     :keyword addmode: The way the CCF orders were added while generating the ccfs
     :keyword debug: If True, it prints the progress. Otherwise, does its work silently and takes a while
     :keyword Tmin, Tmax: The minimum and maximum temperatures to include in the output.
+    :keyword N_best: Passed to find_best_pars()
     :return: pandas DataFrame summarizing the best parameters.
              This is the type of dataframe to give to the other function here
     """
@@ -162,29 +163,39 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1), excel_
                 data = pd.DataFrame(data={'Primary': [p]*len(ccf), 'Secondary': [s]*len(ccf),
                                           'Temperature': temperature, 'vsini': vsini_values,
                                           'logg': gravity, '[Fe/H]': metallicity, 'CCF': ccf})
-                summary_dfs.append(find_best_pars(data, velocity=vel_max, vel_arr=vel_arr))
+                summary_dfs.append(find_best_pars(data, velocity=vel_max, vel_arr=vel_arr, N=N_best))
                 del data
 
     return pd.concat(summary_dfs, ignore_index=True)
 
 
-
-def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1)):
+def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1), N=1):
     """
     Find the 'best-fit' parameters for each combination of primary and secondary star
     :param df: the dataframe to search in
     :keyword velocity: The velocity to measure the CCF at. The default is 'highest', and uses the maximum of the ccf
     :keyword vel_arr: The velocities to interpolate each ccf at
+    :keyword N: The number of parameters to return
     :return: a dataframe with keys of primary, secondary, and the parameters
     """
+    # Make sure N is odd
+    if N % 2 == 0:
+        logging.warn('N must be an odd number. Changing N from {} --> {}'.format(N, N + 1))
+        N += 1
+
+
     # Get the names of the primary and secondary stars
     primary_names = pd.unique(df.Primary)
     secondary_names = pd.unique(df.Secondary)
 
     # Find the ccf value at the given velocity
-    def val_fcn(ccf, idx=None):
+    def val_fcn(ccf, idx=None, search_indices=None):
         if idx is None:
-            idx = np.argmax(ccf)
+            if search_indices is None:
+                idx = np.argmax(ccf)
+            else:
+                idx = np.argmax(ccf[search_indices])
+                idx = search_indices[idx]
         rv = vel_arr[idx]
         sigma = np.std(ccf[np.abs(vel_arr - rv) > 200])
         return ccf[idx], ccf[idx] / sigma, rv
@@ -194,32 +205,65 @@ def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1)
         df['significance'] = vals.map(lambda l: l[1])
         df['rv'] = vals.map(lambda l: l[2])
     else:
-        idx = np.argmin(np.abs(vel_arr - velocity))
-        vals = df['CCF'].map(lambda c: val_fcn(c, idx))
+        # idx = np.argmin(np.abs(vel_arr - velocity))
+        idx = np.where(np.abs(vel_arr - velocity) <= 5)[0]
+        vals = df['CCF'].map(lambda c: val_fcn(c, search_indices=idx))
         df['ccf_max'] = vals.map(lambda l: l[0])
         df['significance'] = vals.map(lambda l: l[1])
         df['rv'] = vals.map(lambda l: l[2])
+        #print(df[['Secondary', 'rv']])
 
     # Find the best parameter for each combination
     d = defaultdict(list)
-    for primary in primary_names:
-        for secondary in secondary_names:
-            good = df.loc[(df.Primary == primary) & (df.Secondary == secondary)]
-            best = good.loc[good.ccf_max == good.ccf_max.max()]
-            # best = good.loc[good.significance == good.significance.max()]
+    groups = df.groupby(('Primary', 'Secondary'))
+    for group in groups.groups.keys():
+        primary = group[0]
+        secondary = group[1]
+        g = groups.get_group(group)
+        best = g.loc[g.ccf_max == g.ccf_max.max()]
+        T = best['Temperature'].item()
+        vsini = best['vsini'].item()
+        logg = best['logg'].item()
+        metal = best['[Fe/H]'].item()
+        rv = best['rv'].item()
+        Tmin = T - (N - 1) * 50
+        Tmax = T + (N - 1) * 50
+        for Ti in range(Tmin, Tmax + 1, 100):
+            good = g.loc[
+                (g['Temperature'] == Ti) & (g['vsini'] == vsini) & (g['logg'] == logg) & (g['[Fe/H]'] == metal)]
+            if len(good) == 0:
+                logging.warn('No matches for T = {} with primary/secondary = {}/{}!'.format(Ti, primary, secondary))
+                d['Primary'].append(primary)
+                d['Secondary'].append(secondary)
+                d['Temperature'].append(Ti)
+                d['vsini'].append(vsini)
+                d['logg'].append(logg)
+                d['[Fe/H]'].append(metal)
+                d['rv'].append(rv)
+                d['CCF'].append(np.nan)
+                d['significance'].append(np.nan)
+                continue
+            # print len(good)
+            #best = good.loc[good.ccf_max == good.ccf_max.max()]
+            best = good
+
+            # Save the best parameters for this temperature
             d['Primary'].append(primary)
             d['Secondary'].append(secondary)
             d['Temperature'].append(best['Temperature'].item())
             d['vsini'].append(best['vsini'].item())
             d['logg'].append(best['logg'].item())
             d['[Fe/H]'].append(best['[Fe/H]'].item())
-            d['rv'].append(best['rv'].item())
+            idx = np.argmin(np.abs(vel_arr - rv))
+            d['rv'].append(rv)
+            d['CCF'].append(best['CCF'].item()[idx])
+            # d['rv'].append(best['rv'].item())
+            #d['CCF'].append(best.ccf_max.item())
 
             # Measure the detection significance
             std = mad(best.CCF.item())
             mean = np.median(best.CCF.item())
-            d['significance'].append((best.ccf_max.item() - mean) / std)
-
+            d['significance'].append((d['CCF'][-1] - mean) / std)
 
     return pd.DataFrame(data=d)
 
@@ -454,6 +498,99 @@ def check_posterior(df, posterior, Tvalues=np.arange(3000, 6900, 100)):
         logging.warn('Only {:.2f}% of the total samples were accepted!'.format(p * 100))
         return False
     return True
+
+
+def fit_temperature(df, fitorder=3):
+    """
+    Fit a function to go from measured to actual temperature with uncertainties
+    :param df: A pandas DataFrame such as one output by get_ccf_summary with N > 1
+    :param fitorder: The order of the fit to the weight coefficients
+    :return:
+    """
+    # Normalize the CCF heights by whatever the peak is
+    def normalize(d):
+        highest = d['CCF'].max()
+        d['CCF'] = d['CCF'] - highest
+        return d
+
+    tmp = df.groupby(('Primary', 'Secondary')).transform(normalize)
+    normed = pd.merge(df[['Primary', 'Secondary']], tmp, left_index=True, right_index=True)
+
+    # Get the actual temperature, and all the temperatures/ccfs for each primary/secondary combination
+    star_groups = normed.group(('Primary', 'Secondary'))
+    Tmeas = []
+    Tact = []
+    corr = []
+    for sg in star_groups.groups.keys():
+        g = star_groups.get_group(sg)
+        Tmeas.append(g['Temperature'].values)
+        corr.append(g['CCF'].values)
+        Tact.append(g['Tactual'].values[0])
+    Tmeasured = np.array(Tmeas)
+    Tactual = np.array(Tact)
+    corr = np.array(corr)
+
+    # Define some functions to use in the GP fit
+    def model(pars, T, CCF):
+        """
+        Model to get a measured temperature out of the temperature and CCF height at various points
+        pars: polynomial parameters (suitable for np.poly1d)
+        T: a numpy array with the sampled temperatures
+        CCF: A numpy array of the same size as T, which contain the CCFs at each temperature in T
+        """
+        poly = np.poly1d(pars)
+        weights = poly(CCF)
+        weights[np.isnan(weights)] = 0
+        Tmeas = np.average(T, weights=weights, axis=1)
+        var_T = np.sum(weights * T, axis=1) / np.sum(weights, axis=1)
+
+        # Get factor to go from biased --> unbiased variance
+        V1 = np.sum(weights, axis=1)
+        V2 = np.sum(weights ** 2, axis=1)
+        f = V1 / (V1 - V2 / V1)
+        return Tmeas, np.sqrt(f * var_T)
+
+    def lnlike(pars, Tact, Tvals, corrvals):
+        a, tau = np.exp(pars[:2])
+        Tmeas, Terr = model(pars[2:], Tvals, corrvals)
+        gp = george.GP(a * kernels.ExpSquaredKernel(tau))
+        gp.compute(Tmeas, Terr)
+        return gp.lnlikelihood(Tact - model(pars[2:], Tmeas))
+
+    def lnprior(pars):
+        lna, lntau = pars[:2]
+        polypars = pars[2:]
+        if -20 < lna < 20 and 12 < lntau < 20:
+            return 0.0
+        return -np.inf
+
+    def lnprob(pars, x, y, yerr):
+        lp = lnprior(pars)
+        return lp + lnlike(pars, x, y, yerr) if np.isfinite(lp) else -np.inf
+
+    # Set up the emcee fitter
+    initial = np.zeros(fitorder + 3)
+    initial[1] = 14.0
+    if fitorder > 0:
+        initial[-2] = 1.0
+    # initial = np.array([0, 14])#, 1.0, 0.0])
+    ndim = len(initial)
+    nwalkers = 100
+    p0 = [np.array(initial) + 1e-8 * np.random.randn(ndim) for i in xrange(nwalkers)]
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(Tactual, Tmeasured, error))
+
+    print 'Running first burn-in'
+    p1, lnp, _ = sampler.run_mcmc(p0, 500)
+    sampler.reset()
+
+    print "Running second burn-in..."
+    p_best = p1[np.argmax(lnp)]
+    p2 = [p_best + 1e-8 * np.random.randn(ndim) for i in xrange(nwalkers)]
+    p3, _, _ = sampler.run_mcmc(p2, 250)
+    sampler.reset()
+
+    print "Running production..."
+    sampler.run_mcmc(p3, 1000)
 
 
 def get_values(df):
