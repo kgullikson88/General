@@ -564,9 +564,9 @@ def fit_temperature(df, fitorder=3):
             return 0.0
         return -np.inf
 
-    def lnprob(pars, x, y, yerr):
+    def lnprob(pars, Tact, Tvals, corrvals):
         lp = lnprior(pars)
-        return lp + lnlike(pars, x, y, yerr) if np.isfinite(lp) else -np.inf
+        return lp + lnlike(pars, Tact, Tvals, corrvals) if np.isfinite(lp) else -np.inf
 
     # Set up the emcee fitter
     initial = np.zeros(fitorder + 3)
@@ -577,7 +577,7 @@ def fit_temperature(df, fitorder=3):
     ndim = len(initial)
     nwalkers = 100
     p0 = [np.array(initial) + 1e-8 * np.random.randn(ndim) for i in xrange(nwalkers)]
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(Tactual, Tmeasured, error))
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(Tactual, Tmeasured, corr))
 
     print 'Running first burn-in'
     p1, lnp, _ = sampler.run_mcmc(p0, 500)
@@ -591,6 +591,8 @@ def fit_temperature(df, fitorder=3):
 
     print "Running production..."
     sampler.run_mcmc(p3, 1000)
+
+    return sampler
 
 
 def get_values(df):
