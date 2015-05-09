@@ -565,9 +565,10 @@ def fit_act2tmeas(df, fitorder=3):
 
 
     # Fit to a 3rd-order polynomial
-    par_samples = Fitters.bayesian_total_least_squares(final.Tactual, final.Tmeas,
-                                                       final.Tact_err, final.Tmeas_err,
-                                                       nwalkers=500, fitorder=fitorder)
+    fitter = Fitters.Bayesian_TLS(final.Tactual, final.Tmeas,
+                                  final.Tact_err, final.Tmeas_err)
+    fitter.fit(nwalkers=500, fitorder=3)
+    par_samples = fitter.sampler.flatchain[:, final.Tactual.size:]
 
 
     # Plot
@@ -602,7 +603,47 @@ def fit_act2tmeas(df, fitorder=3):
 
     plt.show()
 
-    return par_samples
+    return fitter
+
+
+def get_actual_temperature(fitter, Tmeas, Tmeas_err):
+    """
+    Get the actual temperature from the measured temperature
+    :param fitter: a Bayesian_TLS instance which has already been fit
+    :param Tmeas: the measured temperature
+    :param Tmeas_err: uncertainty on the measured temperature
+    :return: posterior samples for the actual temperature
+    """
+
+    def lnlike(Tact, Tmeas, Tmeas_err, ft):
+        Tmeas_pred = ft.predict(Tact, N='all')
+        return -np.sum((Tmeas - Tmeas_pred) / Tmeas_err ** 2)
+
+    def lnprior(Tact):
+        if 3000 < Tact < 10000:
+            return 0.0
+        return -np.inf
+
+    def lnprob(Tact, Tmeas, Tmeas_err, ft):
+        lp = lnprior(Tact)
+        return lp + lnlike(Tact, Tmeas, Tmeas_err, ft) if np.isfinite(lp) else -np.inf
+
+    T = Tmeas
+    nwalkers = 500
+    p0 = emcee.utils.sample_ball(T, std=1e-6, size=nwalkers)
+    sampler = emcee.EnsembleSampler(nwalkers, 1, lnprob, args=(Tmeas, Tmeas_err, fitter))
+
+    # Burn-in
+    print 'Running burn-in'
+    p1, lnp, _ = sampler.run_mcmc(p0, 200)
+    sampler.reset()
+
+    print 'Running production'
+    sampler.run_mcmc(p1, 500)
+
+    return sampler.flatchain
+
+
 
 
 def get_values(df):

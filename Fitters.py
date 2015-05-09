@@ -372,7 +372,10 @@ if emcee_import:
                 return
 
             # Find the N best walkers
-            N = min(N, self.sampler.flatchain.shape[0])
+            if N == 'all':
+                N = self.sampler.flatchain.shape[0]
+            else:
+                N = min(N, self.sampler.flatchain.shape[0])
             indices = np.argsort(self.sampler.lnprobability.flatten())[:N]
             pars = self.sampler.flatchain[indices, self.x.size:]
 
