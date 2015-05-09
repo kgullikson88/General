@@ -644,6 +644,24 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err):
     return sampler.flatchain
 
 
+def get_actual_temperature_fast(fitter, Tmeas, Tmeas_err):
+    """
+    Faster but less accurate version of get_actual_temperature
+    :param fitter:
+    :param Tmeas:
+    :param Tmeas_err:
+    :return:
+    """
+    Ta_arr = np.arange(3000, 10000, 1)
+    Tmeas_pred = fitter.predict(Ta_arr, N=1)[0]
+    denom = np.sum(np.exp(-(Tmeas - Tmeas_pred) ** 2 / Tmeas_err ** 2))
+    numerator = np.exp(-(Tmeas - Tmeas_pred) ** 2 / Tmeas_err ** 2)
+    posterior = numerator / denom
+
+    return np.choice(Ta_arr, p=posterior, size=10000)
+
+
+
 
 
 def get_values(df):
