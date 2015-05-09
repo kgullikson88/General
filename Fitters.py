@@ -2,12 +2,16 @@
 A set of functions for various types of fitting.
 """
 
+from scipy.optimize import fmin
+import logging
+
 import statsmodels.api as sm
 from statsmodels.robust.norms import TukeyBiweight
 import numpy as np
 import DataStructures
 from lmfit import Model, Parameters
 import FittingUtilities
+
 
 try:
     import emcee
@@ -241,3 +245,86 @@ class ListModel(Model):
                                         threads=nthreads)
 
         return sampler, pos
+
+
+# #################################################################
+#    A set of functions for bayesian total least squares         #
+##################################################################
+
+def tls_model(p, x):
+    """
+    Parameterized model for y = f(x). For now, just a polynomial
+    """
+    return np.poly1d(p)(x)
+
+
+def tls_lnlike(pars, x, y, xerr, yerr, model_fcn):
+    """
+    Likelihood function.
+    pars:  the parameters. the first several are the 'true' x values
+    x: the measured x values
+    y: the measured y values
+    xerr: the uncertainty in the measured x values
+    yerr: the uncertainty in the measured y values
+    model_fcn: A function that gives the model y = f(x)
+               The model function should take the rest of the pars as the first argument.
+    """
+    xtrue = pars[:x.size]
+    y_pred = model_fcn(pars[x.size:], xtrue)  # Predict the y value
+
+    # Make the log-likelihood
+    return np.sum(-(x - xtrue) ** 2 / xerr ** 2 - (y - y_pred) ** 2 / yerr * 2)
+
+
+def tls_lnprior(pars):
+    return 0.0
+
+
+def tls_lnprob(pars, x, y, xerr, yerr, model_fcn):
+    lp = tls_lnprior(pars)
+    return lp + tls_lnlike(pars, x, y, xerr, yerr, model_fcn) if np.isfinite(lp) else -np.inf
+
+
+def tls_get_initial_fit(x, y, yerr, model_fcn, fitorder=3):
+    pars = np.zeros(fitorder + 1)
+    pars[-2] = 1.0
+    min_func = lambda p, xi, yi, yerri: np.sum((yi - model_fcn(p, xi)) ** 2 / yerri ** 2)
+
+    best_pars = fmin(min_func, x0=pars, args=(x, y, yerr))
+    return best_pars
+
+
+def bayesian_total_least_squares(x, y, xerr, yerr, fitorder=1, nwalkers=100, n_burn=200, n_prod=1000):
+    """
+    Perform a bayesian total least squares fit to data with errors in both the x- and y-axes.
+    :param x:  A numpy ndarray with the independent variable
+    :param y:  A numpy ndarray with the dependent variable
+    :param xerr:  A numpy ndarray with the uncertainty in the independent variable
+    :param yerr:  A numpy ndarray with the uncertainty in the dependent variable
+    :param fitorder:  The polynomial fit order. Default = 1 (linear)
+    :param nwalkers:  The number of walkers to use in the MCMC sampler
+    :param n_burn:   The number of samples to discard for the burn-in portion
+    :param n_prod:   The number of MCMC samples to take in the final production sampling
+    :return: nwalker*nprod samples of the polynomial coefficients.
+             Returned as a numpy ndarray of shape (nwalker*nprod, fitorder)
+    """
+    # Perform the initial fit to get good guesses
+    initial_pars = tls_get_initial_fit(x, y, xerr, tls_model, fitorder=fitorder)
+    logging.info('Initial pars: ', initial_pars)
+
+    # Set up the MCMC sampler
+    pars = np.hstack((x, initial_pars))
+    ndim = pars.size
+    p0 = emcee.utils.sample_ball(pars, std=[1e-6] * ndim, size=nwalkers)
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, tls_lnprob, args=(x, y, xerr, yerr, tls_model))
+
+    # Burn-in
+    print 'Running burn-in'
+    p1, lnp, _ = sampler.run_mcmc(p0, n_burn)
+    sampler.reset()
+
+    print 'Running production'
+    sampler.run_mcmc(p1, n_prod)
+
+    return sampler.flatchain[:, x.size:]
+
