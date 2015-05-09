@@ -247,85 +247,137 @@ class ListModel(Model):
         return sampler, pos
 
 
-# #################################################################
-#    A set of functions for bayesian total least squares         #
+##################################################################
+# Bayesian total least squares regression               #
 ##################################################################
 
-def tls_model(p, x):
-    """
-    Parameterized model for y = f(x). For now, just a polynomial
-    """
-    return np.poly1d(p)(x)
-
-
-def tls_lnlike(pars, x, y, xerr, yerr, model_fcn):
-    """
-    Likelihood function.
-    pars:  the parameters. the first several are the 'true' x values
-    x: the measured x values
-    y: the measured y values
-    xerr: the uncertainty in the measured x values
-    yerr: the uncertainty in the measured y values
-    model_fcn: A function that gives the model y = f(x)
-               The model function should take the rest of the pars as the first argument.
-    """
-    xtrue = pars[:x.size]
-    y_pred = model_fcn(pars[x.size:], xtrue)  # Predict the y value
-
-    # Make the log-likelihood
-    return np.sum(-(x - xtrue) ** 2 / xerr ** 2 - (y - y_pred) ** 2 / yerr * 2)
-
-
-def tls_lnprior(pars):
-    return 0.0
-
-
-def tls_lnprob(pars, x, y, xerr, yerr, model_fcn):
-    lp = tls_lnprior(pars)
-    return lp + tls_lnlike(pars, x, y, xerr, yerr, model_fcn) if np.isfinite(lp) else -np.inf
-
-
-def tls_get_initial_fit(x, y, yerr, model_fcn, fitorder=3):
-    pars = np.zeros(fitorder + 1)
-    pars[-2] = 1.0
-    min_func = lambda p, xi, yi, yerri: np.sum((yi - model_fcn(p, xi)) ** 2 / yerri ** 2)
-
-    best_pars = fmin(min_func, x0=pars, args=(x, y, yerr))
-    return best_pars
-
-
 if emcee_import:
-    def bayesian_total_least_squares(x, y, xerr, yerr, fitorder=1, nwalkers=100, n_burn=200, n_prod=1000):
-        """
-        Perform a bayesian total least squares fit to data with errors in both the x- and y-axes.
-        :param x:  A numpy ndarray with the independent variable
-        :param y:  A numpy ndarray with the dependent variable
-        :param xerr:  A numpy ndarray with the uncertainty in the independent variable
-        :param yerr:  A numpy ndarray with the uncertainty in the dependent variable
-        :param fitorder:  The polynomial fit order. Default = 1 (linear)
-        :param nwalkers:  The number of walkers to use in the MCMC sampler
-        :param n_burn:   The number of samples to discard for the burn-in portion
-        :param n_prod:   The number of MCMC samples to take in the final production sampling
-        :return: nwalker*nprod samples of the polynomial coefficients.
-                 Returned as a numpy ndarray of shape (nwalker*nprod, fitorder)
-        """
-        # Perform the initial fit to get good guesses
-        initial_pars = tls_get_initial_fit(x, y, xerr, tls_model, fitorder=fitorder)
-        logging.info('Initial pars: ', initial_pars)
+    class Bayesian_TLS(object):
+        def __init__(self, x, y, xerr, yerr):
+            """
+            Class to perform a bayesian total least squares fit to data with errors in both the x- and y-axes.
 
-        # Set up the MCMC sampler
-        pars = np.hstack((x, initial_pars))
-        ndim = pars.size
-        p0 = emcee.utils.sample_ball(pars, std=[1e-6] * ndim, size=nwalkers)
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, tls_lnprob, args=(x, y, xerr, yerr, tls_model))
+            :param x:  A numpy ndarray with the independent variable
+            :param y:  A numpy ndarray with the dependent variable
+            :param xerr:  A numpy ndarray with the uncertainty in the independent variable
+            :param yerr:  A numpy ndarray with the uncertainty in the dependent variable
+            """
+            self.x = x
+            self.y = y
+            self.xerr = xerr
+            self.yerr = yerr
 
-        # Burn-in
-        print 'Running burn-in'
-        p1, lnp, _ = sampler.run_mcmc(p0, n_burn)
-        sampler.reset()
+            # Default values for a bunch of stuff
+            self.nwalkers = 100
+            self.n_burn = 200
+            self.n_prod = 1000
+            self.sampler = None
 
-        print 'Running production'
-        sampler.run_mcmc(p1, n_prod)
 
-        return sampler.flatchain[:, x.size:]
+        def model(self, p, x):
+            """
+            A parameteric model to fit y = f(x, p)
+            This can be overridden in a class that inherits from this one to make a new model
+            """
+            return np.poly1d(p)(x)
+
+
+        def _lnlike(self, pars):
+            """
+            likelihood function. This uses the class variables for x,y,xerr, and yerr, as well as the 'model' instance
+            """
+            xtrue = pars[:self.x.size]
+            y_pred = self.model(pars[self.x.size:], xtrue)  # Predict the y value
+
+            # Make the log-likelihood
+            return np.sum(-(self.x - xtrue) ** 2 / self.xerr ** 2 - (self.y - y_pred) ** 2 / self.yerr * 2)
+
+
+        def lnprior(self, pars):
+            """
+            Log of the prior for the parameters. This can be overridden to make custom priors
+            """
+            return 0.0
+
+
+        def _lnprob(self, pars):
+            """
+            Log of the posterior probability of pars given the data.
+            """
+            lp = self.lnprior(pars)
+            return lp + self._lnlike(pars) if np.isfinite(lp) else -np.inf
+
+
+        def guess_fit_parameters(self, fitorder=1):
+            """
+            Do a normal fit to the data, ignoring the the uncertainty on the dependent variables.
+            The result will be saved for use as initial guess parameters in the full MCMC fit.
+            If you use a custom model, you will probably have to override this method as well.
+            """
+
+            pars = np.zeros(fitorder + 1)
+            pars[-2] = 1.0
+            min_func = lambda p, xi, yi, yerri: np.sum((yi - self.model(p, xi)) ** 2 / yerri ** 2)
+
+            best_pars = fmin(min_func, x0=pars, args=(self.x, self.y, self.yerr))
+            self.guess_pars = best_pars
+            return best_pars
+
+
+        def fit(self, nwalkers=None, n_burn=None, n_prod=None, guess=True, initial_pars=None, **guess_kws):
+            """
+            Perform the full MCMC fit.
+
+            :param nwalkers:  The number of walkers to use in the MCMC sampler
+            :param n_burn:   The number of samples to discard for the burn-in portion
+            :param n_prod:   The number of MCMC samples to take in the final production sampling
+            :param guess:    Flag for whether the data should be fit in a normal way first, to get decent starting parameters.
+                             If true, it uses self.guess_fit_parameters and passes guess_kws to the function.
+                             If false, it uses initial_pars. You MUST give initial_pars if guess=False!
+            """
+            nwalkers = self.nwalkers if nwalkers is None else nwalkers
+            n_burn = self.n_burn if n_burn is None else n_burn
+            n_prod = self.n_prod if n_prod is None else n_prod
+
+            if guess:
+                initial_pars = self.guess_fit_parameters(**guess_kws)
+            elif initial_pars is None:
+                raise ValueError('Must give initial pars if guess = False!')
+
+            # Set up the MCMC sampler
+            pars = np.hstack((self.x, initial_pars))
+            ndim = pars.size
+            p0 = emcee.utils.sample_ball(pars, std=[1e-6] * ndim, size=nwalkers)
+            sampler = emcee.EnsembleSampler(nwalkers, ndim, self._lnprob)
+
+            # Burn-in
+            print 'Running burn-in'
+            p1, lnp, _ = sampler.run_mcmc(p0, n_burn)
+            sampler.reset()
+
+            print 'Running production'
+            sampler.run_mcmc(p1, n_prod)
+
+            # Save the sampler instance as a class variable
+            self.sampler = sampler
+            return
+
+
+        def predict(self, x, N=100):
+            """
+            predict the y value for the given x values. Use the N most probable MCMC chains
+            """
+            if self.sampler is None:
+                logging.warn('Need to run the fit method before predict!')
+                return
+
+            # Find the N best walkers
+            N = min(N, self.sampler.flatchain.shape[0])
+            indices = np.argsort(self.sampler.lnprobability.flatten())[:N]
+            pars = self.sampler.flatchain[indices, self.x.size:]
+
+            y = np.array([self.model(p, x) for p in pars])
+            return y
+
+
 
