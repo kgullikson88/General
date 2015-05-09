@@ -616,7 +616,7 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err):
     """
 
     def lnlike(Tact, Tmeas, Tmeas_err, ft):
-        Tmeas_pred = ft.predict(Tact, N='all')
+        Tmeas_pred = ft.predict(Tact, N=100)
         return -np.sum((Tmeas - Tmeas_pred) / Tmeas_err ** 2)
 
     def lnprior(Tact):
@@ -628,9 +628,9 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err):
         lp = lnprior(Tact)
         return lp + lnlike(Tact, Tmeas, Tmeas_err, ft) if np.isfinite(lp) else -np.inf
 
-    T = Tmeas
+    T = [Tmeas]
     nwalkers = 500
-    p0 = emcee.utils.sample_ball(T, std=1e-6, size=nwalkers)
+    p0 = emcee.utils.sample_ball(T, std=[1e-6], size=nwalkers)
     sampler = emcee.EnsembleSampler(nwalkers, 1, lnprob, args=(Tmeas, Tmeas_err, fitter))
 
     # Burn-in
