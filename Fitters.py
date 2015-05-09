@@ -18,7 +18,7 @@ try:
 
     emcee_import = True
 except ImportError:
-    print "Warning! emcee module not loaded! BayesFit Module will not be available!"
+    logging.warn("emcee module not loaded! BayesFit and bayesian_total_least_squares are unavailable!")
     emcee_import = False
 
 
@@ -294,37 +294,38 @@ def tls_get_initial_fit(x, y, yerr, model_fcn, fitorder=3):
     return best_pars
 
 
-def bayesian_total_least_squares(x, y, xerr, yerr, fitorder=1, nwalkers=100, n_burn=200, n_prod=1000):
-    """
-    Perform a bayesian total least squares fit to data with errors in both the x- and y-axes.
-    :param x:  A numpy ndarray with the independent variable
-    :param y:  A numpy ndarray with the dependent variable
-    :param xerr:  A numpy ndarray with the uncertainty in the independent variable
-    :param yerr:  A numpy ndarray with the uncertainty in the dependent variable
-    :param fitorder:  The polynomial fit order. Default = 1 (linear)
-    :param nwalkers:  The number of walkers to use in the MCMC sampler
-    :param n_burn:   The number of samples to discard for the burn-in portion
-    :param n_prod:   The number of MCMC samples to take in the final production sampling
-    :return: nwalker*nprod samples of the polynomial coefficients.
-             Returned as a numpy ndarray of shape (nwalker*nprod, fitorder)
-    """
-    # Perform the initial fit to get good guesses
-    initial_pars = tls_get_initial_fit(x, y, xerr, tls_model, fitorder=fitorder)
-    logging.info('Initial pars: ', initial_pars)
+if emcee_import:
+    def bayesian_total_least_squares(x, y, xerr, yerr, fitorder=1, nwalkers=100, n_burn=200, n_prod=1000):
+        """
+        Perform a bayesian total least squares fit to data with errors in both the x- and y-axes.
+        :param x:  A numpy ndarray with the independent variable
+        :param y:  A numpy ndarray with the dependent variable
+        :param xerr:  A numpy ndarray with the uncertainty in the independent variable
+        :param yerr:  A numpy ndarray with the uncertainty in the dependent variable
+        :param fitorder:  The polynomial fit order. Default = 1 (linear)
+        :param nwalkers:  The number of walkers to use in the MCMC sampler
+        :param n_burn:   The number of samples to discard for the burn-in portion
+        :param n_prod:   The number of MCMC samples to take in the final production sampling
+        :return: nwalker*nprod samples of the polynomial coefficients.
+                 Returned as a numpy ndarray of shape (nwalker*nprod, fitorder)
+        """
+        # Perform the initial fit to get good guesses
+        initial_pars = tls_get_initial_fit(x, y, xerr, tls_model, fitorder=fitorder)
+        logging.info('Initial pars: ', initial_pars)
 
-    # Set up the MCMC sampler
-    pars = np.hstack((x, initial_pars))
-    ndim = pars.size
-    p0 = emcee.utils.sample_ball(pars, std=[1e-6] * ndim, size=nwalkers)
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, tls_lnprob, args=(x, y, xerr, yerr, tls_model))
+        # Set up the MCMC sampler
+        pars = np.hstack((x, initial_pars))
+        ndim = pars.size
+        p0 = emcee.utils.sample_ball(pars, std=[1e-6] * ndim, size=nwalkers)
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, tls_lnprob, args=(x, y, xerr, yerr, tls_model))
 
-    # Burn-in
-    print 'Running burn-in'
-    p1, lnp, _ = sampler.run_mcmc(p0, n_burn)
-    sampler.reset()
+        # Burn-in
+        print 'Running burn-in'
+        p1, lnp, _ = sampler.run_mcmc(p0, n_burn)
+        sampler.reset()
 
-    print 'Running production'
-    sampler.run_mcmc(p1, n_prod)
+        print 'Running production'
+        sampler.run_mcmc(p1, n_prod)
 
-    return sampler.flatchain[:, x.size:]
+        return sampler.flatchain[:, x.size:]
 
