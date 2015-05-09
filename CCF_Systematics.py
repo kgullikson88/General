@@ -513,7 +513,8 @@ def fit_act2tmeas(df, fitorder=3):
     # Normalize the CCF heights by whatever the peak is
     def normalize(d):
         highest = d['CCF'].max()
-        return pd.DataFrame(data={'[Fe/H]': d['[Fe/H]'].values, 'logg': d.logg.values,
+        return pd.DataFrame(data={'Primary': d.Primary.values, 'Secondary': d.Secondary.values,
+                                  '[Fe/H]': d['[Fe/H]'].values, 'logg': d.logg.values,
                                   'rv': d.rv.values, 'vsini': d.vsini.values,
                                   'Tactual': d.Tactual.values, 'Tact_err': d.Tact_err.values,
                                   'Temperature': d.Temperature.values, 'CCF': d.CCF - highest + 1.0})
@@ -575,10 +576,30 @@ def fit_act2tmeas(df, fitorder=3):
     xplot = np.linspace(min(final.Tactual), max(final.Tactual), 100)
     for i in range(300):
         yplot = np.poly1d(par_samples[i])(xplot)
-        ax.plot(xplot, yplot, 'k-', alpha=0.05)
+        ax.plot(xplot, yplot, 'b-', alpha=0.01)
     ax.set_xlabel('Literature Temperature')
     ax.set_ylabel('Measured Temperature')
+    lim = (3000, 6500)
+    ax.set_xlim(lim)
+    ax.set_ylim(lim)
+    ax.plot(lim, lim, 'r--')
     plt.savefig('Tact2Tmeas.pdf')
+
+    # Now, plot the fractional difference vs Tactual
+    fig2, ax2 = plt.subplots(1, 1)
+    delta = (final.Tmeas - final.Tactual)/final.Tactual
+    delta_var = (final.Tmeas_err/final.Tactual)**2 + (final.Tmeas/final.Tactual**2 * final.Tact_err)**2
+    ax2.errorbar(final.Tactual, delta, xerr=final.Tact_err, yerr=np.sqrt(delta_var), fmt='ko')
+    for i in range(300):
+        ypred = np.poly1d(par_samples[i])(xplot)
+        del_plot = (ypred - xplot)/xplot
+        ax2.plot(xplot, del_plot, 'b-', alpha=0.01)
+    ax2.set_xlabel('Literature Temperature')
+    ax2.set_ylabel('Fractional Error')
+    lim = ax2.get_xlim()
+    ax2.plot(lim, [0, 0], 'r--')
+    plt.savefig('Tact2Tmeas_Residual.pdf')
+
     plt.show()
 
     return par_samples
