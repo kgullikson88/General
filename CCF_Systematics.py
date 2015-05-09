@@ -566,7 +566,7 @@ def fit_act2tmeas(df, fitorder=3):
     # Fit to a 3rd-order polynomial
     par_samples = Fitters.bayesian_total_least_squares(final.Tactual, final.Tmeas,
                                                        final.Tact_err, final.Tmeas_err,
-                                                       nwalkers=500)
+                                                       nwalkers=500, fitorder=fitorder)
 
 
     # Plot
