@@ -4,17 +4,18 @@ from collections import defaultdict
 from operator import itemgetter
 import logging
 import sys
-
 import pandas as pd
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
+from scipy.integrate import quad
+
 from george import kernels
 import matplotlib.pyplot as plt
 import numpy as np
 import george
 import emcee
 import h5py
-from scipy.integrate import quad
 
+import Fitters
 import StarData
 import SpectralTypeRelations
 from HelperFunctions import mad
@@ -502,99 +503,85 @@ def check_posterior(df, posterior, Tvalues=np.arange(3000, 6900, 100)):
     return True
 
 
-def fit_temperature(df, fitorder=3):
+def fit_act2tmeas(df, fitorder=3):
     """
-    Fit a function to go from measured to actual temperature with uncertainties
+    Fit a function to go from actual to measured temperature. Use Bayes' Theorem to get the reverse!
     :param df: A pandas DataFrame such as one output by get_ccf_summary with N > 1
-    :param fitorder: The order of the fit to the weight coefficients
+    :param fitorder: The order of the fit
     :return:
     """
     # Normalize the CCF heights by whatever the peak is
     def normalize(d):
         highest = d['CCF'].max()
-        d['CCF'] = d['CCF'] - highest
-        return d
+        return pd.DataFrame(data={'[Fe/H]': d['[Fe/H]'].values, 'logg': d.logg.values,
+                                  'rv': d.rv.values, 'vsini': d.vsini.values,
+                                  'Tactual': d.Tactual.values, 'Tact_err': d.Tact_err.values,
+                                  'Temperature': d.Temperature.values, 'CCF': d.CCF - highest + 1.0})
 
-    tmp = df.groupby(('Primary', 'Secondary')).transform(normalize)
-    normed = pd.merge(df[['Primary', 'Secondary']], tmp, left_index=True, right_index=True)
+    normed = df.groupby(('Primary', 'Secondary')).apply(normalize).reset_index()
 
-    # Get the actual temperature, and all the temperatures/ccfs for each primary/secondary combination
-    star_groups = normed.groupby(('Primary', 'Secondary'))
-    Tmeas = []
-    Tact = []
-    corr = []
-    for sg in star_groups.groups.keys():
-        g = star_groups.get_group(sg)
-        Tmeas.append(g['Temperature'].values)
-        corr.append(g['CCF'].values)
-        Tact.append(g['Tactual'].values[0])
-    Tmeasured = np.array(Tmeas)
-    Tactual = np.array(Tact)
-    corr = np.array(corr)
-
-    # Define some functions to use in the GP fit
-    def model(pars, T, CCF):
-        """
-        Model to get a measured temperature out of the temperature and CCF height at various points
-        pars: polynomial parameters (suitable for np.poly1d)
-        T: a numpy array with the sampled temperatures
-        CCF: A numpy array of the same size as T, which contain the CCFs at each temperature in T
-        """
-        poly = np.poly1d(pars)
-        weights = poly(CCF)
-        weights[np.isnan(weights)] = 0
-        Tmeas = np.average(T, weights=weights, axis=1)
-        var_T = np.sum(weights * T, axis=1) / np.sum(weights, axis=1)
+    # Get the measured temperature as the weighted average of the temperatures (weight by normalized CCF value)
+    def get_Tmeas(df):
+        df = df.dropna(subset=['CCF'])
+        corr = df.CCF.values
+        T = df.Temperature.values
+        w = corr / corr.sum()
+        Tmeas = np.average(T, weights=w)
+        var_T = np.average((T - Tmeas) ** 2, weights=w)
 
         # Get factor to go from biased --> unbiased variance
-        V1 = np.sum(weights, axis=1)
-        V2 = np.sum(weights ** 2, axis=1)
+        V1 = np.sum(w)
+        V2 = np.sum(w ** 2)
         f = V1 / (V1 - V2 / V1)
-        return Tmeas, np.sqrt(f * var_T)
 
-    def lnlike(pars, Tact, Tvals, corrvals):
-        a, tau = np.exp(pars[:2])
-        Tmeas, Terr = model(pars[2:], Tvals, corrvals)
-        gp = george.GP(a * kernels.ExpSquaredKernel(tau))
-        gp.compute(Tmeas, Terr)
-        return gp.lnlikelihood(Tact - model(pars[2:], Tmeas))
+        # return Tmeas, np.sqrt(f*var_T)
+        return pd.DataFrame(data={'[Fe/H]': df['[Fe/H]'].values[0], 'logg': df.logg.values[0],
+                                  'rv': df.rv.values[0], 'vsini': df.vsini.values[0],
+                                  'Tactual': df.Tactual.values[0], 'Tact_err': df.Tact_err.values[0],
+                                  'Tmeas': Tmeas, 'Tmeas_err': np.sqrt(f * var_T)}, index=[0])
 
-    def lnprior(pars):
-        lna, lntau = pars[:2]
-        polypars = pars[2:]
-        if -20 < lna < 20 and 12 < lntau < 20:
-            return 0.0
-        return -np.inf
+    summary = normed.groupby(('Primary', 'Secondary')).apply(get_Tmeas).reset_index()
 
-    def lnprob(pars, Tact, Tvals, corrvals):
-        lp = lnprior(pars)
-        return lp + lnlike(pars, Tact, Tvals, corrvals) if np.isfinite(lp) else -np.inf
+    # Get the average and standard deviation of the measured temperature, for a given actual temperature.
+    def get_Tmeas2(df):
+        Tm = df.Tmeas.values
+        Tm_err = df.Tmeas_err.values
+        w = 1.0 / Tm_err ** 2
+        w /= w.sum()
+        T_avg = np.average(Tm, weights=w)
+        var_T = np.average((Tm - T_avg) ** 2, weights=w)
 
-    # Set up the emcee fitter
-    initial = np.zeros(fitorder + 3)
-    initial[1] = 14.0
-    if fitorder > 0:
-        initial[-2] = 1.0
-    # initial = np.array([0, 14])#, 1.0, 0.0])
-    ndim = len(initial)
-    nwalkers = 100
-    p0 = [np.array(initial) + 1e-8 * np.random.randn(ndim) for i in xrange(nwalkers)]
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=(Tactual, Tmeasured, corr))
+        # Get factor to go from biased --> unbiased variance
+        V1 = np.sum(w)
+        V2 = np.sum(w ** 2)
+        f = V1 / (V1 - V2 / V1)
 
-    print 'Running first burn-in'
-    p1, lnp, _ = sampler.run_mcmc(p0, 500)
-    sampler.reset()
+        # return Tmeas, np.sqrt(f*var_T)
+        return pd.DataFrame(data={'Tactual': df.Tactual.values[0], 'Tact_err': df.Tact_err.values[0],
+                                  'Tmeas': T_avg, 'Tmeas_err': np.sqrt(f * var_T)}, index=[0])
 
-    print "Running second burn-in..."
-    p_best = p1[np.argmax(lnp)]
-    p2 = [p_best + 1e-8 * np.random.randn(ndim) for i in xrange(nwalkers)]
-    p3, _, _ = sampler.run_mcmc(p2, 250)
-    sampler.reset()
+    final = summary.groupby('Secondary').apply(get_Tmeas2).reset_index()
 
-    print "Running production..."
-    sampler.run_mcmc(p3, 1000)
 
-    return sampler
+    # Fit to a 3rd-order polynomial
+    par_samples = Fitters.bayesian_total_least_squares(final.Tactual, final.Tmeas,
+                                                       final.Tact_err, final.Tmeas_err,
+                                                       nwalkers=500)
+
+
+    # Plot
+    fig, ax = plt.subplots(1, 1)
+    ax.errorbar(final.Tactual, final.Tmeas, xerr=final.Tact_err, yerr=final.Tmeas_err, fmt='ko')
+    xplot = np.linspace(min(final.Tactual), max(final.Tactual), 100)
+    for i in range(300):
+        yplot = np.poly1d(par_samples[i])(xplot)
+        ax.plot(xplot, yplot, 'k-', alpha=0.05)
+    ax.set_xlabel('Literature Temperature')
+    ax.set_ylabel('Measured Temperature')
+    plt.savefig('Tact2Tmeas.pdf')
+    plt.show()
+
+    return par_samples
 
 
 def get_values(df):
