@@ -244,8 +244,10 @@ def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1)
                 d['significance'].append(np.nan)
                 continue
             # print len(good)
-            #best = good.loc[good.ccf_max == good.ccf_max.max()]
-            best = good
+            best = good.loc[good.ccf_max == good.ccf_max.max()]
+            #best = good
+            if len(best) > 1:
+                print best
 
             # Save the best parameters for this temperature
             d['Primary'].append(primary)
@@ -517,7 +519,7 @@ def fit_temperature(df, fitorder=3):
     normed = pd.merge(df[['Primary', 'Secondary']], tmp, left_index=True, right_index=True)
 
     # Get the actual temperature, and all the temperatures/ccfs for each primary/secondary combination
-    star_groups = normed.group(('Primary', 'Secondary'))
+    star_groups = normed.groupby(('Primary', 'Secondary'))
     Tmeas = []
     Tact = []
     corr = []
