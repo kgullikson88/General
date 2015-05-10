@@ -8,7 +8,7 @@ from collections import defaultdict
 from scipy.optimize import bisect
 from scipy.stats import scoreatpercentile
 from scipy.signal import kaiserord, firwin, lfilter
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
+from scipy.interpolate import InterpolatedUnivariateSpline as spline, UnivariateSpline
 
 from astropy.io import fits as pyfits
 import numpy as np
@@ -886,3 +886,34 @@ def add_magnitudes(mag_list):
     total_flux = np.sum(flux_list)
     total_mag = -2.5 * np.log10(total_flux)
     return total_mag
+
+
+def fwhm(x, y, k=10, ret_roots=False):
+    """
+    Determine full-with-half-maximum of a peaked set of points, x and y.
+
+    Assumes that there is only one peak present in the dataset.  The function
+    uses a spline interpolation with smoothing parameter k ('s' in scipy.interpolate.UnivariateSpline).
+    """
+
+    class MultiplePeaks(Exception):
+        pass
+
+    class NoPeaksFound(Exception):
+        pass
+
+    half_max = np.max(y) / 2.0
+    s = UnivariateSpline(x, y - half_max, s=k)
+    roots = s.roots()
+
+    if len(roots) > 2:
+        raise MultiplePeaks("The dataset appears to have multiple peaks, and "
+                            "thus the FWHM can't be determined.")
+    elif len(roots) < 2:
+        raise NoPeaksFound("No proper peaks were found in the data set; likely "
+                           "the dataset is flat (e.g. all zeros).")
+    else:
+        if ret_roots:
+            return roots[0], roots[1]
+
+        return abs(roots[1] - roots[0])
