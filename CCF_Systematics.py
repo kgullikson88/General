@@ -7,6 +7,7 @@ import sys
 import pandas as pd
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.integrate import quad
+from scipy.optimize import minimize_scalar
 
 from george import kernels
 import matplotlib.pyplot as plt
@@ -678,6 +679,37 @@ def correct_measured_temperature(df, fitter, cache=None):
     data['T_lowerr'] = out.map(lambda l: l[2])
 
     return data
+
+
+def adjust_uncertainty(df):
+    """
+    Adjust the measurement uncertainties so that the 1-sigma uncertainties agree
+    with the literature values 68% of the time.
+    :param df: A pandas DataFrame with corrected temperatures, such as output by correct_measured_temperature
+    :return: The same dataframe, but with the uncertainties adjusted by some factor
+    """
+
+    def get_zscore(x, y, xerr, yerr, f=1.0):
+        delta = x - y
+        sigma = np.sqrt(f * xerr ** 2 + yerr ** 2)
+        return delta / sigma
+
+    def min_func(f, x, y, xerr, yerr):
+        zscores = get_zscore(x, y, xerr, yerr, f)
+        return (len(zscores[zscores ** 2 > 1]) / float(len(zscores)) - 0.32) ** 2
+
+    df['T_err'] = np.minimum(df['T_uperr'], df['T_lowerr'])  # Be conservative and use the smaller error.
+
+    fitresult = minimize_scalar(min_func, bounds=[0, 10], method='bounded', args=(df['Corrected Temperature'],
+                                                                                  df['Tactual'],
+                                                                                  df['T_err'],
+                                                                                  df['Tact_err']))
+
+    logging.info('Scaling uncertainties by {:.2g}'.format(fitresult.x))
+    df['T_uperr'] *= fitresult.x
+    df['T_lowerr'] *= fitresult.x
+
+    return df
 
 
 def get_values(df):
