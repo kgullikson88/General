@@ -18,7 +18,7 @@ import h5py
 import Fitters
 import StarData
 import SpectralTypeRelations
-from HelperFunctions import mad
+from HelperFunctions import mad, fwhm
 
 
 def classify_filename(fname, type='bright'):
@@ -611,7 +611,7 @@ def fit_act2tmeas(df, fitorder=3):
     return fitter
 
 
-def get_actual_temperature(fitter, Tmeas, Tmeas_err):
+def get_actual_temperature(fitter, Tmeas, Tmeas_err, cache=None):
     """
     Get the actual temperature from the measured temperature
     :param fitter: a Bayesian_TLS instance which has already been fit
@@ -621,29 +621,58 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err):
     """
 
     # First, build up a cache of the MCMC predicted measured temperatures for lots of actual temperatures
-    Ta_arr = np.arange(3000, 10000, 1)
-    Tmeas_pred = fitter.predict(Ta_arr, N='all')[0]
-    cache = pd.DataFrame(Tmeas_pred, columns=Ta_arr)
+    ret_cache=False
+    if cache is None:
+        logging.info('Generating cache...')
+        Ta_arr = np.arange(2000, 10000, 1.0)
+        Tmeas_pred = fitter.predict(Ta_arr, N=10000)
+        cache = pd.DataFrame(Tmeas_pred, columns=Ta_arr)
+        ret_cache = True
+        del Tmeas_pred
 
-    def lnlike(Tact, Tmeas, Tmeas_err, ft):
+    # Get the probability of each value in the cache
+    def get_prob(Tm_pred, Tm, Tm_err):
+        return np.exp(-((Tm_pred - Tm) / Tm_err)**2)
+    probs = get_prob(cache.values, Tmeas, Tmeas_err)
+
+    # Put the probabilities in a DataFrame for easier manipulation
+    P = pd.DataFrame(data={'Temperature': cache.columns.values,
+                           'Probability': np.mean(probs, axis=0)})
+
+    # Find the maximum and FWHM of the probabilities
+    best_T = P.ix[np.argmax(P.Probability)]['Temperature']
+    roots = fwhm(P.Temperature, P.Probability, k=0, ret_roots=True)
+    h, l = max(roots), min(roots)
+
+    print('$T = {}^{{+{}}}_{{-{}}}$'.format(best_T, h-best_T, best_T-l))
+
+    if ret_cache:
+        return P, cache
+
+    return P
+
+
+
+    """
+    def lnlike(Tact, Tmeas, Tmeas_err):
         col = np.argmin(np.abs(Tact - cache.columns.values))
         Tmeas_pred = cache[cache.columns[col]].values
         # Tmeas_pred = ft.predict(Tact, N=100)
-        return -np.sum((Tmeas - Tmeas_pred) / Tmeas_err ** 2)
+        return -np.sum((Tmeas - Tmeas_pred)**2 / Tmeas_err ** 2)
 
     def lnprior(Tact):
         if 3000 < Tact < 10000:
             return 0.0
         return -np.inf
 
-    def lnprob(Tact, Tmeas, Tmeas_err, ft):
+    def lnprob(Tact, Tmeas, Tmeas_err):
         lp = lnprior(Tact)
-        return lp + lnlike(Tact, Tmeas, Tmeas_err, ft) if np.isfinite(lp) else -np.inf
+        return lp + lnlike(Tact, Tmeas, Tmeas_err) if np.isfinite(lp) else -np.inf
 
     T = [Tmeas]
     nwalkers = 500
     p0 = emcee.utils.sample_ball(T, std=[1e-6], size=nwalkers)
-    sampler = emcee.EnsembleSampler(nwalkers, 1, lnprob, args=(Tmeas, Tmeas_err, fitter))
+    sampler = emcee.EnsembleSampler(nwalkers, 1, lnprob, args=(Tmeas, Tmeas_err))
 
     # Burn-in
     print 'Running burn-in'
@@ -653,7 +682,13 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err):
     print 'Running production'
     sampler.run_mcmc(p1, 500)
 
+    print sampler.flatchain
+    print sampler.lnprobability
+
+    if ret_cache:
+        return sampler.flatchain, cache
     return sampler.flatchain
+    """
 
 
 def get_actual_temperature_fast(fitter, Tmeas, Tmeas_err):
@@ -670,7 +705,7 @@ def get_actual_temperature_fast(fitter, Tmeas, Tmeas_err):
     numerator = np.exp(-(Tmeas - Tmeas_pred) ** 2 / Tmeas_err ** 2)
     posterior = numerator / denom
 
-    return np.choice(Ta_arr, p=posterior, size=10000)
+    return np.random.choice(Ta_arr, p=posterior, size=10000)
 
 
 
