@@ -526,8 +526,7 @@ def get_initial_uncertainty(df):
         V2 = np.sum(w ** 2)
         f = V1 / (V1 - V2 / V1)
 
-        return pd.DataFrame(data={'Primary': d.Primary.values, 'Secondary': d.Secondary.values,
-                                  '[Fe/H]': d['[Fe/H]'].values[0], 'logg': d.logg.values[0],
+        return pd.DataFrame(data={'[Fe/H]': d['[Fe/H]'].values[0], 'logg': d.logg.values[0],
                                   'rv': d.rv.values[0], 'vsini': d.vsini.values[0],
                                   'Tactual': d.Tactual.values[0], 'Tact_err': d.Tact_err.values[0],
                                   'Tmeas': Tmeas, 'Tmeas_err': np.sqrt(f * var_T)}, index=[0])
@@ -645,50 +644,11 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err, cache=None):
     h, l = max(roots), min(roots)
 
     print('$T = {}^{{+{}}}_{{-{}}}$'.format(best_T, h-best_T, best_T-l))
-
+    
     if ret_cache:
-        return P, cache
+        return best_T, h-best_T, best_T-l, cache
+    return best_T, h-best_T, best_T-l
 
-    return P
-
-
-
-    """
-    def lnlike(Tact, Tmeas, Tmeas_err):
-        col = np.argmin(np.abs(Tact - cache.columns.values))
-        Tmeas_pred = cache[cache.columns[col]].values
-        # Tmeas_pred = ft.predict(Tact, N=100)
-        return -np.sum((Tmeas - Tmeas_pred)**2 / Tmeas_err ** 2)
-
-    def lnprior(Tact):
-        if 3000 < Tact < 10000:
-            return 0.0
-        return -np.inf
-
-    def lnprob(Tact, Tmeas, Tmeas_err):
-        lp = lnprior(Tact)
-        return lp + lnlike(Tact, Tmeas, Tmeas_err) if np.isfinite(lp) else -np.inf
-
-    T = [Tmeas]
-    nwalkers = 500
-    p0 = emcee.utils.sample_ball(T, std=[1e-6], size=nwalkers)
-    sampler = emcee.EnsembleSampler(nwalkers, 1, lnprob, args=(Tmeas, Tmeas_err))
-
-    # Burn-in
-    print 'Running burn-in'
-    p1, lnp, _ = sampler.run_mcmc(p0, 200)
-    sampler.reset()
-
-    print 'Running production'
-    sampler.run_mcmc(p1, 500)
-
-    print sampler.flatchain
-    print sampler.lnprobability
-
-    if ret_cache:
-        return sampler.flatchain, cache
-    return sampler.flatchain
-    """
 
 
 def get_actual_temperature_fast(fitter, Tmeas, Tmeas_err):
