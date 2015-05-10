@@ -615,8 +615,15 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err):
     :return: posterior samples for the actual temperature
     """
 
+    # First, build up a cache of the MCMC predicted measured temperatures for lots of actual temperatures
+    Ta_arr = np.arange(3000, 10000, 1)
+    Tmeas_pred = fitter.predict(Ta_arr, N='all')[0]
+    cache = pd.DataFrame(Tmeas_pred, columns=Ta_arr)
+
     def lnlike(Tact, Tmeas, Tmeas_err, ft):
-        Tmeas_pred = ft.predict(Tact, N=100)
+        col = np.argmin(np.abs(Tact - cache.columns.values))
+        Tmeas_pred = cache[cache.columns[col]].values
+        # Tmeas_pred = ft.predict(Tact, N=100)
         return -np.sum((Tmeas - Tmeas_pred) / Tmeas_err ** 2)
 
     def lnprior(Tact):
