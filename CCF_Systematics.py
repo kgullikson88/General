@@ -681,12 +681,13 @@ def correct_measured_temperature(df, fitter, cache=None):
     return data
 
 
-def adjust_uncertainty(df):
+def get_uncertainty_scalefactor(df):
     """
-    Adjust the measurement uncertainties so that the 1-sigma uncertainties agree
-    with the literature values 68% of the time.
+    Find the factor by which to multiply the 1-sigma measurement uncertainties
+    so that they agree with the literature values 68% of the time.
+
     :param df: A pandas DataFrame with corrected temperatures, such as output by correct_measured_temperature
-    :return: The same dataframe, but with the uncertainties adjusted by some factor
+    :return: The scaling factor. Multiply df['T_uperr'] and df['T_lowerr'] by this to get more realistic uncertainties.
     """
 
     def get_zscore(x, y, xerr, yerr, f=1.0):
@@ -705,11 +706,9 @@ def adjust_uncertainty(df):
                                                                                   df['T_err'],
                                                                                   df['Tact_err']))
 
-    logging.info('Scaling uncertainties by {:.2g}'.format(fitresult.x))
-    df['T_uperr'] *= fitresult.x
-    df['T_lowerr'] *= fitresult.x
+    logging.info('Uncertainty scale factor = {:.2g}'.format(fitresult.x))
 
-    return df
+    return fitresult.x
 
 
 def get_values(df):
