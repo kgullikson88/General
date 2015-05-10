@@ -650,10 +650,34 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err, cache=None):
     return best_T, h-best_T, best_T-l
 
 
+def correct_measured_temperature(df, fitter, cache=None):
+    """
+    Given a dataframe such as output by get_ccf_data (with N > 1), correct the temperatures to
+    account for the measurement bias.
+    :param df: A dataframe with the CCF data
+    :param fitter: A Fitters.Bayesian_TLS instance that contains fitted parameters for the measurement bias
+    :param cache: A pandas dataframe that gives MCMC samples of the temperature measurement
+                 for various actual temperatures.
+    :return:
+    """
 
+    # First, get the measurement values and estimated uncertainty
+    data = get_initial_uncertainty(df)
 
+    # Make a cache for get_actual_temperature if it is not given.
+    if cache is None:
+        logging.info('Generating cache...')
+        Ta_arr = np.arange(2000, 10000, 1.0)
+        Tmeas_pred = fitter.predict(Ta_arr, N=10000)
+        cache = pd.DataFrame(Tmeas_pred, columns=Ta_arr)
 
+    # Correct the measured temperatures to account for the bias.
+    out = data.apply(lambda r: get_actual_temperature(fitter, r['Tmeas'], r['Tmeas_err'], cache=cache), axis=1)
+    data['Corrected Temperature'] = out.map(lambda l: l[0])
+    data['T_uperr'] = out.map(lambda l: l[1])
+    data['T_lowerr'] = out.map(lambda l: l[2])
 
+    return data
 
 
 def get_values(df):
