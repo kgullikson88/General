@@ -503,29 +503,20 @@ def check_posterior(df, posterior, Tvalues=np.arange(3000, 6900, 100)):
     return True
 
 
-def fit_act2tmeas(df, fitorder=3):
+def get_initial_uncertainty(df):
     """
-    Fit a function to go from actual to measured temperature. Use Bayes' Theorem to get the reverse!
-    :param df: A pandas DataFrame such as one output by get_ccf_summary with N > 1
-    :param fitorder: The order of the fit
+    Take a dataframe such as one output from get_ccf_summary with N > 1, and get the temperature and initial
+    estimate for the temperature uncertainty.
+    :param df:
     :return:
     """
-    # Normalize the CCF heights by whatever the peak is
-    def normalize(d):
-        highest = d['CCF'].max()
-        return pd.DataFrame(data={'Primary': d.Primary.values, 'Secondary': d.Secondary.values,
-                                  '[Fe/H]': d['[Fe/H]'].values, 'logg': d.logg.values,
-                                  'rv': d.rv.values, 'vsini': d.vsini.values,
-                                  'Tactual': d.Tactual.values, 'Tact_err': d.Tact_err.values,
-                                  'Temperature': d.Temperature.values, 'CCF': d.CCF - highest + 1.0})
-
-    normed = df.groupby(('Primary', 'Secondary')).apply(normalize).reset_index()
 
     # Get the measured temperature as the weighted average of the temperatures (weight by normalized CCF value)
-    def get_Tmeas(df):
-        df = df.dropna(subset=['CCF'])
-        corr = df.CCF.values
-        T = df.Temperature.values
+    def get_Tmeas(d):
+        d = d.dropna(subset=['CCF'])
+        corr = d.CCF.values
+        corr += 1.0 - corr.max()
+        T = d.Temperature.values
         w = corr / corr.sum()
         Tmeas = np.average(T, weights=w)
         var_T = np.average((T - Tmeas) ** 2, weights=w)
@@ -535,16 +526,30 @@ def fit_act2tmeas(df, fitorder=3):
         V2 = np.sum(w ** 2)
         f = V1 / (V1 - V2 / V1)
 
-        # return Tmeas, np.sqrt(f*var_T)
-        return pd.DataFrame(data={'[Fe/H]': df['[Fe/H]'].values[0], 'logg': df.logg.values[0],
-                                  'rv': df.rv.values[0], 'vsini': df.vsini.values[0],
-                                  'Tactual': df.Tactual.values[0], 'Tact_err': df.Tact_err.values[0],
+        return pd.DataFrame(data={'Primary': d.Primary.values, 'Secondary': d.Secondary.values,
+                                  '[Fe/H]': d['[Fe/H]'].values[0], 'logg': d.logg.values[0],
+                                  'rv': d.rv.values[0], 'vsini': d.vsini.values[0],
+                                  'Tactual': d.Tactual.values[0], 'Tact_err': d.Tact_err.values[0],
                                   'Tmeas': Tmeas, 'Tmeas_err': np.sqrt(f * var_T)}, index=[0])
 
-    summary = normed.groupby(('Primary', 'Secondary')).apply(get_Tmeas).reset_index()
+    summary = df.groupby(('Primary', 'Secondary')).apply(get_Tmeas).reset_index()
+
+    return summary
+
+
+def fit_act2tmeas(df, fitorder=3):
+    """
+    Fit a function to go from actual to measured temperature. Use Bayes' Theorem to get the reverse!
+    :param df: A pandas DataFrame such as one output by get_ccf_summary with N > 1
+    :param fitorder: The order of the fit
+    :return:
+    """
+
+    # Get the measured temperature for each primary/secondary combination
+    summary = get_initial_uncertainty(df)
 
     # Get the average and standard deviation of the measured temperature, for a given actual temperature.
-    def get_Tmeas2(df):
+    def get_Tmeas(df):
         Tm = df.Tmeas.values
         Tm_err = df.Tmeas_err.values
         w = 1.0 / Tm_err ** 2
@@ -561,7 +566,7 @@ def fit_act2tmeas(df, fitorder=3):
         return pd.DataFrame(data={'Tactual': df.Tactual.values[0], 'Tact_err': df.Tact_err.values[0],
                                   'Tmeas': T_avg, 'Tmeas_err': np.sqrt(f * var_T)}, index=[0])
 
-    final = summary.groupby('Secondary').apply(get_Tmeas2).reset_index()
+    final = summary.groupby('Secondary').apply(get_Tmeas).reset_index()
 
 
     # Fit to a 3rd-order polynomial
