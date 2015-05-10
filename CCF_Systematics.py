@@ -658,7 +658,7 @@ def get_actual_temperature_fast(fitter, Tmeas, Tmeas_err):
     numerator = np.exp(-(Tmeas - Tmeas_pred) ** 2 / Tmeas_err ** 2)
     posterior = numerator / denom
 
-    return np.choice(Ta_arr, p=posterior, size=10000)
+    return np.random.choice(Ta_arr, p=posterior, size=10000)
 
 
 
