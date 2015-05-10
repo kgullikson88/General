@@ -18,7 +18,7 @@ import h5py
 import Fitters
 import StarData
 import SpectralTypeRelations
-from HelperFunctions import mad
+from HelperFunctions import mad, fwhm
 
 
 def classify_filename(fname, type='bright'):
@@ -619,15 +619,16 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err, cache=None):
     ret_cache=False
     if cache is None:
         logging.info('Generating cache...')
-        Ta_arr = np.arange(3000, 10000, 0.5)
+        Ta_arr = np.arange(2000, 10000, 1.0)
         Tmeas_pred = fitter.predict(Ta_arr, N=10000)
         cache = pd.DataFrame(Tmeas_pred, columns=Ta_arr)
         ret_cache = True
+        del Tmeas_pred
 
     # Get the probability of each value in the cache
     def get_prob(Tm_pred, Tm, Tm_err):
-        return np.exp(-(Tm - Tm_pred)**2/Tm_err)
-    probs = get_prob(cache.values, 4000., 150.)
+        return np.exp(-((Tm_pred - Tm) / Tm_err)**2)
+    probs = get_prob(cache.values, Tmeas, Tmeas_err)
 
     # Put the probabilities in a DataFrame for easier manipulation
     P = pd.DataFrame(data={'Temperature': cache.columns.values,
@@ -635,9 +636,13 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err, cache=None):
 
     # Find the maximum and FWHM of the probabilities
     best_T = P.ix[np.argmax(P.Probability)]['Temperature']
-    roots = HelperFunctions.fwhm(P.Temperature, P.Probability, k=0, ret_roots=True)
-    
+    roots = fwhm(P.Temperature, P.Probability, k=0, ret_roots=True)
+    h, l = max(roots), min(roots)
+
     print('$T = {}^{{+{}}}_{{-{}}}$'.format(best_T, h-best_T, best_T-l))
+
+    if ret_cache:
+        return P, cache
 
     return P
 
