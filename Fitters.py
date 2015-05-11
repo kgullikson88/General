@@ -11,6 +11,10 @@ import numpy as np
 import DataStructures
 from lmfit import Model, Parameters
 import FittingUtilities
+from skmonaco import mcimport
+import matplotlib.pyplot as plt
+
+from HelperFunctions import IsListlike
 
 
 try:
@@ -247,7 +251,7 @@ class ListModel(Model):
         return sampler, pos
 
 
-##################################################################
+# #################################################################
 # Bayesian total least squares regression               #
 ##################################################################
 
@@ -281,16 +285,45 @@ if emcee_import:
             """
             return np.poly1d(p)(x)
 
+        def _partial_likelihood(self, x, pars):
+            """
+            The part of the likelihood function that just compares the y values to the model prediction.
+            :param pars:
+            :return:
+            """
+            y_pred = self.model(pars, x)
+            P = np.product(np.exp(-(self.y - y_pred) ** 2 / self.yerr ** 2))
+            return P * (2 * np.pi) ** (self.x.size / 2.) * np.product(self.xerr)
+
+
+        def _sampling_distribution(self, size=1, loc=0, scale=1):
+            if IsListlike(loc):
+                return np.array([np.random.normal(loc=l, scale=s, size=size) for l, s in zip(loc, scale)])
+            return np.random.normal(loc=loc, scale=scale, size=size)
+
 
         def _lnlike(self, pars):
             """
-            likelihood function. This uses the class variables for x,y,xerr, and yerr, as well as the 'model' instance
+            likelihood function. This uses the class variables for x,y,xerr, and yerr, as well as the 'model' instance.
+            Uses Monte Carlo integration to remove the nuisance parameters (the true x locations of each point)
+            """
+            P, err = mcimport(self._partial_likelihood,
+                              npoints=1000000, args=(pars,),
+                              distribution=self._sampling_distribution,
+                              dist_kwargs={'loc': self.x, 'scale': self.xerr / np.sqrt(2)},
+                              nprocs=2)
+
+            print('Relative error in integral: {}'.format(err / P))
+
+            return np.log(P)
+
             """
             xtrue = pars[:self.x.size]
             y_pred = self.model(pars[self.x.size:], xtrue)  # Predict the y value
 
             # Make the log-likelihood
             return np.sum(-(self.x - xtrue) ** 2 / self.xerr ** 2 - (self.y - y_pred) ** 2 / self.yerr * 2)
+            """
 
 
         def lnprior(self, pars):
@@ -381,6 +414,156 @@ if emcee_import:
 
             y = np.array([self.model(p, x) for p in pars])
             return y
+
+
+    class Bayesian_LS(object):
+        def __init__(self, x, y, yerr):
+            """
+            Class to perform a bayesian least squares fit to data with errors in only the y-axis.
+
+            :param x:  A numpy ndarray with the independent variable
+            :param y:  A numpy ndarray with the dependent variable
+            :param yerr:  A numpy ndarray with the uncertainty in the dependent variable
+            """
+            self.x = x
+            self.y = y
+            self.yerr = yerr
+
+            # Default values for a bunch of stuff
+            self.nwalkers = 100
+            self.n_burn = 200
+            self.n_prod = 1000
+            self.sampler = None
+
+
+        def model(self, p, x):
+            """
+            A parameteric model to fit y = f(x, p)
+            This can be overridden in a class that inherits from this one to make a new model
+            """
+            return np.poly1d(p)(x)
+
+
+        def _lnlike(self, pars):
+            """
+            likelihood function. This uses the class variables for x,y,xerr, and yerr, as well as the 'model' instance.
+            Uses Monte Carlo integration to remove the nuisance parameters (the true x locations of each point)
+            """
+            y_pred = self.model(pars, self.x)  # Predict the y value
+
+            # Make the log-likelihood
+            return np.sum(- (self.y - y_pred) ** 2 / self.yerr * 2)
+
+
+        def lnprior(self, pars):
+            """
+            Log of the prior for the parameters. This can be overridden to make custom priors
+            """
+            return 0.0
+
+
+        def _lnprob(self, pars):
+            """
+            Log of the posterior probability of pars given the data.
+            """
+            lp = self.lnprior(pars)
+            return lp + self._lnlike(pars) if np.isfinite(lp) else -np.inf
+
+
+        def guess_fit_parameters(self, fitorder=1):
+            """
+            Do a normal (non-bayesian) fit to the data.
+            The result will be saved for use as initial guess parameters in the full MCMC fit.
+            If you use a custom model, you will probably have to override this method as well.
+            """
+
+            pars = np.zeros(fitorder + 1)
+            pars[-2] = 1.0
+            min_func = lambda p, xi, yi, yerri: np.sum((yi - self.model(p, xi)) ** 2 / yerri ** 2)
+
+            best_pars = fmin(min_func, x0=pars, args=(self.x, self.y, self.yerr))
+            self.guess_pars = best_pars
+            return best_pars
+
+
+        def fit(self, nwalkers=None, n_burn=None, n_prod=None, guess=True, initial_pars=None, **guess_kws):
+            """
+            Perform the full MCMC fit.
+
+            :param nwalkers:  The number of walkers to use in the MCMC sampler
+            :param n_burn:   The number of samples to discard for the burn-in portion
+            :param n_prod:   The number of MCMC samples to take in the final production sampling
+            :param guess:    Flag for whether the data should be fit in a normal way first, to get decent starting parameters.
+                             If true, it uses self.guess_fit_parameters and passes guess_kws to the function.
+                             If false, it uses initial_pars. You MUST give initial_pars if guess=False!
+            """
+            nwalkers = self.nwalkers if nwalkers is None else nwalkers
+            n_burn = self.n_burn if n_burn is None else n_burn
+            n_prod = self.n_prod if n_prod is None else n_prod
+
+            if guess:
+                initial_pars = self.guess_fit_parameters(**guess_kws)
+            elif initial_pars is None:
+                raise ValueError('Must give initial pars if guess = False!')
+
+            # Set up the MCMC sampler
+            pars = np.array(initial_pars)
+            ndim = pars.size
+            p0 = emcee.utils.sample_ball(pars, std=[1e-6] * ndim, size=nwalkers)
+            sampler = emcee.EnsembleSampler(nwalkers, ndim, self._lnprob)
+
+            # Burn-in
+            print 'Running burn-in'
+            p1, lnp, _ = sampler.run_mcmc(p0, n_burn)
+            sampler.reset()
+
+            print 'Running production'
+            sampler.run_mcmc(p1, n_prod)
+
+            # Save the sampler instance as a class variable
+            self.sampler = sampler
+            return
+
+
+        def predict(self, x, N=100):
+            """
+            predict the y value for the given x values. Use the N most probable MCMC chains
+            """
+            if self.sampler is None:
+                logging.warn('Need to run the fit method before predict!')
+                return
+
+            # Find the N best walkers
+            if N == 'all':
+                N = self.sampler.flatchain.shape[0]
+            else:
+                N = min(N, self.sampler.flatchain.shape[0])
+            indices = np.argsort(self.sampler.lnprobability.flatten())[:N]
+            pars = self.sampler.flatchain[indices]
+
+            y = np.array([self.model(p, x) for p in pars])
+            return y
+
+
+        def plot_samples(self, x, N=100, ax=None, *plot_args, **plot_kws):
+            """
+            Plot N best-fit curves at x-values x, on axis ax (if given)
+            :param x:
+            :param N:
+            :param ax:
+            :return: matplotlib axis object, with which to plot other stuff, label, etc
+            """
+
+            y = self.predict(x, N=N)
+            if ax is None:
+                ax = plt.gca()
+
+            for i in range(N):
+                ax.plot(x, y[i], *plot_args, **plot_kws)
+
+            return ax
+
+
 
 
 
