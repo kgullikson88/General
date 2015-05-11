@@ -19,7 +19,6 @@ import DataStructures
 import pySIMBAD as sim
 import SpectralTypeRelations
 import readmultispec as multispec
-import Fitters
 
 
 try:
@@ -619,7 +618,8 @@ if mlpy_import:
         return Denoise(data)
 
 if emcee_import:
-    BayesFit = Fitters.BayesFit
+    def BayesFit(*args, **kwargs):
+        raise NotImplementedError('This function has moved to the Fitters module!')
 
 
 def Gauss(x, mu, sigma, amp=1):
@@ -680,7 +680,8 @@ def IsListlike(arg):
         return False
 
 
-ListModel = Fitters.ListModel
+def ListModel(*args, **kwargs):
+    raise NotImplementedError('This function has moved to the Fitters module!')
 
 
 def mad(arr):
@@ -873,7 +874,8 @@ def FindOrderNums(orders, wavelengths):
     return nums
 
 
-RobustFit = Fitters.RobustFit
+def RobustFit(*args, **kwargs):
+    raise NotImplementedError('This function has moved to the Fitters module!')
 
 
 def add_magnitudes(mag_list):
