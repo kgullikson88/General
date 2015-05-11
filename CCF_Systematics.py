@@ -537,7 +537,7 @@ def get_initial_uncertainty(df):
     return summary
 
 
-def fit_act2tmeas(df, fitorder=3):
+def fit_act2tmeas(df, fitorder=3, nwalkers=500, n_burn=200, n_prod=500):
     """
     Fit a function to go from actual to measured temperature. Use Bayes' Theorem to get the reverse!
     :param df: A pandas DataFrame such as one output by get_ccf_summary with N > 1
@@ -569,10 +569,10 @@ def fit_act2tmeas(df, fitorder=3):
     final = summary.groupby('Secondary').apply(get_Tmeas).reset_index()
 
 
-    # Fit to a 3rd-order polynomial
+    # Fit to a polynomial
     fitter = Fitters.Bayesian_LS(final.Tactual, final.Tmeas,
                                  final.Tmeas_err)
-    fitter.fit(nwalkers=500, fitorder=3)
+    fitter.fit(nwalkers=nwalkers, n_burn=n_burn, n_prod=n_prod, fitorder=fitorder)
     par_samples = fitter.sampler.flatchain
 
 
