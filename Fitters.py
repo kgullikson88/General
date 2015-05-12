@@ -2,18 +2,18 @@
 A set of functions for various types of fitting.
 """
 
-from scipy.optimize import fmin
 import logging
 
+from scipy.optimize import fmin
 import statsmodels.api as sm
 from statsmodels.robust.norms import TukeyBiweight
 import numpy as np
-import DataStructures
 from lmfit import Model, Parameters
-import FittingUtilities
 from skmonaco import mcimport
 import matplotlib.pyplot as plt
 
+import DataStructures
+import FittingUtilities
 from HelperFunctions import IsListlike
 
 
@@ -562,6 +562,25 @@ if emcee_import:
                 ax.plot(x, y[i], *plot_args, **plot_kws)
 
             return ax
+
+        def spoof_sampler(self, flatchain, lnprobability, force=False):
+            """
+            Create a sampler object with the flatchain and lnprobability attributes so self.predict will work.
+            This is useful for predicting values from pre-tabulated MCMC parameter fits
+            :param flatchain: The original sampler.flatchain property
+            :param lnprobability: The original sampler.lnprobabiliity property
+            :keyword force: Force creation of a sampler object, even if one already exists.
+            :return: None
+            """
+            if self.sampler is not None and not force:
+                logging.warn('sampler instance already exists! Use force=True to overwrite.')
+                return
+
+            self.sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim, self._lnprob)
+            self.sampler.flatchain = flatchain
+            self.sampler.lnprobability = lnprobability
+
+            return
 
 
 
