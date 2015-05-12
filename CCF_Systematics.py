@@ -295,7 +295,7 @@ def get_detected_objects(df, tol=1.0, debug=False):
     return good
 
 
-def get_detected_object_new(df, siglim=5, Terr_lim=3):
+def get_detected_objects_new(df, siglim=5, Terr_lim=3):
     """
     Get a dataframe with only the detected objects.
     :param df: A DataFrame such as one output by get_ccf_summary with N > 1
@@ -649,8 +649,8 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err, cache=None, ret_cache=None)
         del Tmeas_pred
 
     # Get the probability of each value in the cache
-    Tmeas = np.atleast_1d(Tmeas, dtype=np.float)
-    Tmeas_err = np.atleast_1d(Tmeas_err, dtype=np.float)
+    Tmeas = np.atleast_1d(Tmeas).astype(np.float)
+    Tmeas_err = np.atleast_1d(Tmeas_err).astype(np.float)
     def get_prob(Tm_pred, Tm, Tm_err):
         return np.exp(-((Tm_pred - Tm) / Tm_err)**2)
 
