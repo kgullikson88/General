@@ -295,6 +295,21 @@ def get_detected_objects(df, tol=1.0, debug=False):
     return good
 
 
+def get_detected_object_new(df, siglim=5, Terr_lim=3):
+    """
+    Get a dataframe with only the detected objects.
+    :param df: A DataFrame such as one output by get_ccf_summary with N > 1
+    :param siglim: The minimum significance to count as detected
+    :param Terr_lim: The maximum number of standard deviations of (Measured - Actual) to allow for detected objects
+    :return: A dataframe similar to df, but with fewer rows
+    """
+    S = get_initial_uncertainty(df)
+    S['Tdiff'] = S.Tmeas - S.Tactual
+    mean, std = S.Tdiff.mean(), S.Tdiff.std()
+    detected = S.loc[(S.significance > 5.0) & (S.Tdiff - mean < 3 * std)]
+    return pd.merge(detected[['Primary', 'Secondary']], df, on=['Primary', 'Secondary'], how='left')
+
+
 def add_actual_temperature(df, method='excel', filename='SecondaryStar_Temperatures.xls'):
     """
     Add the actual temperature to a given summary dataframe
@@ -527,10 +542,13 @@ def get_initial_uncertainty(df):
         V2 = np.sum(w ** 2)
         f = V1 / (V1 - V2 / V1)
 
+        # Finally, get the peak significance
+        sig = d['significance'].max()
+
         return pd.DataFrame(data={'[Fe/H]': d['[Fe/H]'].values[0], 'logg': d.logg.values[0],
                                   'rv': d.rv.values[0], 'vsini': d.vsini.values[0],
                                   'Tactual': d.Tactual.values[0], 'Tact_err': d.Tact_err.values[0],
-                                  'Tmeas': Tmeas, 'Tmeas_err': np.sqrt(f * var_T)}, index=[0])
+                                  'Tmeas': Tmeas, 'Tmeas_err': np.sqrt(f * var_T), 'significance': sig}, index=[0])
 
     summary = df.groupby(('Primary', 'Secondary')).apply(get_Tmeas).reset_index()
 
