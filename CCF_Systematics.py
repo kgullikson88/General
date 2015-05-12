@@ -598,8 +598,8 @@ def fit_act2tmeas(df, fitorder=3, nwalkers=500, n_burn=200, n_prod=500):
     fig, ax = plt.subplots(1, 1)
     ax.errorbar(final.Tactual, final.Tmeas, xerr=final.Tact_err, yerr=final.Tmeas_err, fmt='ko')
     xplot = np.linspace(min(final.Tactual), max(final.Tactual), 100)
-    ypred = fitter.predict(xplot, N=300)
-    for i in range(300):
+    ypred = fitter.predict(xplot, N=100)
+    for i in range(ypred.shape[0]):
         yplot = ypred[i]
         ax.plot(xplot, yplot, 'b-', alpha=0.01)
     ax.set_xlabel('Literature Temperature')
@@ -615,7 +615,7 @@ def fit_act2tmeas(df, fitorder=3, nwalkers=500, n_burn=200, n_prod=500):
     delta = (final.Tmeas - final.Tactual)/final.Tactual
     delta_var = (final.Tmeas_err/final.Tactual)**2 + (final.Tmeas/final.Tactual**2 * final.Tact_err)**2
     ax2.errorbar(final.Tactual, delta, xerr=final.Tact_err, yerr=np.sqrt(delta_var), fmt='ko')
-    for i in range(300):
+    for i in range(ypred.shape[0]):
         #ypred = np.poly1d(par_samples[i])(xplot)
         del_plot = (ypred[i] - xplot)/xplot
         ax2.plot(xplot, del_plot, 'b-', alpha=0.01)

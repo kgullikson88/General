@@ -525,9 +525,10 @@ if emcee_import:
             return
 
 
-        def predict(self, x, N=100):
+        def predict(self, x, N=100, highest=False):
             """
-            predict the y value for the given x values. Use the N most probable MCMC chains
+            predict the y value for the given x values. Use the N most probable MCMC chains if highest=False,
+            otherwise use the first N chains.
             """
             if self.sampler is None:
                 logging.warn('Need to run the fit method before predict!')
@@ -538,8 +539,12 @@ if emcee_import:
                 N = self.sampler.flatchain.shape[0]
             else:
                 N = min(N, self.sampler.flatchain.shape[0])
-            indices = np.argsort(self.sampler.flatlnprobability.flatten())[:N]
-            pars = self.sampler.flatchain[indices]
+
+            if highest:
+                indices = np.argsort(self.sampler.flatlnprobability)[:N]
+                pars = self.sampler.flatchain[indices]
+            else:
+                pars = self.sampler.flatchain[:N]
 
             y = np.array([self.model(p, x) for p in pars])
             return y
