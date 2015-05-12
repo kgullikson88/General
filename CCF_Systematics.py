@@ -14,7 +14,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import george
 import emcee
-
 import h5py
 
 import Fitters
@@ -617,8 +616,8 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err, cache=None, ret_cache=None)
     """
     Get the actual temperature from the measured temperature
     :param fitter: a Bayesian_TLS instance which has already been fit
-    :param Tmeas: the measured temperature
-    :param Tmeas_err: uncertainty on the measured temperature
+    :param Tmeas: the measured temperature. Either a float or a numpy array with independent temperatures
+    :param Tmeas_err: uncertainty on the measured temperature. Same shape as Tmeas.
     :return: posterior samples for the actual temperature
     """
 
@@ -632,17 +631,21 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err, cache=None, ret_cache=None)
         del Tmeas_pred
 
     # Get the probability of each value in the cache
+    Tmeas = np.atleast_1d(Tmeas, dtype=np.float)
+    Tmeas_err = np.atleast_1d(Tmeas_err, dtype=np.float)
     def get_prob(Tm_pred, Tm, Tm_err):
         return np.exp(-((Tm_pred - Tm) / Tm_err)**2)
-    probs = get_prob(cache.values, Tmeas, Tmeas_err)
 
-    # Put the probabilities in a DataFrame for easier manipulation
-    P = pd.DataFrame(data={'Temperature': cache.columns.values,
-                           'Probability': np.mean(probs, axis=0)})
+    probs = np.array([get_prob(cache.values, Tm, Tme) for Tm, Tme in zip(Tmeas, Tmeas_err)])
+
+    # Get the posterior probability distribution
+    tmp = np.mean(probs, axis=1)
+    tmp /= np.sum(tmp, axis=1)[:, np.newaxis]
+    P = np.prod(tmp, axis=0)
 
     # Find the maximum and FWHM of the probabilities
-    best_T = P.ix[np.argmax(P.Probability)]['Temperature']
-    roots = fwhm(P.Temperature, P.Probability, k=0, ret_roots=True)
+    best_T = cache.columns.values[np.argmax(P)]
+    roots = fwhm(cache.columns.values, P, k=0, ret_roots=True)
     h, l = max(roots), min(roots)
 
     print('$T = {}^{{+{}}}_{{-{}}}$'.format(best_T, h-best_T, best_T-l))
