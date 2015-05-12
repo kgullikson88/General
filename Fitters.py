@@ -538,7 +538,7 @@ if emcee_import:
                 N = self.sampler.flatchain.shape[0]
             else:
                 N = min(N, self.sampler.flatchain.shape[0])
-            indices = np.argsort(self.sampler.lnprobability.flatten())[:N]
+            indices = np.argsort(self.sampler.flatlnprobability.flatten())[:N]
             pars = self.sampler.flatchain[indices]
 
             y = np.array([self.model(p, x) for p in pars])
@@ -563,7 +563,7 @@ if emcee_import:
 
             return ax
 
-        def spoof_sampler(self, flatchain, lnprobability, force=False):
+        def spoof_sampler(self, flatchain, flatlnprobability, force=False):
             """
             Create a sampler object with the flatchain and lnprobability attributes so self.predict will work.
             This is useful for predicting values from pre-tabulated MCMC parameter fits
@@ -578,7 +578,7 @@ if emcee_import:
 
             self.sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim, self._lnprob)
             self.sampler.flatchain = flatchain
-            self.sampler.lnprobability = lnprobability
+            self.sampler.flatlnprobability = flatlnprobability
 
             return
 
