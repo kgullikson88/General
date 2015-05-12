@@ -576,13 +576,14 @@ if emcee_import:
                 logging.warn('sampler instance already exists! Use force=True to overwrite.')
                 return
 
-            self.sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim, self._lnprob)
-            self.sampler.flatchain = flatchain
-            self.sampler.flatlnprobability = flatlnprobability
-
+            ndim = flatchain.shape[1]
+            self.sampler = MCSampler_Spoof(flatchain, flatlnprobability)
             return
 
 
-
-
+class MCSampler_Spoof(object):
+    def __init__(self, flatchain, flatlnprobability):
+        self.flatchain = flatchain
+        self.flatlnprobability = flatlnprobability
+        return
 
