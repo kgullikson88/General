@@ -253,7 +253,7 @@ class ListModel(Model):
 
 # #################################################################
 # Bayesian total least squares regression               #
-##################################################################
+# #################################################################
 
 if emcee_import:
     class Bayesian_TLS(object):
@@ -576,7 +576,6 @@ if emcee_import:
                 logging.warn('sampler instance already exists! Use force=True to overwrite.')
                 return
 
-            ndim = flatchain.shape[1]
             self.sampler = MCSampler_Spoof(flatchain, flatlnprobability)
             return
 
