@@ -4,16 +4,17 @@ from collections import defaultdict
 from operator import itemgetter
 import logging
 import sys
+
 import pandas as pd
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.integrate import quad
 from scipy.optimize import minimize_scalar
-
 from george import kernels
 import matplotlib.pyplot as plt
 import numpy as np
 import george
 import emcee
+
 import h5py
 
 import Fitters
@@ -612,7 +613,7 @@ def fit_act2tmeas(df, fitorder=3, nwalkers=500, n_burn=200, n_prod=500):
     return fitter
 
 
-def get_actual_temperature(fitter, Tmeas, Tmeas_err, cache=None):
+def get_actual_temperature(fitter, Tmeas, Tmeas_err, cache=None, ret_cache=None):
     """
     Get the actual temperature from the measured temperature
     :param fitter: a Bayesian_TLS instance which has already been fit
@@ -622,13 +623,12 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err, cache=None):
     """
 
     # First, build up a cache of the MCMC predicted measured temperatures for lots of actual temperatures
-    ret_cache=False
     if cache is None:
         logging.info('Generating cache...')
         Ta_arr = np.arange(2000, 10000, 1.0)
         Tmeas_pred = fitter.predict(Ta_arr, N=10000)
         cache = pd.DataFrame(Tmeas_pred, columns=Ta_arr)
-        ret_cache = True
+        ret_cache = True if ret_cache is None else False
         del Tmeas_pred
 
     # Get the probability of each value in the cache
