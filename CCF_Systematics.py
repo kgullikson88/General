@@ -8,7 +8,7 @@ import sys
 import pandas as pd
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.integrate import quad
-from scipy.optimize import minimize_scalar
+from scipy.optimize import minimize_scalar, fmin
 from george import kernels
 import matplotlib.pyplot as plt
 import numpy as np
