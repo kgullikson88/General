@@ -560,12 +560,13 @@ class GPFitter(Fitters.Bayesian_LS):
         """
         likelihood function. This uses the class variables for x,y,xerr, and yerr, as well as the 'model' instance.
         """
+        #print(pars)
         y_pred = self.model(pars[2:], self.x)  # Predict the y value
 
         a, tau = np.exp(pars[:2])
         gp = george.GP(a * kernels.ExpSquaredKernel(tau))
         gp.compute(self.y, self.yerr)
-        return gp.lnlikelihood(self.x - ypred)
+        return gp.lnlikelihood(self.y - y_pred)
 
     def lnprior(self, pars):
         lna, lntau = pars[:2]
@@ -580,9 +581,43 @@ class GPFitter(Fitters.Bayesian_LS):
         min_func = lambda p, xi, yi, yerri: np.sum((yi - self.model(p, xi)) ** 2 / yerri ** 2)
 
         best_pars = fmin(min_func, x0=pars, args=(self.x, self.y, self.yerr))
-        self.guess_pars = [0, 15]
-        self.guess_pars.extend(best_pars)
-        return best_pars
+        guess_pars = [0, 15]
+        guess_pars.extend(best_pars)
+        self.guess_pars = np.array(guess_pars)
+        return self.guess_pars
+
+    def predict(self, x, N=100, highest=False):
+        """
+        Predict the y value for the given x values.
+        """
+        if self.sampler is None:
+            logging.warn('Need to run the fit method before predict!')
+            return
+
+        # Find the N best walkers
+        if N == 'all':
+            N = self.sampler.flatchain.shape[0]
+        else:
+            N = min(N, self.sampler.flatchain.shape[0])
+        
+        if highest:
+            indices = np.argsort(self.sampler.flatlnprobability)[:N]
+            pars = self.sampler.flatchain[indices]
+        else:
+            pars = self.sampler.flatchain[:N]
+
+        yvals = []
+        print(pars.shape)
+        print(pars)
+        for i, p in enumerate(pars):
+            print(p)
+            a, tau = np.exp(p[:2])
+            gp = george.GP(a * kernels.ExpSquaredKernel(tau))
+            gp.compute(self.y, self.yerr)
+            s = gp.sample_conditional(self.y - self.model(p, self.x), x) + self.model(p, self.x)
+            yvals.append(s)
+
+        return np.array(yvals)
 
 
 def fit_act2tmeas(df, fitorder=3, nwalkers=500, n_burn=200, n_prod=500):
