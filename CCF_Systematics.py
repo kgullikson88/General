@@ -555,6 +555,36 @@ def get_initial_uncertainty(df):
     return summary
 
 
+class GPFitter(Fitters.Bayesian_LS):
+    def _lnlike(self, pars):
+        """
+        likelihood function. This uses the class variables for x,y,xerr, and yerr, as well as the 'model' instance.
+        """
+        y_pred = self.model(pars[2:], self.x)  # Predict the y value
+
+        a, tau = np.exp(pars[:2])
+        gp = george.GP(a * kernels.ExpSquaredKernel(tau))
+        gp.compute(self.y, self.yerr)
+        return gp.lnlikelihood(self.x - ypred)
+
+    def lnprior(self, pars):
+        lna, lntau = pars[:2]
+        polypars = pars[2:]
+        if -20 < lna < 20 and 12 < lntau < 20:
+            return 0.0
+        return -np.inf
+
+    def guess_fit_parameters(self, fitorder=1):
+        pars = np.zeros(fitorder + 1)
+        pars[-2] = 1.0
+        min_func = lambda p, xi, yi, yerri: np.sum((yi - self.model(p, xi)) ** 2 / yerri ** 2)
+
+        best_pars = fmin(min_func, x0=pars, args=(self.x, self.y, self.yerr))
+        self.guess_pars = [0, 15]
+        self.guess_pars.extend(best_pars)
+        return best_pars
+
+
 def fit_act2tmeas(df, fitorder=3, nwalkers=500, n_burn=200, n_prod=500):
     """
     Fit a function to go from actual to measured temperature. Use Bayes' Theorem to get the reverse!
@@ -587,9 +617,10 @@ def fit_act2tmeas(df, fitorder=3, nwalkers=500, n_burn=200, n_prod=500):
     final = summary.groupby('Secondary').apply(get_Tmeas).reset_index()
 
 
-    # Fit to a polynomial
-    fitter = Fitters.Bayesian_LS(final.Tactual, final.Tmeas,
-                                 final.Tmeas_err)
+    # Fit to a polynomial with a gaussian process noise model.
+    #fitter = Fitters.Bayesian_LS(final.Tactual, final.Tmeas,
+    #                             final.Tmeas_err)
+    fitter = GPFitter(final.Tactual, final.Tmeas, final.Tmeas_err)
     fitter.fit(nwalkers=nwalkers, n_burn=n_burn, n_prod=n_prod, fitorder=fitorder)
     par_samples = fitter.sampler.flatchain
 
