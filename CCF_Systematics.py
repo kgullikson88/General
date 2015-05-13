@@ -560,31 +560,22 @@ class GPFitter(Fitters.Bayesian_LS):
         """
         likelihood function. This uses the class variables for x,y,xerr, and yerr, as well as the 'model' instance.
         """
-        #print(pars)
-        y_pred = self.model(pars[2:], self.x)  # Predict the y value
+        y_pred = self.x
 
         a, tau = np.exp(pars[:2])
         gp = george.GP(a * kernels.ExpSquaredKernel(tau))
-        gp.compute(self.y, self.yerr)
+        gp.compute(self.x, self.yerr)
         return gp.lnlikelihood(self.y - y_pred)
 
     def lnprior(self, pars):
         lna, lntau = pars[:2]
         polypars = pars[2:]
-        if -20 < lna < 30 and 12 < lntau < 30:
+        if -20 < lna < 30 and 0 < lntau < 30:
             return 0.0
         return -np.inf
 
-    def guess_fit_parameters(self, fitorder=1):
-        pars = np.zeros(fitorder + 1)
-        pars[-2] = 1.0
-        min_func = lambda p, xi, yi, yerri: np.sum((yi - self.model(p, xi)) ** 2 / yerri ** 2)
-
-        best_pars = fmin(min_func, x0=pars, args=(self.x, self.y, self.yerr))
-        guess_pars = [0, 15]
-        guess_pars.extend(best_pars)
-        self.guess_pars = np.array(guess_pars)
-        return self.guess_pars
+    def guess_fit_parameters(self):
+        return [0, 10]
 
     def predict(self, x, N=100, highest=False):
         """
@@ -612,13 +603,13 @@ class GPFitter(Fitters.Bayesian_LS):
             a, tau = np.exp(p[:2])
             gp = george.GP(a * kernels.ExpSquaredKernel(tau))
             gp.compute(self.y, self.yerr)
-            s = gp.sample_conditional(self.y - self.model(p[2:], self.x), x) + self.model(p[2:], x)
+            s = gp.sample_conditional(self.y - self.x, x) + x
             yvals.append(s)
 
         return np.array(yvals)
 
 
-def fit_act2tmeas(df, fitorder=3, nwalkers=500, n_burn=200, n_prod=500):
+def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500):
     """
     Fit a function to go from actual to measured temperature. Use Bayes' Theorem to get the reverse!
     :param df: A pandas DataFrame such as one output by get_ccf_summary with N > 1
@@ -651,10 +642,8 @@ def fit_act2tmeas(df, fitorder=3, nwalkers=500, n_burn=200, n_prod=500):
 
 
     # Fit to a polynomial with a gaussian process noise model.
-    #fitter = Fitters.Bayesian_LS(final.Tactual, final.Tmeas,
-    #                             final.Tmeas_err)
     fitter = GPFitter(final.Tactual, final.Tmeas, final.Tmeas_err)
-    fitter.fit(nwalkers=nwalkers, n_burn=n_burn, n_prod=n_prod, fitorder=fitorder)
+    fitter.fit(nwalkers=nwalkers, n_burn=n_burn, n_prod=n_prod)
     par_samples = fitter.sampler.flatchain
 
 
