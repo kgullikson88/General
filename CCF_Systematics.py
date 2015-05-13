@@ -571,7 +571,7 @@ class GPFitter(Fitters.Bayesian_LS):
     def lnprior(self, pars):
         lna, lntau = pars[:2]
         polypars = pars[2:]
-        if -20 < lna < 20 and 12 < lntau < 20:
+        if -20 < lna < 30 and 12 < lntau < 30:
             return 0.0
         return -np.inf
 
@@ -607,14 +607,12 @@ class GPFitter(Fitters.Bayesian_LS):
             pars = self.sampler.flatchain[:N]
 
         yvals = []
-        print(pars.shape)
-        print(pars)
         for i, p in enumerate(pars):
             print(p)
             a, tau = np.exp(p[:2])
             gp = george.GP(a * kernels.ExpSquaredKernel(tau))
             gp.compute(self.y, self.yerr)
-            s = gp.sample_conditional(self.y - self.model(p, self.x), x) + self.model(p, self.x)
+            s = gp.sample_conditional(self.y - self.model(p[2:], self.x), x) + self.model(p[2:], x)
             yvals.append(s)
 
         return np.array(yvals)
