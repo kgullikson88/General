@@ -599,7 +599,6 @@ class GPFitter(Fitters.Bayesian_LS):
 
         yvals = []
         for i, p in enumerate(pars):
-            print(p)
             a, tau = np.exp(p[:2])
             gp = george.GP(a * kernels.ExpSquaredKernel(tau))
             gp.compute(self.y, self.yerr)
@@ -651,10 +650,10 @@ def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500):
     fig, ax = plt.subplots(1, 1)
     ax.errorbar(final.Tactual, final.Tmeas, xerr=final.Tact_err, yerr=final.Tmeas_err, fmt='ko')
     xplot = np.linspace(min(final.Tactual), max(final.Tactual), 100)
-    ypred = fitter.predict(xplot, N=100)
+    ypred = fitter.predict(xplot, N=300)
     for i in range(ypred.shape[0]):
         yplot = ypred[i]
-        ax.plot(xplot, yplot, 'b-', alpha=0.01)
+        ax.plot(xplot, yplot, 'b-', alpha=0.03)
     ax.set_xlabel('Literature Temperature')
     ax.set_ylabel('Measured Temperature')
     lim = (3000, 6500)
@@ -671,7 +670,7 @@ def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500):
     for i in range(ypred.shape[0]):
         #ypred = np.poly1d(par_samples[i])(xplot)
         del_plot = (ypred[i] - xplot)/xplot
-        ax2.plot(xplot, del_plot, 'b-', alpha=0.01)
+        ax2.plot(xplot, del_plot, 'b-', alpha=0.03)
     ax2.set_xlabel('Literature Temperature')
     ax2.set_ylabel('Fractional Error')
     lim = ax2.get_xlim()
