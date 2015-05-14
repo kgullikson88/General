@@ -127,7 +127,7 @@ def get_vsini_pdf(T_sec, age, age_err=None, P0_min=0.1, P0_max=5, N_age=1000, N_
     v_eq = 2.0*np.pi*R*constants.R_sun/(periods*u.day)
 
     # Finally, sample random inclinations to get a distribution of vsini
-    vsini = v_eq.to(u.km/u.s) * np.sin(np.random.uniform(0, np.pi/2.0, size=periods.size))
+    vsini = v_eq.to(u.km/u.s) * np.random.uniform(0, 1., size=periods.size)
 
     return vsini
 
