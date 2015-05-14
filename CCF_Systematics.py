@@ -599,16 +599,36 @@ class GPFitter(Fitters.Bayesian_LS):
 
         yvals = []
         for i, p in enumerate(pars):
+            logging.info('Generating GP samples for iteration {}/{}'.format(i+1, len(pars)))
             a, tau = np.exp(p[:2])
             gp = george.GP(a * kernels.ExpSquaredKernel(tau))
-            gp.compute(self.y, self.yerr)
+            gp.compute(self.x, self.yerr)
             s = gp.sample_conditional(self.y - self.x, x) + x
             yvals.append(s)
 
         return np.array(yvals)
 
 
-def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500):
+class ModifiedPolynomial(Fitters.Bayesian_LS):
+    def model(self, p, x):
+        s, m = 10**p[:2]
+        polypars = p[2:]
+        return np.poly1d(polypars)(x)  * np.exp(-s*(x-m)**2)  + x
+
+    def guess_fit_parameters(self, fitorder=1):
+        polypars = np.zeros(fitorder + 1)
+        polypars[-2] = 1.0
+        pars = [-7, 3.5]
+        pars.extend(polypars)
+        min_func = lambda p, xi, yi, yerri: np.sum((yi - self.model(p, xi)) ** 2 / yerri ** 2)
+
+        best_pars = fmin(min_func, x0=pars, args=(self.x, self.y, self.yerr))
+        self.guess_pars = best_pars
+        return best_pars
+
+
+
+def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500, fitorder=1):
     """
     Fit a function to go from actual to measured temperature. Use Bayes' Theorem to get the reverse!
     :param df: A pandas DataFrame such as one output by get_ccf_summary with N > 1
@@ -641,8 +661,9 @@ def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500):
 
 
     # Fit to a polynomial with a gaussian process noise model.
-    fitter = GPFitter(final.Tactual, final.Tmeas, final.Tmeas_err)
-    fitter.fit(nwalkers=nwalkers, n_burn=n_burn, n_prod=n_prod)
+    #fitter = GPFitter(final.Tactual, final.Tmeas, final.Tmeas_err)
+    fitter = ModifiedPolynomial(final.Tactual, final.Tmeas, final.Tmeas_err)
+    fitter.fit(nwalkers=nwalkers, n_burn=n_burn, n_prod=n_prod, fitorder=fitorder)
     par_samples = fitter.sampler.flatchain
 
 
