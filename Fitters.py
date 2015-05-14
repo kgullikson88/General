@@ -452,7 +452,7 @@ if emcee_import:
             y_pred = self.model(pars, self.x)  # Predict the y value
 
             # Make the log-likelihood
-            return np.sum(- (self.y - y_pred) ** 2 / self.yerr * 2)
+            return -0.5 * np.sum((self.y - y_pred) ** 2 / self.yerr * 2)
 
 
         def lnprior(self, pars):
