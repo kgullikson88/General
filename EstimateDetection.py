@@ -17,6 +17,8 @@ import StarData
 import SpectralTypeRelations
 import Sensitivity
 import Mamajek_Table
+import multiprocessing
+from functools import partial
 
 
 # Read in the Barnes & Kim (2010) table (it is in LaTex format)
@@ -66,8 +68,49 @@ def lnlike(P, P_0, t, tau, k_C, k_I):
     :return:
     """
     retval = (k_C*t/tau - np.log(P/P_0) - k_I*k_C/(2.0*tau**2) * (P**2 - P_0**2))**2
+    #print P, P_0, t, tau, k_C, k_I, np.sum(retval)
     return retval
 
+
+def poolfcn(args):
+    #print '\n\n'
+    return minimize_scalar(args[0], bracket=args[1], bounds=args[2], method='brent', args=args[3:]).x
+
+
+def get_period_dist_parallel(ages, P0_min, P0_max, T_star, N_P0=1000, k_C=0.646, k_I=452, nproc=None):
+    """
+    All-important function to get the period distribution out of stuff that I know - parallel version!
+    :param ages: Random samples for the age of the system (Myr)
+    :param P0_min, P0_max: The minimum and maximum values of P0, the initial period. (days)
+                           We will choose random values in equal log-spacing.
+    :param T_star: The temperature of the star, in Kelvin
+    :keyword N_age, N_P0: The number of samples to take in age and initial period
+    :keyword k_C, k_I: The parameters fit in Barnes 2010
+    """
+
+    # Set up multiprocessing and a fit function with only one argument set
+    pool = multiprocessing.Pool(processes=nproc)
+    def errfcn(P, args):
+        return lnlike(P, *args)
+    bracket = [4.0, 7.0]
+    bounds = [0.1, 100]
+
+    # Convert temperature to convection turnover timescale
+    tau = teff2tau(T_star)
+    period_list = []
+    args = []
+    #args = [(lnlike, bracket, bounds, P0, age, tau, k_C, k_I) for P0 in np.random.uniform(P0_min, P0_max, size=N_P0) for age in ages]
+    for age in ages:
+        P0_vals = np.random.uniform(P0_min, P0_max, size=N_P0)
+        a = [(lnlike, bracket, bounds, P0, age, tau, k_C, k_I) for P0 in P0_vals]
+        args.extend(a)
+    #    period_list.extend(pool.map(poolfcn, args))
+    period_list = pool.map(poolfcn, args)
+
+    pool.close()
+    pool.join()
+    P = np.array(period_list)
+    return P[P > 0]
 
 def get_period_dist(ages, P0_min, P0_max, T_star, N_P0=1000, k_C=0.646, k_I=452):
     """
@@ -84,9 +127,9 @@ def get_period_dist(ages, P0_min, P0_max, T_star, N_P0=1000, k_C=0.646, k_I=452)
     tau = teff2tau(T_star)
     period_list = []
     for age in ages:
-        #P0_vals = 10**np.random.uniform(np.log10(P0_min), np.log10(P0_max), size=N_P0)
         P0_vals = np.random.uniform(P0_min, P0_max, size=N_P0)
         for P0 in P0_vals:
+            #print '\n\n'
             out = minimize_scalar(lnlike, bracket=[1.0, 5.0], bounds=[0.1, 100], method='golden',
                                   args=(P0, age, tau, k_C, k_I))
             period_list.append(out.x)
