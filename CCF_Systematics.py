@@ -131,8 +131,13 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1), excel_
                     print('\t{}'.format(s))
                 if addmode not in f[p][s].keys():
                     continue
+                logging.info('Primary: {}\tSecondary: {}'.format(p, s))
                 if velocity.lower() == 'excel':
-                    vel_max = table.loc[table.Star.str.lower().str.contains(s.strip().lower())]['CCF RV'].item()
+                    try:
+                        vel_max = table.loc[table.Star.str.lower().str.contains(s.strip().lower())]['CCF RV'].item()
+                    except ValueError:
+                        logging.warning('No entry found for star "{}" in table {}'.format(s, excel_filename))
+                        continue
                 else:
                     vel_max = velocity
                 datasets = f[p][s][addmode].keys()
