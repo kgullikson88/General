@@ -300,7 +300,7 @@ def get_detected_objects(df, tol=1.0, debug=False):
     return good
 
 
-def get_detected_objects_new(df, siglim=5, Terr_lim=3):
+def get_detected_objects_new(df, siglim=5, Terr_lim=3, Toffset=2000):
     """
     Get a dataframe with only the detected objects.
     :param df: A DataFrame such as one output by get_ccf_summary with N > 1
@@ -311,7 +311,7 @@ def get_detected_objects_new(df, siglim=5, Terr_lim=3):
     S = get_initial_uncertainty(df)
     S['Tdiff'] = S.Tmeas - S.Tactual
     mean, std = S.Tdiff.mean(), S.Tdiff.std()
-    detected = S.loc[(S.significance > 5.0) & (S.Tdiff - mean < 3 * std)]
+    detected = S.loc[(S.significance > 5.0) & (S.Tdiff - mean < 3 * std) & (abs(S.Tdiff) < Toffset)]
     return pd.merge(detected[['Primary', 'Secondary']], df, on=['Primary', 'Secondary'], how='left')
 
 
@@ -633,7 +633,7 @@ class ModifiedPolynomial(Fitters.Bayesian_LS):
 
 
 
-def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500, fitorder=1):
+def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500, fitorder=1, fitter_class=None):
     """
     Fit a function to go from actual to measured temperature. Use Bayes' Theorem to get the reverse!
     :param df: A pandas DataFrame such as one output by get_ccf_summary with N > 1
@@ -664,10 +664,15 @@ def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500, fitorder=1):
 
     final = summary.groupby('Secondary').apply(get_Tmeas).reset_index()
 
+    # Don't let the error bars get smaller than 50 K
+    final['Tmeas_err'] = np.maximum(final.Tmeas_err, 100.0)
 
     # Fit to a polynomial with a gaussian process noise model.
-    #fitter = GPFitter(final.Tactual, final.Tmeas, final.Tmeas_err)
-    fitter = ModifiedPolynomial(final.Tactual, final.Tmeas, final.Tmeas_err)
+    if fitter_class is None:
+        #fitter = GPFitter(final.Tactual, final.Tmeas, final.Tmeas_err)
+        fitter = ModifiedPolynomial(final.Tactual, final.Tmeas, final.Tmeas_err)
+    else:
+        fitter = fitter_class(final.Tactual, final.Tmeas, final.Tmeas_err)
     fitter.fit(nwalkers=nwalkers, n_burn=n_burn, n_prod=n_prod, fitorder=fitorder)
     par_samples = fitter.sampler.flatchain
 
@@ -675,14 +680,14 @@ def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500, fitorder=1):
     # Plot
     fig, ax = plt.subplots(1, 1)
     ax.errorbar(final.Tactual, final.Tmeas, xerr=final.Tact_err, yerr=final.Tmeas_err, fmt='ko')
-    xplot = np.linspace(min(final.Tactual), max(final.Tactual), 100)
+    lim = [3000, 7000]
+    xplot = np.linspace(lim[0], lim[1], 100)
     ypred = fitter.predict(xplot, N=300)
     for i in range(ypred.shape[0]):
         yplot = ypred[i]
         ax.plot(xplot, yplot, 'b-', alpha=0.03)
     ax.set_xlabel('Literature Temperature')
     ax.set_ylabel('Measured Temperature')
-    lim = (3000, 6500)
     ax.set_xlim(lim)
     ax.set_ylim(lim)
     ax.plot(lim, lim, 'r--')
