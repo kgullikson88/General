@@ -5,7 +5,6 @@ Bokeh widget for analyzing CCF data.
 import os
 from collections import OrderedDict
 import sys
-
 import time
 
 from bokeh.models import ColumnDataSource, Plot, HoverTool
@@ -21,9 +20,10 @@ from Analyze_CCF import CCF_Interface
 
 
 
+
 # Parse command-line arguments 
 ADDMODE = 'simple'
-instrument = 'IGRINS'
+instrument = 'TS23'
 for arg in sys.argv[1:]:
     if '--instrument' in arg:
         instrument = arg.split('=')[-1].upper()
@@ -63,7 +63,7 @@ class BokehApp(VBox):
     star_select = Instance(Select)
     date_select = Instance(Select)
     # star_input_box = Instance(VBoxForm)
-    #date_input_box = Instance(VBoxForm)
+    # date_input_box = Instance(VBoxForm)
     input_box = Instance(VBoxForm)
 
     # ccf_interface = CCF_Interface(CCF_FILE)
