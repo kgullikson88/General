@@ -6,6 +6,7 @@ For now, it has a function to get the expected vsini PDF of a given companion, g
 import os
 import logging
 from collections import defaultdict
+import multiprocessing
 
 import numpy as np
 import pandas as pd
@@ -17,8 +18,7 @@ import StarData
 import SpectralTypeRelations
 import Sensitivity
 import Mamajek_Table
-import multiprocessing
-from functools import partial
+
 
 
 # Read in the Barnes & Kim (2010) table (it is in LaTex format)
@@ -67,8 +67,11 @@ def lnlike(P, P_0, t, tau, k_C, k_I):
     :param k_I: parameter (constant)
     :return:
     """
-    retval = (k_C*t/tau - np.log(P/P_0) - k_I*k_C/(2.0*tau**2) * (P**2 - P_0**2))**2
-    #print P, P_0, t, tau, k_C, k_I, np.sum(retval)
+    penalty = 0.0
+    if P < 1e-6:
+        penalty = P ** 2
+        P = 0.1
+    retval = (k_C * t / tau - np.log(P / P_0) - k_I * k_C / (2.0 * tau ** 2) * (P ** 2 - P_0 ** 2)) ** 2 + penalty
     return retval
 
 
@@ -137,7 +140,8 @@ def get_period_dist(ages, P0_min, P0_max, T_star, N_P0=1000, k_C=0.646, k_I=452)
     return np.array(period_list)
 
 
-def get_vsini_pdf(T_sec, age, age_err=None, P0_min=0.1, P0_max=5, N_age=1000, N_P0=1000, k_C=0.646, k_I=452):
+def get_vsini_pdf(T_sec, age, age_err=None, P0_min=0.1, P0_max=5, N_age=1000, N_P0=1000, k_C=0.646, k_I=452,
+                  nproc=None):
     """
     Get the probability distribution function of vsini for a star of the given temperature, at the given age
     :param T_sec: float - the temperature of the companion
@@ -163,7 +167,7 @@ def get_vsini_pdf(T_sec, age, age_err=None, P0_min=0.1, P0_max=5, N_age=1000, N_
         age = np.random.normal(loc=age, scale=age_err, size=N_age)
 
     # Get the period distribution
-    periods = get_period_dist(age, P0_min, P0_max, T_sec, N_P0=N_P0, k_C=k_C, k_I=k_I)
+    periods = get_period_dist_parallel(age, P0_min, P0_max, T_sec, N_P0=N_P0, k_C=k_C, k_I=k_I, nproc=nproc)
 
     # Convert to an equatorial velocity distribution by using the radius
     R = teff2radius(T_sec)
