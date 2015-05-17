@@ -141,8 +141,7 @@ def get_real_temperature(df, addmode='simple'):
                               'temperature_lowerr': temperature_lowerr, 'temperature_uperr': temperature_uperr})
 
 
-import CCF_Systematics
-
+import HDF5_Helpers
 
 def get_real_temperature_newmethod(df, addmode='simple'):
     """
@@ -156,6 +155,8 @@ def get_real_temperature_newmethod(df, addmode='simple'):
     :param addmode: The way the individual order CCFs were co-added
     :return:
     """
+    hdf_interface = HDF5_Helpers.Full_CCF_Interface()
+
     # Group by the star name.
     star_groups = df.groupby('Star')
     starnames = star_groups.groups.keys()
@@ -166,13 +167,14 @@ def get_real_temperature_newmethod(df, addmode='simple'):
     temperature_lowerr = []
     temperature_uperr = []
     for starname in starnames:
-        # Get the measured temperature from the cross-correlation functions
-        star_df = star_groups.get_group(starname).rename(columns={'CCF': 'corr'})
-        star_df['ccf_max'] = star_df['corr'].map(np.max)
-        # idx = np.argmax(star_df.loc[star_df.Temperature == ])
-        summary = CCF_Systematics.get_Tmeas()
+        # Get the measured temperature for each observation
+        star_df = star_groups.get_group(starname)
+        m_list = []
+        for _, r in star_df.iterrows():
+            m_list.append(
+                hdf_interface.get_measured_temperature(r['Star'], r['Date'], r['Temperature'], r['Instrument']))
+        measurements = pd.concat(m_list, ignore_index=True)
 
-        #TODO 2: Write a function to get measured temperature/sigma from the ccf heights and temperatures
         #TODO 3: Convert to actual temperature using the pre-tabulated MCMC chains
         star_df = star_groups.get_group(starname)
         star_df['Temperature'] = star_df.Temperature.map(check_temp)
