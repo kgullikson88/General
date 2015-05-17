@@ -1,7 +1,18 @@
 import logging
+import os
+import warnings
+from collections import defaultdict
 
 import h5py
 import numpy as np
+import pandas as pd
+
+import Analyze_CCF
+from GenericSmooth import roundodd
+from HelperFunctions import mad
+import CCF_Systematics
+
+home = os.environ['HOME']
 
 
 def create_group(current, name, attrs, overwrite):
@@ -93,17 +104,6 @@ def combine_hdf5_synthetic(file_list, output_file, overwrite=True):
                 f.flush()
 
 
-import os
-import Analyze_CCF
-import warnings
-import pandas as pd
-from GenericSmooth import roundodd
-from collections import defaultdict
-from HelperFunctions import mad
-import CCF_Systematics
-
-home = os.environ['HOME']
-
 
 class Full_CCF_Interface(object):
     """
@@ -112,7 +112,7 @@ class Full_CCF_Interface(object):
     _ccf_files = {'TS23': '{}/School/Research/McDonaldData/Cross_correlations/CCF.hdf5'.format(home),
                   'HET': '{}/School/Research/HET_data/Cross_correlations/CCF.hdf5'.format(home),
                   'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(home),
-                  'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF.hdf5'.format(home)}
+                  'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF_old_20150320.hdf5'.format(home)}
 
     def __init__(self):
         self._interfaces = {inst: Analyze_CCF.CCF_Interface(self._ccf_files[inst]) for inst in self._ccf_files.keys()}
@@ -145,9 +145,24 @@ class Full_CCF_Interface(object):
                 return None
             return pd.concat(df_list, ignore_index=True)
 
+        # Check that the star/date combination are in the requested interface
+        if starname not in self._interfaces[instrument].list_stars():
+            raise KeyError('Star ({}) not in instrument ({})'.format(starname, instrument))
+        if date not in self._interfaces[instrument].list_dates(starname):
+            # Try date +/- 1 before failing (in case of civil/UT date mismatch or something)
+            year, month, day = date.split('-')
+            day = int(day)
+            for inc in [-1, 1]:
+                test_date = '{}-{}-{}'.format(year, month, day + inc)
+                if test_date in self._interfaces[instrument].list_dates(starname):
+                    return self.get_measured_temperature(starname, test_date, Tmax,
+                                                         instrument=instrument, N=N, addmode=addmode)
+            raise KeyError(
+                'Date ({}) not in CCF interface for star {} and instrument {}'.format(date, starname, instrument))
 
         # Get CCF information from the requested instrument/star/date combo
         interface = self._interfaces[instrument]
+        logging.info(starname, date, instrument, addmode)
         df = interface._compile_data(starname=starname, date=date, addmode=addmode)
         df['ccf_max'] = df.ccf.map(np.max)
 
@@ -170,6 +185,7 @@ class Full_CCF_Interface(object):
                 warnings.warn('No matches for T = {} with star/date = {}/{}!'.format(T, starname, date))
                 d['Star'].append(starname)
                 d['Date'].append(date)
+                d['Instrument'].append(instrument)
                 d['Temperature'].append(T)
                 d['vsini'].append(vsini)
                 d['logg'].append(logg)
@@ -182,6 +198,7 @@ class Full_CCF_Interface(object):
             # Save the best parameters for this temperature
             d['Star'].append(starname)
             d['Date'].append(date)
+            d['Instrument'].append(instrument)
             d['Temperature'].append(T)
             d['vsini'].append(requested['vsini'].item())
             d['logg'].append(requested['logg'].item())
@@ -195,10 +212,15 @@ class Full_CCF_Interface(object):
             mean = np.median(requested.ccf.item())
             d['significance'].append((d['CCF'][-1] - mean) / std)
 
-        summary = pd.DataFrame(data=d)
+        # Do the weighted sum.
+        summary = CCF_Systematics.get_Tmeas(pd.DataFrame(data=d), include_actual=False)
 
-        # Finally, do the weighted sum.
-        return CCF_Systematics.get_Tmeas(summary, include_actual=False)
+        # Put the star, date, and instrument back in the dataframe before returning
+        summary['Star'] = starname
+        summary['Date'] = date
+        summary['Instrument'] = instrument
+
+        return summary
 
 
 
