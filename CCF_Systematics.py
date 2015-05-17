@@ -253,8 +253,12 @@ def find_best_pars(df, velocity='highest', vel_arr=np.arange(-900.0, 900.0, 0.1)
             # print len(good)
             best = good.loc[good.ccf_max == good.ccf_max.max()]
             #best = good
-            if len(best) > 1:
+            if len(best) != 1 or any(np.isnan(best['CCF'].item())):
                 print best
+                print good
+                print good.ccf_max
+                print good.ccf_max.max()
+                continue
 
             # Save the best parameters for this temperature
             d['Primary'].append(primary)
@@ -524,6 +528,34 @@ def check_posterior(df, posterior, Tvalues=np.arange(3000, 6900, 100)):
     return True
 
 
+def get_Tmeas(d, include_actual=True):
+    d = d.dropna(subset=['CCF'])
+    corr = d.CCF.values
+    corr += 1.0 - corr.max()
+    T = d.Temperature.values
+    w = corr / corr.sum()
+    Tmeas = np.average(T, weights=w)
+    var_T = np.average((T - Tmeas) ** 2, weights=w)
+
+    # Get factor to go from biased --> unbiased variance
+    V1 = np.sum(w)
+    V2 = np.sum(w ** 2)
+    f = V1 / (V1 - V2 / V1)
+
+    # Finally, get the peak significance
+    sig = d['significance'].max()
+
+    if include_actual:
+        return pd.DataFrame(data={'[Fe/H]': d['[Fe/H]'].values[0], 'logg': d.logg.values[0],
+                                  'rv': d.rv.values[0], 'vsini': d.vsini.values[0],
+                                  'Tactual': d.Tactual.values[0], 'Tact_err': d.Tact_err.values[0],
+                                  'Tmeas': Tmeas, 'Tmeas_err': np.sqrt(f * var_T), 'significance': sig}, index=[0])
+    else:
+        return pd.DataFrame(data={'[Fe/H]': d['[Fe/H]'].values[0], 'logg': d.logg.values[0],
+                                  'rv': d.rv.values[0], 'vsini': d.vsini.values[0],
+                                  'Tmeas': Tmeas, 'Tmeas_err': np.sqrt(f * var_T), 'significance': sig}, index=[0])
+
+
 def get_initial_uncertainty(df):
     """
     Take a dataframe such as one output from get_ccf_summary with N > 1, and get the temperature and initial
@@ -533,27 +565,7 @@ def get_initial_uncertainty(df):
     """
 
     # Get the measured temperature as the weighted average of the temperatures (weight by normalized CCF value)
-    def get_Tmeas(d):
-        d = d.dropna(subset=['CCF'])
-        corr = d.CCF.values
-        corr += 1.0 - corr.max()
-        T = d.Temperature.values
-        w = corr / corr.sum()
-        Tmeas = np.average(T, weights=w)
-        var_T = np.average((T - Tmeas) ** 2, weights=w)
 
-        # Get factor to go from biased --> unbiased variance
-        V1 = np.sum(w)
-        V2 = np.sum(w ** 2)
-        f = V1 / (V1 - V2 / V1)
-
-        # Finally, get the peak significance
-        sig = d['significance'].max()
-
-        return pd.DataFrame(data={'[Fe/H]': d['[Fe/H]'].values[0], 'logg': d.logg.values[0],
-                                  'rv': d.rv.values[0], 'vsini': d.vsini.values[0],
-                                  'Tactual': d.Tactual.values[0], 'Tact_err': d.Tact_err.values[0],
-                                  'Tmeas': Tmeas, 'Tmeas_err': np.sqrt(f * var_T), 'significance': sig}, index=[0])
 
     summary = df.groupby(('Primary', 'Secondary')).apply(get_Tmeas).reset_index()
 
@@ -645,7 +657,7 @@ def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500, fitorder=1, fitter_c
     summary = get_initial_uncertainty(df)
 
     # Get the average and standard deviation of the measured temperature, for a given actual temperature.
-    def get_Tmeas(df):
+    def get_avg_T(df):
         Tm = df.Tmeas.values
         Tm_err = df.Tmeas_err.values
         w = 1.0 / Tm_err ** 2
@@ -662,7 +674,7 @@ def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500, fitorder=1, fitter_c
         return pd.DataFrame(data={'Tactual': df.Tactual.values[0], 'Tact_err': df.Tact_err.values[0],
                                   'Tmeas': T_avg, 'Tmeas_err': np.sqrt(f * var_T)}, index=[0])
 
-    final = summary.groupby('Secondary').apply(get_Tmeas).reset_index()
+    final = summary.groupby('Secondary').apply(get_avg_T).reset_index()
 
     # Don't let the error bars get smaller than 50 K
     final['Tmeas_err'] = np.maximum(final.Tmeas_err, 100.0)
