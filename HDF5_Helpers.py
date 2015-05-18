@@ -179,6 +179,7 @@ class Full_CCF_Interface(object):
                          'IGRINS': Fitters.Bayesian_LS}
         self._flatchain_format = '{directory}{instrument}_{addmode}_flatchain.npy'
         self._flatlnprob_format = '{directory}{instrument}_{addmode}_flatlnprob.npy'
+        self._uncertainty_scale = '{directory}{instrument}_{addmode}uncertainty_scalefactor.txt'
 
         # Make a couple data caches to speed things up
         self._chainCache = {}
@@ -345,6 +346,19 @@ class Full_CCF_Interface(object):
         Convert a dataframe with measured values into actual temperatures using the MCMC sample calibrations
         """
 
+        # Correct for the systematics
         corrected = df.groupby(('Instrument', 'addmode')).apply(lambda d: self._correct(d, cache=cache))
+
+        # Correct the uncertainty
+        corrections = {}
+        for inst in df['Instrument'].unique():
+            for addmode in df['addmode'].unique():
+                d = {'instrument': instrument,
+                     'directory': self._caldir[instrument],
+                     'addmode': addmode}
+                corrections[(inst, addmode)] = float(np.loadtxt(self._uncertainty_scale.format(*d)))
+        corrected['Scaled_T_uperr'] = corrected.apply(lambda r: r['T_uperr'] * corrections[(r['Instrument'], r['addmode'])], axis=1)
+        corrected['Scaled_T_lowerr'] = corrected.apply(lambda r: r['T_lowerr'] * corrections[(r['Instrument'], r['addmode'])], axis=1)
+
         return corrected
 
