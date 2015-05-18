@@ -161,7 +161,7 @@ class Full_CCF_Interface(object):
     _ccf_files = {'TS23': '{}/School/Research/McDonaldData/Cross_correlations/CCF.hdf5'.format(home),
                   'HET': '{}/School/Research/HET_data/Cross_correlations/CCF.hdf5'.format(home),
                   'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(home),
-                  'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF_old_20150320.hdf5'.format(home)}
+                  'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF.hdf5'.format(home)}
 
     def __init__(self):
         self._interfaces = {inst: Analyze_CCF.CCF_Interface(self._ccf_files[inst]) for inst in self._ccf_files.keys()}
