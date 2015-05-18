@@ -417,7 +417,7 @@ if emcee_import:
 
 
     class Bayesian_LS(object):
-        def __init__(self, x, y, yerr):
+        def __init__(self, x=1, y=1, yerr=1):
             """
             Class to perform a bayesian least squares fit to data with errors in only the y-axis.
 
