@@ -10,6 +10,8 @@ import pandas as pd
 import numpy as np
 from sklearn.neighbors import KernelDensity
 
+import HDF5_Helpers
+
 
 # Make a cache to speed things up
 home = os.environ['HOME']
@@ -141,7 +143,6 @@ def get_real_temperature(df, addmode='simple'):
                               'temperature_lowerr': temperature_lowerr, 'temperature_uperr': temperature_uperr})
 
 
-import HDF5_Helpers
 
 def get_real_temperature_newmethod(df, addmode='simple'):
     """
@@ -166,6 +167,7 @@ def get_real_temperature_newmethod(df, addmode='simple'):
     temperature = []
     temperature_lowerr = []
     temperature_uperr = []
+    corrected_list = []
     for starname in starnames:
         # Get the measured temperature for each observation
         star_df = star_groups.get_group(starname)
@@ -175,57 +177,20 @@ def get_real_temperature_newmethod(df, addmode='simple'):
                 hdf_interface.get_measured_temperature(r['Star'], r['Date'], r['Temperature'], r['Instrument']))
         measurements = pd.concat(m_list, ignore_index=True)
 
-        #TODO 3: Convert to actual temperature using the pre-tabulated MCMC chains
-        star_df = star_groups.get_group(starname)
-        star_df['Temperature'] = star_df.Temperature.map(check_temp)
-        star_df['Temperature'] = star_df.Temperature.astype(float)
-        star_df = star_df.loc[star_df.Temperature.notnull()]
-        if len(star_df) == 0:
-            metal.append(np.nan)
-            vsini.append(np.nan)
-            temperature_latex.append(np.nan)
-            temperature.append(np.nan)
-            temperature_lowerr.append(np.nan)
-            temperature_uperr.append(np.nan)
-            continue
+        # Convert the measurements to actual temperatures
+        corrected = HDF5_Helpers.convert_measured_to_actual(measurements.copy())
+        corrected_list.append(corrected)
 
-        kernels = []
-        low = np.inf
-        high = -np.inf
-        metal_values = []
-        vsini_values = []
-        for i, row in star_df.iterrows():
-            metal_values.append(row['[Fe/H]'])
-            vsini_values.append(row['vsini'])
-            # print row
-            kde, minimum, maximum = get_kernel(row['Instrument'], row['Temperature'])
-            kernels.append(kde)
-            low = min(low, minimum)
-            high = max(high, maximum)
+    corrected = pd.concat(corrected_list, ignore_index=True)
+    def to_latex(x, uperr, lowerr):
+        return '{:.0f}^{{+{:.0f}}}_{{-{:.0f}}}'.format(x, uperr, lowerr)
+    temperature_latex = corrected.apply(lambda r: to_latex(r['Corrected_Temperature'],
+                                                           r['Scaled_T_uperr'],
+                                                           r['Scaled_T_lowerr']),
+                                        axis=1)
 
-        # Make some samples from the combined kernel
-        x = np.linspace(low, high, 1e3)
-        N = 1e6
-        dens = np.ones(x.size)
-        for kde in kernels:
-            d = np.exp(kde.score_samples(x[:, np.newaxis]))
-            # plt.plot(x, d, lw=2, label='input')
-            dens *= d
-        # plt.plot(x, dens, lw=2, label='final')
-        # plt.legend(loc='best')
-        #plt.show()
-        values = np.random.choice(x, size=N, p=dens / dens.sum())
-
-        l, m, h = np.percentile(values, [16.0, 50.0, 84.0])
-
-        # Store in lists
-        metal.append(np.mean(metal_values))
-        vsini.append(np.mean(vsini_values))
-        temperature_latex.append(r'${:d}^{{+{:d}}}_{{-{:d}}}$'.format(int(m), int(h - m), int(m - l)))
-        temperature.append(int(m))
-        temperature_lowerr.append(int(m - l))
-        temperature_uperr.append(int(h - m))
-
-    return pd.DataFrame(data={'Star': starnames, 'Temperature_tex': temperature_latex,
-                              '[Fe/H]': metal, 'vsini': vsini, 'Temperature': temperature,
-                              'temperature_lowerr': temperature_lowerr, 'temperature_uperr': temperature_uperr})
+    return pd.DataFrame(data={'Star': starnames, '[Fe/H]': metal, 'vsini': vsini,
+                              'Temperature_tex': temperature_latex,
+                              'Temperature': corrected['Corrected_Temperature'],
+                              'temperature_lowerr': corrected['Scaled_T_lowerr'],
+                              'temperature_uperr': corrected['Scaled_T_uperr']})
