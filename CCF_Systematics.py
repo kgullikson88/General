@@ -19,7 +19,7 @@ import h5py
 import Fitters
 import StarData
 import SpectralTypeRelations
-from HelperFunctions import mad, fwhm
+from HelperFunctions import mad, fwhm, integral
 
 
 def classify_filename(fname, type='bright'):
@@ -757,9 +757,11 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err, cache=None, ret_cache=None)
     P = np.prod(tmp, axis=0)
 
     # Find the maximum and FWHM of the probabilities
-    best_T = cache.columns.values[np.argmax(P)]
-    roots = fwhm(cache.columns.values, P, k=0, ret_roots=True)
-    h, l = max(roots), min(roots)
+    #best_T = cache.columns.values[np.argmax(P)]
+    #roots = fwhm(cache.columns.values, P, k=0, ret_roots=True)
+    #h, l = max(roots), min(roots)
+    l, best_T, h = integral(cache.columns.values, P, [16., 50., 84.], k=0)
+
 
     print('$T = {}^{{+{}}}_{{-{}}}$'.format(best_T, h-best_T, best_T-l))
     

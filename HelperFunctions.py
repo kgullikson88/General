@@ -919,3 +919,24 @@ def fwhm(x, y, k=10, ret_roots=False):
             return roots[0], roots[1]
 
         return abs(roots[1] - roots[0])
+
+
+def integral(x, y, I, k=10):
+    """
+    Integrate y = f(x) for x = 0 to a such that the integral = I
+    I can be an array
+    """
+    I = np.atleast_1d(I)
+
+    f = UnivariateSpline(x, y, s=k)
+
+    # Integrate as a function of x
+    F = f.antiderivative()
+    Y = F(x)
+
+    a = []
+    for intval in I:
+        F2 = UnivariateSpline(x, Y/Y[-1] - intval, s=0)
+        a.append(F2.roots())
+
+    return np.hstack(a)
