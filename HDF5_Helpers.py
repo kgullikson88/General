@@ -11,6 +11,7 @@ import Analyze_CCF
 from GenericSmooth import roundodd
 from HelperFunctions import mad
 import CCF_Systematics
+import Fitters
 
 home = os.environ['HOME']
 
@@ -158,13 +159,33 @@ class Full_CCF_Interface(object):
     """
     Interface to all of my cross-correlation functions in one class!
     """
-    _ccf_files = {'TS23': '{}/School/Research/McDonaldData/Cross_correlations/CCF.hdf5'.format(home),
-                  'HET': '{}/School/Research/HET_data/Cross_correlations/CCF.hdf5'.format(home),
-                  'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(home),
-                  'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF.hdf5'.format(home)}
 
     def __init__(self):
+        # Instance variables to hold the ccf interfaces
+        self._ccf_files = {'TS23': '{}/School/Research/McDonaldData/Cross_correlations/CCF.hdf5'.format(home),
+                           'HET': '{}/School/Research/HET_data/Cross_correlations/CCF.hdf5'.format(home),
+                           'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(home),
+                           'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF.hdf5'.format(home)}
         self._interfaces = {inst: Analyze_CCF.CCF_Interface(self._ccf_files[inst]) for inst in self._ccf_files.keys()}
+
+        # Variables for correcting measured --> actual temperatures
+        self._caldir = {'TS23': '{}/School/Research/McDonaldData/SyntheticData/'.format(home),
+                       'HET': '{}/School/Research/HET_data/SyntheticData/'.format(home),
+                       'CHIRON': '{}/School/Research/CHIRON_data/SyntheticData/'.format(home),
+                       'IGRINS': '{}/School/Research/IGRINS_data/SyntheticData/'.format(home)}
+        self._fitters = {'TS23': CCF_Systematics.ModifiedPolynomial,
+                         'HET': CCF_Systematics.ModifiedPolynomial,
+                         'CHIRON': CCF_Systematics.ModifiedPolynomial,
+                         'IGRINS': Fitters.Bayesian_LS}
+        self._flatchain_format = '{directory}{instrument}_{addmode}_flatchain.npy'
+        self._flatlnprob_format = '{directory}{instrument}_{addmode}_flatlnprob.npy'
+
+        # Make a couple data caches to speed things up
+        self._chainCache = {}
+        self._predictionCache = {}
+
+        return
+
 
 
     def get_measured_temperature(self, starname, date, Tmax, instrument=None, N=7, addmode='simple'):
@@ -268,8 +289,62 @@ class Full_CCF_Interface(object):
         summary['Star'] = starname
         summary['Date'] = date
         summary['Instrument'] = instrument
+        summary['addmode'] = addmode
 
         return summary
 
 
+    def _correct(self, df, cache=True):
+        """
+        This function is called by convert_measured_to_actual and is NOT meant to be called directly!
+        It takes a pandas dataframe that all have the same instrument and addmode
+        """
+
+        # Get the information about this dataframe
+        instrument = df['Instrument'].values[0]
+        addmode = df['addmode'].values[0]
+        d = {'instrument': instrument,
+             'directory': self._caldir[instrument],
+             'addmode': row['addmode']}
+        key = (instrument, addmode)
+
+        # Make a fitter, and put the chains we need in it.
+        fitter = self._fitters[instrument]
+
+        if key in self._chainCache:
+            chain, probs = self._chainCache[key]
+            Tpredictions = self._predictionCache[key]
+            fitter.spoof_sampler(chain, probs)
+        else:
+            chain = np.loadtxt(self._flatchain_format.format(**d))
+            probs = np.loadtxt(self._flatlnprob_format.format(**d))
+            fitter.spoof_sampler(chain, probs)
+
+            Ta_arr = np.arange(2000, 10000, 1.0)
+            Tmeas_pred = fitter.predict(Ta_arr, N=10000)
+            Tpredictions = pd.DataFrame(Tmeas_pred, columns=Ta_arr)
+
+            if cache:
+                self._chainCache[key] = (chain, probs)
+                self._predictionCache[key] = Tpredictions
+
+        # Get the corrected temperatures
+        corrected = CCF_Systematics.correct_measured_temperature(df, fitter, cache=Tpredictions)
+
+        # Save the corrected temperatures to the original dataframe, and return
+        df['Corrected_Temperature'] = corrected['Corrected Temperature']
+        df['T_uperr'] = corrected['T_uperr']
+        df['T_lowerr'] = corrected['T_lowerr']
+        return df
+
+
+
+
+    def convert_measured_to_actual(self, df, cache=True):
+        """
+        Convert a dataframe with measured values into actual temperatures using the MCMC sample calibrations
+        """
+
+        corrected = df.groupby(('Instrument', 'addmode')).apply(lambda d: self._correct(d, cache=cache))
+        return corrected
 
