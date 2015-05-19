@@ -19,7 +19,7 @@ import h5py
 import Fitters
 import StarData
 import SpectralTypeRelations
-from HelperFunctions import mad, fwhm, integral
+from HelperFunctions import mad, integral
 
 
 def classify_filename(fname, type='bright'):
@@ -725,7 +725,7 @@ def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500, fitorder=1, fitter_c
     return fitter
 
 
-def get_actual_temperature(fitter, Tmeas, Tmeas_err, cache=None, ret_cache=None):
+def get_actual_temperature(fitter, Tmeas, Tmeas_err, cache=None, ret_cache=None, summarize=True):
     """
     Get the actual temperature from the measured temperature
     :param fitter: a Bayesian_TLS instance which has already been fit
@@ -764,11 +764,15 @@ def get_actual_temperature(fitter, Tmeas, Tmeas_err, cache=None, ret_cache=None)
 
 
     print('$T = {}^{{+{}}}_{{-{}}}$'.format(best_T, h-best_T, best_T-l))
-    
-    if ret_cache:
-        return best_T, h-best_T, best_T-l, cache
-    return best_T, h-best_T, best_T-l
 
+    # Return the requested things.
+    if ret_cache:
+        if summarize:
+            return best_T, h - best_T, best_T - l, cache
+        return cache.columns.values, P, cache
+    if summarize:
+        return best_T, h - best_T, best_T - l
+    return cache.columns.values, P
 
 def correct_measured_temperature(df, fitter, cache=None):
     """
