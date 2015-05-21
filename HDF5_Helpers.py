@@ -9,9 +9,10 @@ import pandas as pd
 
 import Analyze_CCF
 from GenericSmooth import roundodd
-from HelperFunctions import mad
+from HelperFunctions import mad, integral
 import CCF_Systematics
 import Fitters
+
 
 home = os.environ['HOME']
 
@@ -188,6 +189,22 @@ class Full_CCF_Interface(object):
         return
 
 
+    def get_observations(self, starname, print2screen=False):
+        """
+        Return a list of all observations of the given star
+        :param starname:
+        :return:
+        """
+        observations = []
+        for instrument in self._interfaces.keys():
+            interface = self._interfaces[instrument]
+            if starname in interface.list_stars():
+                for date in interface.list_dates(starname):
+                    observations.append((instrument, date))
+                    if print2screen:
+                        print('{}   /   {}'.format(instrument, date))
+        return observations
+
 
     def get_measured_temperature(self, starname, date, Tmax, instrument=None, N=7, addmode='simple'):
         """
@@ -298,47 +315,57 @@ class Full_CCF_Interface(object):
     def _correct(self, df, cache=True):
         """
         This function is called by convert_measured_to_actual and is NOT meant to be called directly!
-        It takes a pandas dataframe that all have the same instrument and addmode
+        It takes a pandas dataframe that all have the same star
         """
 
-        # Get the information about this dataframe
-        instrument = df['Instrument'].values[0]
-        addmode = df['addmode'].values[0]
-        d = {'instrument': instrument,
-             'directory': self._caldir[instrument],
-             'addmode': row['addmode']}
-        key = (instrument, addmode)
+        # Group by instrument and addmode, and get the PDF for the actual temperature for each
+        groups = df.groupby(('Instrument', 'addmode'))
+        Probabilities = []
+        for (inst, addmode), group in groups:
+            # Make a fitter instance
+            d = {'instrument': inst,
+                 'directory': self._caldir[inst],
+                 'addmode': addmode}
+            key = (inst, addmode)
 
-        # Make a fitter, and put the chains we need in it.
-        fitter = self._fitters[instrument]
+            fitter = self._fitters[inst]()
 
-        if key in self._chainCache:
-            chain, probs = self._chainCache[key]
-            Tpredictions = self._predictionCache[key]
-            fitter.spoof_sampler(chain, probs)
-        else:
-            chain = np.loadtxt(self._flatchain_format.format(**d))
-            probs = np.loadtxt(self._flatlnprob_format.format(**d))
-            fitter.spoof_sampler(chain, probs)
+            # get/set the cache
+            if key in self._chainCache:
+                chain, probs = self._chainCache[key]
+                Tpredictions = self._predictionCache[key]
+                fitter.spoof_sampler(chain, probs)
+            else:
+                chain = np.loadtxt(self._flatchain_format.format(**d))
+                probs = np.loadtxt(self._flatlnprob_format.format(**d))
+                fitter.spoof_sampler(chain, probs)
 
-            Ta_arr = np.arange(2000, 10000, 1.0)
-            Tmeas_pred = fitter.predict(Ta_arr, N=10000)
-            Tpredictions = pd.DataFrame(Tmeas_pred, columns=Ta_arr)
+                Ta_arr = np.arange(2000, 10000, 1.0)
+                Tmeas_pred = fitter.predict(Ta_arr, N=10000)
+                Tpredictions = pd.DataFrame(Tmeas_pred, columns=Ta_arr)
 
-            if cache:
-                self._chainCache[key] = (chain, probs)
-                self._predictionCache[key] = Tpredictions
+                if cache:
+                    self._chainCache[key] = (chain, probs)
+                    self._predictionCache[key] = Tpredictions
 
-        # Get the corrected temperatures
-        corrected = CCF_Systematics.correct_measured_temperature(df, fitter, cache=Tpredictions)
+            # Get the PDF (probability distribution function)
+            Tmeas = group['Tmeas'].values
+            Tmeas_err = group['Tmeas_err'].values
+            for Tm, Tm_err in zip(Tmeas, Tmeas_err):
+                temperature, probability = CCF_Systematics.get_actual_temperature(fitter, Tm, Tm_err,
+                                                                                  cache=Tpredictions,
+                                                                                  summarize=False)
+                Probabilities.append(probability / probability.sum())
 
-        # Save the corrected temperatures to the original dataframe, and return
-        df['Corrected_Temperature'] = corrected['Corrected Temperature']
-        df['T_uperr'] = corrected['T_uperr']
-        df['T_lowerr'] = corrected['T_lowerr']
-        return df
+        # Multiply all the PDFs
+        Prob = np.array(Probabilities).prod(axis=0)
 
+        # Summarize the PDF (similar interface to np.percentile)
+        l, m, h = integral(temperature, Prob, [0.16, 0.5, 0.84], k=0)
 
+        # Save in a Pandas DataFrame and return
+        return pd.DataFrame(data={'Star': df['Star'].values[0], 'Corrected_Temperature': m,
+                                  'T_uperr': h - m, 'T_lowerr': m - l}, index=[0])
 
 
     def convert_measured_to_actual(self, df, cache=True):
@@ -347,18 +374,20 @@ class Full_CCF_Interface(object):
         """
 
         # Correct for the systematics
-        corrected = df.groupby(('Instrument', 'addmode')).apply(lambda d: self._correct(d, cache=cache))
+        corrected = df.groupby(('Star')).apply(lambda d: self._correct(d, cache=cache))
 
+        """
         # Correct the uncertainty
         corrections = {}
         for inst in df['Instrument'].unique():
             for addmode in df['addmode'].unique():
-                d = {'instrument': instrument,
-                     'directory': self._caldir[instrument],
+                d = {'instrument': inst,
+                     'directory': self._caldir[inst],
                      'addmode': addmode}
                 corrections[(inst, addmode)] = float(np.loadtxt(self._uncertainty_scale.format(*d)))
         corrected['Scaled_T_uperr'] = corrected.apply(lambda r: r['T_uperr'] * corrections[(r['Instrument'], r['addmode'])], axis=1)
         corrected['Scaled_T_lowerr'] = corrected.apply(lambda r: r['T_lowerr'] * corrections[(r['Instrument'], r['addmode'])], axis=1)
+        """
 
         return corrected
 
