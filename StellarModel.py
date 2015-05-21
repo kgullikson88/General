@@ -24,7 +24,7 @@ It is used in GenericSearch.py and SensitivityAnalysis.py
 
 if "darwin" in sys.platform:
     modeldir = "/Volumes/DATADRIVE/Stellar_Models/Sorted/Stellar/Vband/"
-    HDF5_FILE = '/Volumes/DATADRIVE/Stellar_Models/Search_Grid.hdf5'
+    HDF5_FILE = '/Volumes/DATADRIVE/PhoenixGrid/Search_Grid.hdf5'
 elif "linux" in sys.platform:
     modeldir = "/media/FreeAgent_Drive/SyntheticSpectra/Sorted/Stellar/Vband/"
     HDF5_FILE = '/media/ExtraSpace/PhoenixGrid/Search_Grid.hdf5'
