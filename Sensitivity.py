@@ -1062,10 +1062,13 @@ def plot_expected(orders, prim_spt, Tsec, instrument, vsini=None, rv=0.0):
     """
 
     # First, get the model
-    inst2hdf5 = {'TS23': '/media/ExtraSpace/PhoenixGrid/TS23_Grid.hdf5',
-                 'HRS': '/media/ExtraSpace/PhoenixGrid/HRS_Grid.hdf5',
-                 'CHIRON': '/media/ExtraSpace/PhoenixGrid/CHIRON_Grid.hdf5',
-                 'IGRINS': '/media/ExtraSpace/PhoenixGrid/IGRINS_Grid.hdf5'}
+    dir_prefix = '/media/ExtraSpace'
+    if not os.path.exists(dir_prefix):
+        dir_prefix = '/Volumes/DATADRIVE'
+    inst2hdf5 = {'TS23': '{}/PhoenixGrid/TS23_Grid.hdf5'.format(dir_prefix),
+                 'HRS': '{}/PhoenixGrid/HRS_Grid.hdf5'.format(dir_prefix),
+                 'CHIRON': '{}/PhoenixGrid/CHIRON_Grid.hdf5'.format(dir_prefix),
+                 'IGRINS': '{}/PhoenixGrid/IGRINS_Grid.hdf5'.format(dir_prefix)}
     hdf5_int = StellarModel.HDF5Interface(inst2hdf5[instrument])
     wl = hdf5_int.wl
     pars = {'temp': Tsec, 'logg': 4.5, 'Z': 0.0, 'alpha': 0.0}
