@@ -42,7 +42,7 @@ import Mamajek_Table
 # logging.basicConfig(level=logging.ERROR)
 
 
-sns.set_context('poster')
+sns.set_context('poster', font_scale=1.5)
 
 
 MS = SpectralTypeRelations.MainSequence()
