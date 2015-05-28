@@ -46,7 +46,6 @@ class BokehApp(VBox):
     jsmodel = "VBox"
 
     # data source
-    # source = Instance(ColumnDataSource)
     T_run = Instance(ColumnDataSource)
 
     # layout boxes
@@ -62,12 +61,7 @@ class BokehApp(VBox):
     date = String(default=u"20141015")
     star_select = Instance(Select)
     date_select = Instance(Select)
-    # star_input_box = Instance(VBoxForm)
-    # date_input_box = Instance(VBoxForm)
     input_box = Instance(VBoxForm)
-
-    # ccf_interface = CCF_Interface(CCF_FILE)
-    #T_run = pd.DataFrame()
 
 
     def __init__(self, *args, **kwargs):
@@ -82,11 +76,9 @@ class BokehApp(VBox):
         """
         # create layout widgets
         obj = cls()
-        cls._ccf_interface = CCF_Interface(ccf_filename)  #, vel=np.arange(-600, 600, 1))
+        cls._ccf_interface = CCF_Interface(ccf_filename)
         obj.mainrow = HBox()
         obj.ccfrow = HBox()
-        #obj.star_input_box = VBoxForm()
-        #obj.date_input_box = VBoxForm()
         obj.input_box = VBoxForm()
 
         # create input widgets
@@ -121,7 +113,6 @@ class BokehApp(VBox):
     def make_date_input(self):
         dates = self._ccf_interface.list_dates(self.star)
         self.date = dates[0]
-        # TODO: Figure out how to make a new date list more than once!
         if isinstance(self.date_select, Select):
             self.date_select.update(value=dates[0], options=dates)
         else:
@@ -134,6 +125,7 @@ class BokehApp(VBox):
     def make_source(self):
         self._source = self.df
         self.T_run = ColumnDataSource(self._ccf_interface.get_temperature_run(df=self._source))
+
 
     def plot_ccf(self, T, x_range=None):
         # First, find the best values where temperature = T
@@ -184,9 +176,7 @@ class BokehApp(VBox):
         ])
         self.mainplot = p
 
-        # T = T_run['T'].max()
         T = T_run.loc[T_run['ccf_value'] == T_run['ccf_value'].max()]['T'].item()
-        #self._ccf_plot = self.plot_ccf(T)
         self.ccf_plot = self.plot_ccf(T)
 
 
