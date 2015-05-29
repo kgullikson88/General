@@ -590,6 +590,10 @@ if emcee_import:
         """
         A Subclass of Bayesian_LS that fits a guassian process on top of a model fit.
         """
+        def __init__(self, x=1, y=1, yerr=1, solver=None):
+            self.solver = george.BasicSolver if solver is None else solver
+            super(GPFitter, self).__init__(x=x, y=y, yerr=yerr)
+        
         def _lnlike(self, pars):
             """
             likelihood function. This uses the class variables for x,y,xerr, and yerr, as well as the 'model' instance.
@@ -598,7 +602,7 @@ if emcee_import:
             y_pred = self.model(pars[2:], self.x)
  
             a, tau = np.exp(pars[:2])
-            gp = george.GP(a * kernels.ExpSquaredKernel(tau))
+            gp = george.GP(a * kernels.ExpSquaredKernel(tau), solver=self.solver)
             gp.compute(self.x, self.yerr)
             return gp.lnlikelihood(self.y - y_pred)
 
@@ -654,7 +658,7 @@ if emcee_import:
                 a, tau = np.exp(p[:2])
                 ypred_data = self.model(p[2:], self.x)
                 ypred = self.model(p[2:], x)
-                gp = george.GP(a * kernels.ExpSquaredKernel(tau))
+                gp = george.GP(a * kernels.ExpSquaredKernel(tau), solver=self.solver)
                 gp.compute(self.x, self.yerr)
                 s = gp.sample_conditional(self.y - ypred_data, x) + ypred
                 yvals.append(s)
