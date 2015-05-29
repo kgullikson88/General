@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 import DataStructures
 import FittingUtilities
 from HelperFunctions import IsListlike
+import george
+from george import kernels
 
 
 try:
@@ -584,7 +586,10 @@ if emcee_import:
             self.sampler = MCSampler_Spoof(flatchain, flatlnprobability)
             return
 
-    class GPFitter(Fitters.Bayesian_LS):
+    class GPFitter(Bayesian_LS):
+        """
+        A Subclass of Bayesian_LS that fits a guassian process on top of a model fit.
+        """
         def _lnlike(self, pars):
             """
             likelihood function. This uses the class variables for x,y,xerr, and yerr, as well as the 'model' instance.
@@ -609,7 +614,7 @@ if emcee_import:
 
         def guess_fit_parameters(self, fitorder=1):
             """
-            Do a normal (non-bayesian) fit to the data.
+            Do a normal (non-bayesian and non-GP) fit to the data.
             The result will be saved for use as initial guess parameters in the full MCMC fit.
             If you use a custom model, you will probably have to override this method as well.
             """
