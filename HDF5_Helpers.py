@@ -241,7 +241,7 @@ class Full_CCF_Interface(object):
             year, month, day = date.split('-')
             day = int(day)
             for inc in [-1, 1]:
-                test_date = '{}-{}-{}'.format(year, month, day + inc)
+                test_date = '{}-{}-{:02d}'.format(year, month, day + inc)
                 if test_date in self._interfaces[instrument].list_dates(starname):
                     return self.get_measured_temperature(starname, test_date, Tmax,
                                                          instrument=instrument, N=N, addmode=addmode)
