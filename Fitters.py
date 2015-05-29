@@ -584,6 +584,78 @@ if emcee_import:
             self.sampler = MCSampler_Spoof(flatchain, flatlnprobability)
             return
 
+    class GPFitter(Fitters.Bayesian_LS):
+        def _lnlike(self, pars):
+            """
+            likelihood function. This uses the class variables for x,y,xerr, and yerr, as well as the 'model' instance.
+            """
+            #y_pred = self.x
+            y_pred = self.model(pars[2:], self.x)
+ 
+            a, tau = np.exp(pars[:2])
+            gp = george.GP(a * kernels.ExpSquaredKernel(tau))
+            gp.compute(self.x, self.yerr)
+            return gp.lnlikelihood(self.y - y_pred)
+
+        def lnprior(self, pars):
+            """
+            Prior. You may want to set a prior on the model parameters.
+            """
+            lna, lntau = pars[:2]
+            modelpars = pars[2:]
+            if -20 < lna < 30 and 0 < lntau < 30:
+                return 0.0
+            return -np.inf
+
+        def guess_fit_parameters(self, fitorder=1):
+            """
+            Do a normal (non-bayesian) fit to the data.
+            The result will be saved for use as initial guess parameters in the full MCMC fit.
+            If you use a custom model, you will probably have to override this method as well.
+            """
+
+            pars = np.zeros(fitorder + 1)
+            pars[-2] = 1.0
+            min_func = lambda p, xi, yi, yerri: np.sum((yi - self.model(p, xi)) ** 2 / yerri ** 2)
+
+            best_pars = fmin(min_func, x0=pars, args=(self.x, self.y, self.yerr))
+            self.guess_pars = [0, 10]
+            self.guess_pars.extend(best_pars)
+            return self.guess_pars
+
+        def predict(self, x, N=100, highest=False):
+            """
+            Predict the y value for the given x values.
+            """
+            if self.sampler is None:
+                logging.warn('Need to run the fit method before predict!')
+                return
+
+            # Find the N best walkers
+            if N == 'all':
+                N = self.sampler.flatchain.shape[0]
+            else:
+                N = min(N, self.sampler.flatchain.shape[0])
+            
+            if highest:
+                indices = np.argsort(self.sampler.flatlnprobability)[:N]
+                pars = self.sampler.flatchain[indices]
+            else:
+                pars = self.sampler.flatchain[:N]
+
+            yvals = []
+            for i, p in enumerate(pars):
+                logging.info('Generating GP samples for iteration {}/{}'.format(i+1, len(pars)))
+                a, tau = np.exp(p[:2])
+                ypred_data = self.model(p[2:], self.x)
+                ypred = self.model(p[2:], x)
+                gp = george.GP(a * kernels.ExpSquaredKernel(tau))
+                gp.compute(self.x, self.yerr)
+                s = gp.sample_conditional(self.y - ypred_data, x) + ypred
+                yvals.append(s)
+
+            return np.array(yvals)
+
 
 class MCSampler_Spoof(object):
     def __init__(self, flatchain, flatlnprobability):
