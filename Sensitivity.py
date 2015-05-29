@@ -1049,7 +1049,7 @@ def parse_input(inp):
     return pd.unique(sorted(final_list))
 
 
-def plot_expected(orders, prim_spt, Tsec, instrument, vsini=None, rv=0.0):
+def plot_expected(orders, prim_spt, Tsec, instrument, vsini=None, rv=0.0, twoaxes=False):
     """
     Plot the orders, with a model spectrum added at appropriate flux ratio
     :param orders: A list of Datastructures.xypoint instances
@@ -1100,20 +1100,47 @@ def plot_expected(orders, prim_spt, Tsec, instrument, vsini=None, rv=0.0):
     fluxratio_fcn = interp(x.to(units.nm), 1.0 / flux_ratio)
 
     # Loop over the orders:
-    fig, axes = plt.subplots(2, 1, sharex=True)
-    top, bottom = axes
+    if twoaxes:
+        fig, axes = plt.subplots(2, 1, sharex=True)
+        top, bottom = axes
+        for order in orders:
+            order.cont = FittingUtilities.Continuum(order.x, order.y, fitorder=3, lowreject=2, highreject=5)
+            top.plot(order.x, order.y, 'k-', alpha=0.4)
+            top.plot(order.x, order.cont, 'r--')
+
+            total = order.copy()
+
+            xarr = total.x * (1 + rv / constants.c.to(units.km / units.s).value)
+            model = (modelfcn(xarr) - 1.0) * fluxratio_fcn(xarr)
+            total.y += total.cont * model
+            top.plot(total.x, total.y, 'g-', alpha=0.4)
+
+            bottom.plot(total.x, total.y - order.y, 'k-', alpha=0.4)
+
+        return fig, [top, bottom], orders
+
+    fig, ax = plt.subplots(1, 1)
     for order in orders:
         order.cont = FittingUtilities.Continuum(order.x, order.y, fitorder=3, lowreject=2, highreject=5)
-        top.plot(order.x, order.y, 'k-', alpha=0.4)
-        top.plot(order.x, order.cont, 'r--')
+        ax.plot(order.x, order.y, 'k-', alpha=0.4)
 
         total = order.copy()
 
         xarr = total.x * (1 + rv / constants.c.to(units.km / units.s).value)
         model = (modelfcn(xarr) - 1.0) * fluxratio_fcn(xarr)
         total.y += total.cont * model
-        top.plot(total.x, total.y, 'g-', alpha=0.4)
+        ax.plot(total.x, total.y, 'g-', alpha=0.4)
 
-        bottom.plot(total.x, total.y - order.y, 'k-', alpha=0.4)
+    # Label
+    ax.set_xlabel('Wavelength (nm)')
+    ax.set_ylabel('Flux (arbitrary units)')
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    ax.plot([9e9], [9e9], 'k-', label='Actual data')
+    ax.plot([9e9], [9e9], 'g-', label='Expected data')
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    leg = ax.legend(loc='best', fancybox=True)
 
-    return fig, [top, bottom], orders
+    return fig, ax, orders
+
