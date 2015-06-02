@@ -1,17 +1,17 @@
 import sys
 import os
 import warnings
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
-import scipy.signal
 
-import FittingUtilities
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import numpy as np
 from astropy import units, constants
-import DataStructures
 
+import FittingUtilities
+import DataStructures
 import RotBroad_Fast as RotBroad
 import HelperFunctions
 from PlotBlackbodies import Planck
+import Normalized_Xcorr
 
 
 currentdir = os.getcwd() + "/"
@@ -283,7 +283,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
             dl = (order.x[0] - model.x[left-1]) / (model.x[left] - model.x[left-1])
             left -= dl
 
-
+        """ Old method of getting normalized CCF
         ycorr = scipy.signal.fftconvolve((reducedmodel - meanmodel), (reduceddata - meandata)[::-1], mode='valid')
         xcorr = np.arange(ycorr.size)
         lags = xcorr - left
@@ -294,6 +294,20 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         corr = DataStructures.xypoint(velocity.size)
         corr.x = velocity
         corr.y = ycorr / (data_rms * model_rms * float(ycorr.size))
+        """
+
+        # Get the CCF for this order
+        ycorr = Normalized_Xcorr.norm_xcorr(reduceddata, reducedmodel, trim=False)
+        N = ycorr.size
+        distancePerLag = np.log(model.x[1] / model.x[0])
+        v1 = -(N / 2.0) * distancePerLag
+        vf = v1 + N * distancePerLag
+        offsets = np.linspace(v1, vf, N)
+        velocity = offsets * constants.c.cgs.value * units.cm.to(units.km)
+        corr = DataStructures.xypoint(velocity.size)
+        corr.x = velocity
+        corr.y = ycorr
+
 
         # Only save part of the correlation
         left = np.searchsorted(corr.x, minvel)
