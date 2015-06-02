@@ -25,7 +25,6 @@ import subprocess
 from collections import defaultdict
 import StarData
 import SpectralTypeRelations
-import GenericSmooth
 import Broaden
 from astropy import units as u
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
@@ -136,12 +135,16 @@ def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
 
             dx = order.x[1] - order.x[0]
             smooth_factor = 0.8
+            """ old method
             theta = GenericSmooth.roundodd(vsini / 3e5 * order.x.mean() / dx * smooth_factor)
             theta = max(theta, 21)
             #denoised = HelperFunctions.Denoise(order.copy())
             denoised = order.copy()
             smooth = FittingUtilities.savitzky_golay(denoised.y, theta, 5)
             order.y = order.y - smooth + order.cont.mean()
+            """
+            order.y = order.cont.mean() + HelperFunctions.HighPassFilter(order,
+                                                                         vel=smooth_factor * vsini * u.km.to(u.cm))
 
         # Remove bad regions from the data
         for region in badregions:
@@ -248,12 +251,15 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
     if vsini_primary is not None:
 
         smooth_factor = 0.8
+        """ old method
         d_logx = np.log(xgrid[1] / xgrid[0])
         theta = GenericSmooth.roundodd(vsini_primary / 3e5 * smooth_factor / d_logx)
         print "Window size = {}\ndlogx = {}\nvsini = {}".format(theta, d_logx, vsini_primary)
         smooth = FittingUtilities.savitzky_golay(model.y, theta, 5)
 
         model.y = model.y - smooth
+        """
+        model.y = HelperFunctions.HighPassFilter(model, vel=smooth_factor * vsini_primary * u.km.to(u.cm))
         minval = min(model.y)
         model.y += abs(minval)
         model.cont = abs(minval) * np.ones(model.size())
