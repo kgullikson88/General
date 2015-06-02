@@ -5,10 +5,9 @@ This is a general script for doing the cross-correlations in my companion search
 It is called by several smaller scripts in each of the instrument-specific repositories
 """
 
-import FittingUtilities
-
 import numpy as np
 
+import FittingUtilities
 import DataStructures
 import Correlate
 import HelperFunctions
@@ -757,7 +756,11 @@ def save_ccf(corr, params, mode='text', update=True):
             # Check to see if these value are in any of the datasets. If so, overwrite instead of making a duplicate dataset
             for ds_name in current_datasets:
                 ds_test = d[ds_name]
-                if update and all([ds_test.attrs[a] == params[a] for a in attr_pars]):
+                if 'fname' in ds_test.attrs:
+                    a_pars = attr_pars
+                else:
+                    a_pars = attr_pars[:-1]
+                if update and all([ds_test.attrs[a] == params[a] for a in a_pars]):
                     ds = ds_test
                     new_data = np.array((corr.x, corr.y))
                     try: 
