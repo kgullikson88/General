@@ -3,6 +3,7 @@ import os
 import warnings
 import FittingUtilities
 import RotBroad_Fast as RotBroad
+import logging
 
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import numpy as np
@@ -303,8 +304,10 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
                 dl = (order.x[0] - model.x[l]) / (model.x[l + 1] - model.x[l])
                 l += dl
             else:
-                dl = (order.x[0] - model.x[l - 1]) / (model.x[l] - model.x[l - 1])
+                logging.debug('Less!')
+                dl = (model.x[l] - order.x[0]) / (model.x[l] - model.x[l - 1])
                 l -= dl
+            logging.debug('dl = {}'.format(dl))
         ycorr = Normalized_Xcorr.norm_xcorr(reduceddata, reducedmodel, trim=False)
         N = ycorr.size
         distancePerLag = np.log(model.x[1] / model.x[0])
