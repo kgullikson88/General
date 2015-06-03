@@ -633,8 +633,7 @@ def slow_companion_search(fileList,
                             pars = {'outdir': output_dir, 'fname': fname, 'addmode': addmode,
                                     'vsini_prim': vsini_prim, 'vsini': vsini_sec,
                                     'T': temp, 'logg': gravity, '[Fe/H]': metallicity}
-                            if vbary_correct:
-                                pars['vbary'] = vbary
+                            pars['vbary'] = vbary if vbary_correct else np.nan
                             save_ccf(corr, params=pars, mode=output_mode)
 
                         # Save the individual orders, if debug=True
