@@ -941,3 +941,23 @@ def integral(x, y, I, k=10):
         a.append(F2.roots())
 
     return np.hstack(a)
+
+
+def is_close(num1, num2, inf_true=True, both_inf=False):
+    """
+    Wrapper around np.isclose that handles Nans/infinities how I want them
+    :param num1, num2: The numeric values to compare
+    :param inf_true: Return true if one or both of the numbers are infinite or NaN?
+    :param both_inf: Require that both numbers be infinite, instead of just one
+    :return: boolean
+    """
+    if num1 == num2:
+        # Handles things like strings
+        return True
+    if np.isfinite(num1) and np.isfinite(num2):
+        return np.isclose(num1, num2)
+
+    elif not inf_true or (inf_true and both_inf and (np.isfinite(num1) or np.isfinite(num2))):
+        return False
+
+    return True

@@ -763,8 +763,30 @@ def save_ccf(corr, params, mode='text', update=True):
                 a_pars = attr_pars
             else:
                 a_pars = attr_pars[:-1]
-            if update and all([ds_test.attrs[a] == params[a] for a in a_pars]):
-                ds = ds_test
+            if all([HelperFunctions.is_close(ds_test.attrs[a], params[a]) for a in a_pars]):
+                if update:
+                    ds = ds_test
+                    new_data = np.array((corr.x, corr.y))
+                    try:
+                        ds.resize(new_data.shape)
+                    except TypeError:
+                        # Hope for the best...
+                        pass
+                    ds[:] = np.array((corr.x, corr.y))
+                    f.flush()
+                    f.close()
+                return
+
+
+        # If we get here, no matching dataset was found.
+        ds_name = 'T{}_logg{}_metal{}_addmode-{}_vsini{}'.format(params['T'],
+                                                                 params['logg'],
+                                                                 params['[Fe/H]'],
+                                                                 params['addmode'],
+                                                                 params['vsini'])
+        if ds_name in d.keys():
+            if update:
+                ds = d[ds_name]
                 new_data = np.array((corr.x, corr.y))
                 try:
                     ds.resize(new_data.shape)
@@ -775,13 +797,12 @@ def save_ccf(corr, params, mode='text', update=True):
                 f.flush()
                 f.close()
                 return
+            else:
+                i = 1
+                while '{}_{}'.format(ds_name, i) in ds.keys():
+                    i += 1
+                ds_name = '{}_{}'.format(ds_name, i)
 
-        # If we get here, no matching dataset was found.
-        ds_name = 'T{}_logg{}_metal{}_addmode-{}_vsini{}'.format(params['T'],
-                                                                 params['logg'],
-                                                                 params['[Fe/H]'],
-                                                                 params['addmode'],
-                                                                 params['vsini'])
         ds = d.create_dataset(ds_name, data=np.array((corr.x, corr.y)), maxshape=(2, None))
 
         # Add attributes to the dataset
@@ -793,3 +814,5 @@ def save_ccf(corr, params, mode='text', update=True):
 
     else:
         raise ValueError('output mode ({}) not supported!'.format(mode))
+
+    return
