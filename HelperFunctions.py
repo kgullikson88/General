@@ -5,17 +5,17 @@
 import os
 import csv
 from collections import defaultdict
+
 from scipy.optimize import bisect
 from scipy.stats import scoreatpercentile
 from scipy.signal import kaiserord, firwin, lfilter
 from scipy.interpolate import InterpolatedUnivariateSpline as spline, UnivariateSpline
-
 from astropy.io import fits as pyfits
 import numpy as np
 from astropy import units, constants
 from astropy.time import Time
-import DataStructures
 
+import DataStructures
 import pySIMBAD as sim
 import SpectralTypeRelations
 import readmultispec as multispec
@@ -568,6 +568,7 @@ def HighPassFilter(data, vel, width=5, linearize=False):
     # The phase delay of the filtered signal.
     delay = 0.5 * (N - 1) / sample_rate
     delay_idx = np.searchsorted(data.x, data.x[0] + delay) - 1
+    delay_idx = np.searchsorted(data.x, data.x[0] + delay)
     smoothed_y = smoothed_y[data.size() + delay_idx:-data.size() + delay_idx]
     if linearize:
         return linear.x, smoothed_y

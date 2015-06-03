@@ -134,7 +134,7 @@ def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
             order = FittingUtilities.RebinData(order, xgrid)
 
             dx = order.x[1] - order.x[0]
-            smooth_factor = 0.8
+            smooth_factor = 0.5
             """ old method
             theta = GenericSmooth.roundodd(vsini / 3e5 * order.x.mean() / dx * smooth_factor)
             theta = max(theta, 21)
@@ -249,8 +249,7 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
 
     # Divide by the same smoothing kernel as we used for the data
     if vsini_primary is not None:
-
-        smooth_factor = 0.8
+        smooth_factor = 0.5
         """ old method
         d_logx = np.log(xgrid[1] / xgrid[0])
         theta = GenericSmooth.roundodd(vsini_primary / 3e5 * smooth_factor / d_logx)
