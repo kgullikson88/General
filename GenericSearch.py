@@ -78,7 +78,7 @@ else:
         return 1e-3 * HelCorr(header, observatory=observatory, debug=debug)
 
 
-def HelCorr(header, observatory="CTIO", idlpath="/Applications/itt/idl/bin/idl", debug=False):
+def HelCorr(header, observatory="CTIO", idlpath="/Applications/exelis/idl83/bin/idl", debug=False):
     ra = 15.0 * convert(header['RA'])
     dec = convert(header['DEC'])
     jd = float(header['jd'])
