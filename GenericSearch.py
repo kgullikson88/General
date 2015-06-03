@@ -5,9 +5,10 @@ This is a general script for doing the cross-correlations in my companion search
 It is called by several smaller scripts in each of the instrument-specific repositories
 """
 
+import FittingUtilities
+
 import numpy as np
 
-import FittingUtilities
 import DataStructures
 import Correlate
 import HelperFunctions
@@ -632,6 +633,8 @@ def slow_companion_search(fileList,
                             pars = {'outdir': output_dir, 'fname': fname, 'addmode': addmode,
                                     'vsini_prim': vsini_prim, 'vsini': vsini_sec,
                                     'T': temp, 'logg': gravity, '[Fe/H]': metallicity}
+                            if vbary_correct:
+                                pars['vbary'] = vbary
                             save_ccf(corr, params=pars, mode=output_mode)
 
                         # Save the individual orders, if debug=True
@@ -753,34 +756,34 @@ def save_ccf(corr, params, mode='text', update=True):
         d = s[date] if date in s.keys() else s.create_group(date)
 
         # Add a new dataset. The name doesn't matter
-        current_datasets = d.keys()
-        attr_pars = ['vsini', 'T', 'logg', '[Fe/H]', 'addmode', 'fname']
-        if len(current_datasets) == 0:
-            ds = d.create_dataset('ds1', data=np.array((corr.x, corr.y)), maxshape=(2, None))
-        else:
-            # Check to see if these value are in any of the datasets. If so, overwrite instead of making a duplicate dataset
-            for ds_name in current_datasets:
-                ds_test = d[ds_name]
-                if 'fname' in ds_test.attrs:
-                    a_pars = attr_pars
-                else:
-                    a_pars = attr_pars[:-1]
-                if update and all([ds_test.attrs[a] == params[a] for a in a_pars]):
-                    ds = ds_test
-                    new_data = np.array((corr.x, corr.y))
-                    try: 
-                        ds.resize(new_data.shape)
-                    except TypeError:
-                        # Hope for the best...
-                        pass
-                    ds[:] = np.array((corr.x, corr.y))
-                    f.flush()
-                    f.close()
-                    return
-            
-            # If we get here, no matching dataset was found.
-            ds_num = max(int(d[2:]) for d in current_datasets) + 1
-            ds = d.create_dataset('ds{}'.format(ds_num), data=np.array((corr.x, corr.y)), maxshape=(2, None))
+        attr_pars = ['vbary'] if 'vbary' in params else []
+        attr_pars.extend(['vsini', 'T', 'logg', '[Fe/H]', 'addmode', 'fname'])
+        for ds_name in d.keys():
+            ds_test = d[ds_name]
+            if 'fname' in ds_test.attrs:
+                a_pars = attr_pars
+            else:
+                a_pars = attr_pars[:-1]
+            if update and all([ds_test.attrs[a] == params[a] for a in a_pars]):
+                ds = ds_test
+                new_data = np.array((corr.x, corr.y))
+                try:
+                    ds.resize(new_data.shape)
+                except TypeError:
+                    # Hope for the best...
+                    pass
+                ds[:] = np.array((corr.x, corr.y))
+                f.flush()
+                f.close()
+                return
+
+        # If we get here, no matching dataset was found.
+        ds_name = 'T{}_logg{}_metal{}_addmode-{}_vsini{}'.format(params['T'],
+                                                                 params['logg'],
+                                                                 params['[Fe/H]'],
+                                                                 params['addmode'],
+                                                                 params['vsini'])
+        ds = d.create_dataset(ds_name, data=np.array((corr.x, corr.y)), maxshape=(2, None))
 
         # Add attributes to the dataset
         for a in attr_pars:
