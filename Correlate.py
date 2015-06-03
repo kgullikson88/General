@@ -1,14 +1,14 @@
 import sys
 import os
 import warnings
+import FittingUtilities
+import RotBroad_Fast as RotBroad
 
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import numpy as np
 from astropy import units, constants
 
-import FittingUtilities
 import DataStructures
-import RotBroad_Fast as RotBroad
 import HelperFunctions
 from PlotBlackbodies import Planck
 import Normalized_Xcorr
@@ -274,6 +274,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
 
         reduceddata = order.y
         reducedmodel = model.y / model.cont
+        """ Old method of getting normalized CCF
         meandata = reduceddata.mean()
         meanmodel = reducedmodel.mean()
         data_rms = np.std(reduceddata)
@@ -283,7 +284,6 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
             dl = (order.x[0] - model.x[left-1]) / (model.x[left] - model.x[left-1])
             left -= dl
 
-        """ Old method of getting normalized CCF
         ycorr = scipy.signal.fftconvolve((reducedmodel - meanmodel), (reduceddata - meandata)[::-1], mode='valid')
         xcorr = np.arange(ycorr.size)
         lags = xcorr - left
@@ -297,17 +297,24 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         """
 
         # Get the CCF for this order
+        l = np.searchsorted(model.x, order.x[0])
+        if l > 0:
+            if order.x[0] >= model.x[l]:
+                dl = (order.x[0] - model.x[l]) / (model.x[l + 1] - model.x[l])
+                l += dl
+            else:
+                dl = (order.x[0] - model.x[l - 1]) / (model.x[l] - model.x[l - 1])
+                l -= dl
         ycorr = Normalized_Xcorr.norm_xcorr(reduceddata, reducedmodel, trim=False)
         N = ycorr.size
         distancePerLag = np.log(model.x[1] / model.x[0])
-        v1 = -(N / 2.0) * distancePerLag
+        v1 = -(order.size() + l - 0.5) * distancePerLag
         vf = v1 + N * distancePerLag
         offsets = np.linspace(v1, vf, N)
         velocity = offsets * constants.c.cgs.value * units.cm.to(units.km)
         corr = DataStructures.xypoint(velocity.size)
         corr.x = velocity
         corr.y = ycorr
-
 
         # Only save part of the correlation
         left = np.searchsorted(corr.x, minvel)
@@ -343,6 +350,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
 
     # Add up the individual CCFs
     total = corrlist[0].copy()
+
     if addmode.lower() == "ml":
         # use the Maximum Likelihood method from Zucker 2003, MNRAS, 342, 1291
         total.y = np.ones(total.size())
