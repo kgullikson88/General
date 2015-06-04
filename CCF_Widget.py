@@ -21,9 +21,10 @@ from Analyze_CCF import CCF_Interface
 
 
 
+
 # Parse command-line arguments 
 ADDMODE = 'simple'
-instrument = 'TS23'
+instrument = 'CHIRON'
 for arg in sys.argv[1:]:
     if '--instrument' in arg:
         instrument = arg.split('=')[-1].upper()
@@ -87,7 +88,7 @@ class BokehApp(VBox):
         obj.make_date_input()
 
         # outputs
-        #obj.pretext = PreText(text="", width=500)
+        # obj.pretext = PreText(text="", width=500)
         obj.make_source()
         obj.make_plots()
 
@@ -185,7 +186,7 @@ class BokehApp(VBox):
         # self.mainrow.children = [self.input_box, self._plot]
         self.mainrow.children = [self.input_box, self.mainplot]
         self.input_box.children = [self.star_select, self.date_select]
-        #self.ccfrow.children = [self._ccf_plot]
+        # self.ccfrow.children = [self._ccf_plot]
         self.ccfrow.children = [self.ccf_plot]
 
     def star_change(self, obj, attrname, old, new):
@@ -207,7 +208,7 @@ class BokehApp(VBox):
 
     def setup_events(self):
         super(BokehApp, self).setup_events()
-        #if self.source:
+        # if self.source:
         #    self.source.on_change('selected', self, 'selection_change')
         if self.T_run:
             self.T_run.on_change('selected', self, 'Trun_change')
