@@ -3,20 +3,20 @@ A set of functions for various types of fitting.
 """
 
 import logging
+import FittingUtilities
+from george import kernels
 
 from scipy.optimize import fmin
-import statsmodels.api as sm
-from statsmodels.robust.norms import TukeyBiweight
 import numpy as np
 from lmfit import Model, Parameters
 from skmonaco import mcimport
 import matplotlib.pyplot as plt
+import george
+import statsmodels.api as sm
+from statsmodels.robust.norms import TukeyBiweight
 
 import DataStructures
-import FittingUtilities
 from HelperFunctions import IsListlike
-import george
-from george import kernels
 
 
 try:
@@ -672,3 +672,20 @@ class MCSampler_Spoof(object):
         self.flatlnprobability = flatlnprobability
         return
 
+
+def RobustFit(x, y, fitorder=3, weight_fcn=TukeyBiweight()):
+    """
+    Performs a robust fit (less sensitive to outliers) to x and y
+    :param x: A numpy.ndarray with the x-coordinates of the function to fit
+    :param y: A numpy.ndarray with the y-coordinates of the function to fit
+    :param fitorder: The order of the fit
+    :return:
+    """
+    # Re-scale x for stability
+    x = (x - x.mean()) / x.std()
+    X = np.ones(x.size)
+    for i in range(1, fitorder + 1):
+        X = np.column_stack((X, x ** i))
+    fitter = sm.RLM(y, X, M=weight_fcn)
+    results = fitter.fit()
+    return results.predict(X)
