@@ -205,6 +205,24 @@ class Full_CCF_Interface(object):
                         print('{}   /   {}'.format(instrument, date))
         return observations
 
+    def get_ccfs(self, instrument, starname, date):
+        """
+        Get a pandas dataframe with all the cross-correlation functions for the given instrument, star, and date
+        :param instrument:
+        :param starname:
+        :param date:
+        :return:
+        """
+        int = self._interfaces[instrument]
+        data = int._compile_data(starname, date)
+        data['maxidx'] = data.ccf.map(np.argmax)
+        data['ccf_max'] = data.apply(lambda r: r.ccf[r.maxidx], axis=1)
+        data['vel_max'] = int.velocities[data.maxidx]
+
+        return data
+
+
+
 
     def get_measured_temperature(self, starname, date, Tmax, instrument=None, N=7, addmode='simple'):
         """
