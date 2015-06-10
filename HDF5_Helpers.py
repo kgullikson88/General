@@ -188,6 +188,19 @@ class Full_CCF_Interface(object):
 
         return
 
+    def list_stars(self, print2screen=False):
+        """
+        List all of the stars in all of the CCF interfaces
+        """
+        stars = []
+        for inst in self._interfaces.keys():
+            if print2screen:
+                print('Stars observed with {}: \n============================\n\n'.format(inst))
+            stars.extend(self._interfaces[inst].list_stars(print2screen=print2screen))
+
+        return pd.unique(stars)
+
+
 
     def get_observations(self, starname, print2screen=False):
         """
