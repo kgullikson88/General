@@ -15,7 +15,7 @@ from bokeh.server.utils.plugins import object_page
 from bokeh.models.widgets import HBox, VBox, VBoxForm, Select
 
 from Analyze_CCF import CCF_Interface
-
+from HDF5_Helpers import Full_CCF_Interface
 
 
 
@@ -60,9 +60,9 @@ class BokehApp(VBox):
 
     # inputs
     star = String(default=u"HIP 92855")
-    date = String(default=u"20141015")
+    inst_date = String(default=u"CHIRON/20141015")
     star_select = Instance(Select)
-    date_select = Instance(Select)
+    inst_date_select = Instance(Select)
     input_box = Instance(VBoxForm)
 
 
@@ -86,7 +86,7 @@ class BokehApp(VBox):
         # create input widgets
         obj.set_defaults()
         obj.make_star_input()
-        obj.make_date_input()
+        obj.make_inst_date_input()
 
         # outputs
         # obj.pretext = PreText(text="", width=500)
@@ -101,7 +101,7 @@ class BokehApp(VBox):
         starnames = self._ccf_interface.list_stars()
         dates = self._ccf_interface.list_dates(starnames[0])
         self.star = starnames[0]
-        self.date = dates[0]
+        self.inst_date = dates[0]
 
 
     def make_star_input(self):
@@ -112,13 +112,13 @@ class BokehApp(VBox):
             options=starnames,
         )
 
-    def make_date_input(self):
+    def make_inst_date_input(self):
         dates = self._ccf_interface.list_dates(self.star)
-        self.date = dates[0]
-        if isinstance(self.date_select, Select):
-            self.date_select.update(value=dates[0], options=dates)
+        self.inst_date = dates[0]
+        if isinstance(self.inst_date_select, Select):
+            self.inst_date_select.update(value=dates[0], options=dates)
         else:
-            self.date_select = Select.create(
+            self.inst_date_select = Select.create(
                 name='Date',
                 value=dates[0],
                 options=dates,
@@ -154,10 +154,10 @@ class BokehApp(VBox):
 
     def make_plots(self):
         star = self.star
-        date = self.date
+        inst_date = self.inst_date
         T_run = self.T_run.to_df()
         p = figure(
-            title="{} / {}".format(star, date),
+            title="{} / {}".format(star, inst_date),
             plot_width=1000, plot_height=400,
             tools="pan,wheel_zoom,tap,hover,reset",
             title_text_font_size="10pt",
@@ -186,22 +186,22 @@ class BokehApp(VBox):
         self.children = [self.mainrow, self.ccfrow]
         # self.mainrow.children = [self.input_box, self._plot]
         self.mainrow.children = [self.input_box, self.mainplot]
-        self.input_box.children = [self.star_select, self.date_select]
+        self.input_box.children = [self.star_select, self.inst_date_select]
         # self.ccfrow.children = [self._ccf_plot]
         self.ccfrow.children = [self.ccf_plot]
 
     def star_change(self, obj, attrname, old, new):
         print 'Star change!'
         self.star = new
-        self.make_date_input()
+        self.make_inst_date_input()
         self.make_source()
         self.make_plots()
         self.set_children()
         curdoc().add(self)
 
-    def date_change(self, obj, attrname, old, new):
+    def inst_date_change(self, obj, attrname, old, new):
         print 'Date change!'
-        self.date = new
+        self.inst_date = new
         self.make_source()
         self.make_plots()
         self.set_children()
@@ -215,8 +215,8 @@ class BokehApp(VBox):
             self.T_run.on_change('selected', self, 'Trun_change')
         if self.star_select:
             self.star_select.on_change('value', self, 'star_change')
-        if self.date_select:
-            self.date_select.on_change('value', self, 'date_change')
+        if self.inst_date_select:
+            self.inst_date_select.on_change('value', self, 'inst_date_change')
 
 
     def Trun_change(self, obj, attrname, old, new):
@@ -237,7 +237,7 @@ class BokehApp(VBox):
 
     @property
     def df(self):
-        return self._ccf_interface._compile_data(self.star, self.date, addmode=ADDMODE)
+        return self._ccf_interface._compile_data(self.star, self.inst_date, addmode=ADDMODE)
 
 
 # The following code adds a "/bokeh/stocks/" url to the bokeh-server. This URL
