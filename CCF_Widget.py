@@ -48,7 +48,7 @@ class BokehApp(VBox):
     jsmodel = "VBox"
 
     # data source
-    T_run = Instance(ColumnDataSource)
+    source = Instance(ColumnDataSource)
 
     # layout boxes
     mainrow = Instance(HBox)
@@ -78,7 +78,7 @@ class BokehApp(VBox):
         """
         # create layout widgets
         obj = cls()
-        cls._ccf_interface = CCF_Interface(ccf_filename)
+        cls._ccf_interface = Full_CCF_Interface(ccf_filename)
         obj.mainrow = HBox()
         obj.ccfrow = HBox()
         obj.input_box = VBoxForm()
@@ -99,9 +99,10 @@ class BokehApp(VBox):
 
     def set_defaults(self):
         starnames = self._ccf_interface.list_stars()
+        observations = self._ccf_interface.get_observations(starnames[0])
         dates = self._ccf_interface.list_dates(starnames[0])
         self.star = starnames[0]
-        self.inst_date = dates[0]
+        self.inst_date = observations[0]
 
 
     def make_star_input(self):
