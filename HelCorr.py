@@ -18,6 +18,7 @@ from astropy import _erfa as erfa
 import numpy as np
 
 
+
 # mean sidereal rate (at J2000) in radians per (UT1) second
 SR = 7.292115855306589e-5
 
@@ -201,7 +202,7 @@ class Time(time.Time):
         return self.tdb + dt
 
 
-# This is a direct port of x_keckhelio.pro from XIDL
+# This is a direct port of x_keckhelio.pro from XIDL, written by Erik Tollerud
 
 def x_keckhelio(ra, dec, epoch=2000.0, jd=None, tai=None,
                 longitude=None, latitude=None, altitude=None, obs='keck'):
