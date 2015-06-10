@@ -114,15 +114,15 @@ class BokehApp(VBox):
         )
 
     def make_inst_date_input(self):
-        dates = self._ccf_interface.list_dates(self.star)
-        self.inst_date = dates[0]
+        observations = self._ccf_interface.get_observations(self.star)
+        self.inst_date = observations[0]
         if isinstance(self.inst_date_select, Select):
-            self.inst_date_select.update(value=dates[0], options=dates)
+            self.inst_date_select.update(value=observations[0], options=observations)
         else:
             self.inst_date_select = Select.create(
-                name='Date',
-                value=dates[0],
-                options=dates,
+                name='Instrument/Date',
+                value=observations[0],
+                options=observations,
             )
 
     def make_source(self):
