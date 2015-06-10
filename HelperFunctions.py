@@ -526,7 +526,7 @@ def HighPassFilter(data, vel, width=5, linearize=False):
     """
 
     if linearize:
-        data = data.copy()
+        original_data = data.copy()
         datafcn = spline(data.x, data.y, k=3)
         errorfcn = spline(data.x, data.err, k=3)
         contfcn = spline(data.x, data.cont, k=3)
@@ -567,13 +567,56 @@ def HighPassFilter(data, vel, width=5, linearize=False):
 
     # The phase delay of the filtered signal.
     delay = 0.5 * (N - 1) / sample_rate
-    delay_idx = np.searchsorted(data.x, data.x[0] + delay) - 1
     delay_idx = np.searchsorted(data.x, data.x[0] + delay)
     smoothed_y = smoothed_y[data.size() + delay_idx:-data.size() + delay_idx]
     if linearize:
-        return linear.x, smoothed_y
+        fcn = spline(data.x, smoothed_y)
+        return fcn(original_data.x)
     else:
         return smoothed_y
+
+
+from astropy import convolution
+
+
+def astropy_smooth(data, vel, linearize=False, kernel=convolution.Gaussian1DKernel, **kern_args):
+    """
+    Smooth using an astropy filter
+    :param data: An xypoint with the data to smooth
+    :param vel: The velocity scale to smooth out. Can either by an astropy quantities or a float in km/s
+    :param linearize: If True, we will linearize the model before smoothing
+    :param kernel: The astropy kernel to use for smoothing
+    :param kern_args: Kernel arguments beyond width
+    :return: A smoothed version of the data, on the same wavelength grid as the data
+    """
+
+    if linearize:
+        original_data = data.copy()
+        datafcn = spline(data.x, data.y, k=3)
+        linear = DataStructures.xypoint(data.x.size)
+        linear.x = np.linspace(data.x[0], data.x[-1], linear.size())
+        linear.y = datafcn(linear.x)
+        data = linear
+
+    # Figure out feature size in pixels
+    if not isinstance(vel, units.quantity.Quantity):
+        vel *= units.km / units.second
+
+    featuresize = (np.median(data.x) * vel / constants.c).decompose().value
+    dlam = data.x[1] - data.x[0]
+    Npix = featuresize / dlam
+
+    # Make kernel and smooth
+    kern = kernel(Npix, **kern_args)
+    smoothed = convolution.convolve(data.y, kern, boundary='extend')
+
+    if linearize:
+        fcn = spline(data.x, smoothed)
+        return fcn(original_data.x)
+    return smoothed
+
+
+
 
 
 if mlpy_import:

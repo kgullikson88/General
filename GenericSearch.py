@@ -5,10 +5,9 @@ This is a general script for doing the cross-correlations in my companion search
 It is called by several smaller scripts in each of the instrument-specific repositories
 """
 
-import FittingUtilities
-
 import numpy as np
 
+import FittingUtilities
 import DataStructures
 import Correlate
 import HelperFunctions
@@ -99,6 +98,9 @@ def HelCorr(header, observatory="CTIO", idlpath="/Applications/exelis/idl83/bin/
     return float(output[-2])
 
 
+SMOOTH_FACTOR = 0.25
+
+
 def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
                  trimsize=1, vsini=None, logspacing=False, oversample=1.0, reject_outliers=True):
     """
@@ -135,7 +137,6 @@ def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
             order = FittingUtilities.RebinData(order, xgrid)
 
             dx = order.x[1] - order.x[0]
-            smooth_factor = 0.5
             """ old method
             theta = GenericSmooth.roundodd(vsini / 3e5 * order.x.mean() / dx * smooth_factor)
             theta = max(theta, 21)
@@ -144,8 +145,11 @@ def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
             smooth = FittingUtilities.savitzky_golay(denoised.y, theta, 5)
             order.y = order.y - smooth + order.cont.mean()
             """
-            order.y = order.cont.mean() + HelperFunctions.HighPassFilter(order,
-                                                                         vel=smooth_factor * vsini * u.km.to(u.cm))
+            # order.y = order.cont.mean() + HelperFunctions.HighPassFilter(order,
+            #                                                             vel=smooth_factor * vsini * u.km.to(u.cm))
+            smoothed = HelperFunctions.astropy_smooth(order, vel=SMOOTH_FACTOR * vsini, linearize=False)
+            order.y += order.cont.mean() - smoothed
+            order.cont = np.ones(order.size()) * order.cont.mean()
 
         # Remove bad regions from the data
         for region in badregions:
@@ -259,10 +263,15 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
 
         model.y = model.y - smooth
         """
-        model.y = HelperFunctions.HighPassFilter(model, vel=smooth_factor * vsini_primary * u.km.to(u.cm))
+        # model.y = HelperFunctions.HighPassFilter(model, vel=smooth_factor * vsini_primary * u.km.to(u.cm),
+        #                                         linearize=True)
+        model.y -= HelperFunctions.astropy_smooth(model, vel=SMOOTH_FACTOR * vsini_primary, linearize=True)
         minval = min(model.y)
         model.y += abs(minval)
         model.cont = abs(minval) * np.ones(model.size())
+
+
+
 
     # Rebin subsets of the model to the same spacing as the data
     model_orders = []

@@ -22,6 +22,7 @@ from Analyze_CCF import CCF_Interface
 
 
 
+
 # Parse command-line arguments 
 ADDMODE = 'simple'
 instrument = 'CHIRON'
@@ -220,7 +221,10 @@ class BokehApp(VBox):
 
     def Trun_change(self, obj, attrname, old, new):
         t1 = time.time()
-        T = self.T_run.to_df().ix[new]['T'].item()
+        print(new)
+        print(self.T_run.to_df())
+        print(self.T_run.to_df().ix[new['1d']['indices']])
+        T = self.T_run.to_df().ix[new['1d']['indices']]['T'].item()
         t2 = time.time()
         print('Time to convert T_run to dataframe: {}'.format(t2 - t1))
         t1 = time.time()
