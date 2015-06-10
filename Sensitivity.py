@@ -1061,6 +1061,10 @@ def plot_expected(orders, prim_spt, Tsec, instrument, vsini=None, rv=0.0, twoaxe
     :return:
     """
 
+    sns.set_context('paper', font_scale=2.0)
+    sns.set_style('white')
+    sns.set_style('ticks')
+
     # First, get the model
     dir_prefix = '/media/ExtraSpace'
     if not os.path.exists(dir_prefix):
