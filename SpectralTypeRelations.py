@@ -10,6 +10,9 @@ import pandas
 import DataStructures
 import os
 
+import HelperFunctions
+import numpy as np
+
 
 
 
@@ -604,13 +607,10 @@ class MainSequence:
 ########################################################
 ########               Pre-Main Sequence         #######
 ########################################################
-import os
-import HelperFunctions
-import numpy as np
+
 
 homedir = os.environ["HOME"] + "/"
 tracksfile = homedir + "Dropbox/School/Research/Stellar_Evolution/Padova_Tracks.dat"
-
 
 class PreMainSequence:
     def __init__(self, pms_tracks_file=tracksfile, track_source="Padova", minimum_stage=0, maximum_stage=1):
