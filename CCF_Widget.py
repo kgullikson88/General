@@ -141,8 +141,9 @@ class BokehApp(VBox):
                         'vsini': highest.vsini.values,
                         'ccf_max': highest.ccf_max.values,
                         'vel_max': highest.vel_max.values}
-        ccf_dict = {'ccf': np.vstack(highest.ccf.values),
-                    'vel': np.vstack(highest.vel.values}
+        ccf_dict = {'ccf': highest.ccf.values,
+                    'vel': highest.vel.values,
+                    'T': highest['T'].values}
 
 
         self.main_source = ColumnDataSource(data=highest_dict)
@@ -151,14 +152,9 @@ class BokehApp(VBox):
 
     def plot_ccf(self, T, x_range=None):
         # First, find the best values where temperature = T
-        T_run = self.T_run.to_df()
-        good = T_run.loc[T_run['T'] == T]
-        pars = {'vsini': good.vsini.item(), '[Fe/H]': good['[Fe/H]'].item(), 'T': T,
-                'logg': good.logg.item(), 'addmode': 'simple'}
-        t1 = time.time()
-        ccf = self._ccf_interface.get_ccf(pars, df=self.df)
-        t2 = time.time()
-        print('Time to retrieve ccf with requested parameters: {}'.format(t2 - t1))
+        ccf_data = self.ccf_source.to_df()
+        good = ccf_data.loc[ccf_data['T'] == T]
+        vel, corr = good.vel.item(), good.ccf.item()
 
         # Now, plot
         p = figure(
@@ -170,35 +166,41 @@ class BokehApp(VBox):
         )
         p.line(ccf.velocity, ccf.CCF, size=2,
                xlabel='Velocity', ylabel='CCF')
+        p.xaxis[0].axis_label = 'Velocity (km/s)'
+        p.yaxis[0].axis_label = 'CCF Power'
+
         return p
 
     def make_plots(self):
         star = self.star
         inst_date = self.inst_date
-        T_run = self.T_run.to_df()
+        T_run = self.main_source.to_df()
         p = figure(
-            title="{} / {}".format(star, inst_date),
+            title="{} - {}".format(star, inst_date),
             plot_width=1000, plot_height=400,
             tools="pan,wheel_zoom,tap,hover,reset",
-            title_text_font_size="10pt",
+            title_text_font_size="20pt",
         )
         p.circle("T", "ccf_value",
                  size=8,
                  nonselection_alpha=1.0,
-                 source=self.T_run
+                 source=self.main_source
         )
+        p.xaxis[0].axis_label = 'Temperature (K)'
+        p.yaxis[0].axis_label = 'CCF Peak Value'
+
         hover = p.select(dict(type=HoverTool))
         hover.tooltips = OrderedDict([
             ("Temperature", "@T"),
             ("vsini", "@vsini"),
             ("[Fe/H]", "@metal"),
             ("log(g)", "@logg"),
-            ("Radial Velocity (km/s)", "@rv"),
-            ("ccf peak height", "@ccf_value"),
+            ("Radial Velocity (km/s)", "@vel_max"),
+            ("ccf peak height", "@ccf_max"),
         ])
         self.mainplot = p
 
-        T = T_run.loc[T_run['ccf_value'] == T_run['ccf_value'].max()]['T'].item()
+        T = T_run.iloc[T_run['ccf_max'].idxmax()]['T'].item()
         self.ccf_plot = self.plot_ccf(T)
 
 
