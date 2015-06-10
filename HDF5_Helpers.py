@@ -218,7 +218,7 @@ class Full_CCF_Interface(object):
                         print('{}   /   {}'.format(instrument, date))
         return observations
 
-    def get_ccfs(self, instrument, starname, date):
+    def get_ccfs(self, instrument, starname, date, addmode='simple'):
         """
         Get a pandas dataframe with all the cross-correlation functions for the given instrument, star, and date
         :param instrument:
@@ -226,11 +226,12 @@ class Full_CCF_Interface(object):
         :param date:
         :return:
         """
-        int = self._interfaces[instrument]
-        data = int._compile_data(starname, date)
+        interface = self._interfaces[instrument]
+        data = interface._compile_data(starname, date, addmode=addmode)
         data['maxidx'] = data.ccf.map(np.argmax)
         data['ccf_max'] = data.apply(lambda r: r.ccf[r.maxidx], axis=1)
-        data['vel_max'] = int.velocities[data.maxidx]
+        data['vel_max'] = interface.velocities[data.maxidx]
+        data['vel'] = [interface.velocities] * len(data)
 
         return data
 

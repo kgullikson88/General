@@ -47,8 +47,9 @@ class BokehApp(VBox):
     extra_generated_classes = [["BokehApp", "BokehApp", "VBox"]]
     jsmodel = "VBox"
 
-    # data source
-    source = Instance(ColumnDataSource)
+    # data sources
+    main_source = Instance(ColumnDataSource)
+    ccf_source = Instance(ColumnDataSource)
 
     # layout boxes
     mainrow = Instance(HBox)
@@ -126,8 +127,26 @@ class BokehApp(VBox):
             )
 
     def make_source(self):
-        self._source = self.df
-        self.T_run = ColumnDataSource(self._ccf_interface.get_temperature_run(df=self._source))
+        # Get the CCF summary
+        data = self.df
+
+        # Pull out the best CCFS for each temperature
+        idx = data.groupby(['T']).apply(lambda x: x['ccf_max'].idxmax())
+        highest = data.iloc[idx].copy()
+
+        # make dictionaries to turn into ColumnDataSource objects
+        highest_dict = {'T': highest['T'].values,
+                        '[Fe/H]': highest['[Fe/H]'].values,
+                        'logg': highest.logg.values,
+                        'vsini': highest.vsini.values,
+                        'ccf_max': highest.ccf_max.values,
+                        'vel_max': highest.vel_max.values}
+        ccf_dict = {'ccf': np.vstack(highest.ccf.values),
+                    'vel': np.vstack(highest.vel.values}
+
+
+        self.main_source = ColumnDataSource(data=highest_dict)
+        self.ccf_source = ColumnDataSource(data=ccf_dict)
 
 
     def plot_ccf(self, T, x_range=None):
@@ -238,7 +257,15 @@ class BokehApp(VBox):
 
     @property
     def df(self):
-        return self._ccf_interface._compile_data(self.star, self.inst_date, addmode=ADDMODE)
+        # Parse the observation into an instrument and date
+        observation = self.inst_date
+        i = observation.find('/')
+        instrument = observation[:i]
+        date = observation[i:]
+
+        # Get the CCF summary
+        starname = self.star 
+        return self._ccf_interface.get_ccfs(instrument, starname, date, addmode=ADDMODE)
 
 
 # The following code adds a "/bokeh/stocks/" url to the bokeh-server. This URL
