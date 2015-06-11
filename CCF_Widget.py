@@ -17,31 +17,8 @@ from bokeh.models.widgets import HBox, VBox, VBoxForm, Select
 from Analyze_CCF import CCF_Interface
 from HDF5_Helpers import Full_CCF_Interface
 
-
-
-
-
-
-
 # Parse command-line arguments 
 ADDMODE = 'simple'
-instrument = 'CHIRON'
-for arg in sys.argv[1:]:
-    if '--instrument' in arg:
-        instrument = arg.split('=')[-1].upper()
-    elif '--addmode' in arg:
-        ADDMODE = arg.split('=')[-1]
-
-home = os.environ['HOME']
-root_dirs = {'TS23': '{}/School/Research/McDonaldData'.format(home),
-             'HRS': '{}/School/Research/HET_data'.format(home),
-             'CHIRON': '{}/School/Research/CHIRON_data'.format(home),
-             'IGRINS': '{}/School/Research/IGRINS_data'.format(home)}
-
-# CCF_FILE = '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(os.environ['HOME'])
-CCF_FILE = '{}/Cross_correlations/CCF.hdf5'.format(root_dirs[instrument])
-print('Instrument: {}\nCCF_FILE = {}'.format(instrument, CCF_FILE))
-
 
 class BokehApp(VBox):
     extra_generated_classes = [["BokehApp", "BokehApp", "VBox"]]
