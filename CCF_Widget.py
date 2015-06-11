@@ -233,8 +233,8 @@ class BokehApp(VBox):
         super(BokehApp, self).setup_events()
         # if self.source:
         #    self.source.on_change('selected', self, 'selection_change')
-        if self.T_run:
-            self.T_run.on_change('selected', self, 'Trun_change')
+        if self.main_source:
+            self.main_source.on_change('selected', self, 'Trun_change')
         if self.star_select:
             self.star_select.on_change('value', self, 'star_change')
         if self.inst_date_select:
@@ -244,9 +244,9 @@ class BokehApp(VBox):
     def Trun_change(self, obj, attrname, old, new):
         t1 = time.time()
         print(new)
-        print(self.T_run.to_df())
-        print(self.T_run.to_df().ix[new['1d']['indices']])
-        T = self.T_run.to_df().ix[new['1d']['indices']]['T'].item()
+        print(self.main_source.to_df())
+        print(self.main_source.to_df().ix[new['1d']['indices']])
+        T = self.main_source.to_df().ix[new['1d']['indices']]['T'].item()
         t2 = time.time()
         print('Time to convert T_run to dataframe: {}'.format(t2 - t1))
         t1 = time.time()
