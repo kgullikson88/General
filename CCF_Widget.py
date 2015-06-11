@@ -15,7 +15,7 @@ from bokeh.server.utils.plugins import object_page
 from bokeh.models.widgets import HBox, VBox, VBoxForm, Select
 
 from Analyze_CCF import CCF_Interface
-
+from HDF5_Helpers import Full_CCF_Interface
 
 
 
@@ -47,8 +47,9 @@ class BokehApp(VBox):
     extra_generated_classes = [["BokehApp", "BokehApp", "VBox"]]
     jsmodel = "VBox"
 
-    # data source
-    T_run = Instance(ColumnDataSource)
+    # data sources
+    main_source = Instance(ColumnDataSource)
+    ccf_source = Instance(ColumnDataSource)
 
     # layout boxes
     mainrow = Instance(HBox)
@@ -60,9 +61,9 @@ class BokehApp(VBox):
 
     # inputs
     star = String(default=u"HIP 92855")
-    date = String(default=u"20141015")
+    inst_date = String(default=u"CHIRON/20141015")
     star_select = Instance(Select)
-    date_select = Instance(Select)
+    inst_date_select = Instance(Select)
     input_box = Instance(VBoxForm)
 
 
@@ -71,14 +72,14 @@ class BokehApp(VBox):
 
 
     @classmethod
-    def create(cls, ccf_filename):
+    def create(cls):
         """
         This function is called once, and is responsible for
         creating all objects (plots, datasources, etc)
         """
         # create layout widgets
         obj = cls()
-        cls._ccf_interface = CCF_Interface(ccf_filename)
+        cls._ccf_interface = Full_CCF_Interface()
         obj.mainrow = HBox()
         obj.ccfrow = HBox()
         obj.input_box = VBoxForm()
@@ -86,7 +87,7 @@ class BokehApp(VBox):
         # create input widgets
         obj.set_defaults()
         obj.make_star_input()
-        obj.make_date_input()
+        obj.make_inst_date_input()
 
         # outputs
         # obj.pretext = PreText(text="", width=500)
@@ -99,9 +100,10 @@ class BokehApp(VBox):
 
     def set_defaults(self):
         starnames = self._ccf_interface.list_stars()
-        dates = self._ccf_interface.list_dates(starnames[0])
+        observations = self._ccf_interface.get_observations(starnames[0])
+        observations = ['/'.join(obs) for obs in observations]
         self.star = starnames[0]
-        self.date = dates[0]
+        self.inst_date = observations[0]
 
 
     def make_star_input(self):
@@ -112,33 +114,48 @@ class BokehApp(VBox):
             options=starnames,
         )
 
-    def make_date_input(self):
-        dates = self._ccf_interface.list_dates(self.star)
-        self.date = dates[0]
-        if isinstance(self.date_select, Select):
-            self.date_select.update(value=dates[0], options=dates)
+    def make_inst_date_input(self):
+        observations = self._ccf_interface.get_observations(self.star)
+        observations = ['/'.join(obs) for obs in observations]
+        self.inst_date = observations[0]
+        if isinstance(self.inst_date_select, Select):
+            self.inst_date_select.update(value=observations[0], options=observations)
         else:
-            self.date_select = Select.create(
-                name='Date',
-                value=dates[0],
-                options=dates,
+            self.inst_date_select = Select.create(
+                name='Instrument/Date',
+                value=observations[0],
+                options=observations,
             )
 
     def make_source(self):
-        self._source = self.df
-        self.T_run = ColumnDataSource(self._ccf_interface.get_temperature_run(df=self._source))
+        # Get the CCF summary
+        data = self.df
+
+        # Pull out the best CCFS for each temperature
+        idx = data.groupby(['T']).apply(lambda x: x['ccf_max'].idxmax())
+        highest = data.iloc[idx].copy()
+
+        # make dictionaries to turn into ColumnDataSource objects
+        highest_dict = {'T': highest['T'].values,
+                        'feh': highest['[Fe/H]'].values,
+                        'logg': highest.logg.values,
+                        'vsini': highest.vsini.values,
+                        'ccf_max': highest.ccf_max.values,
+                        'vel_max': highest.vel_max.values}
+        ccf_dict = {'ccf': highest.ccf.values,
+                    'vel': highest.vel.values,
+                    'T': highest['T'].values}
+
+
+        self.main_source = ColumnDataSource(data=highest_dict)
+        self.ccf_source = ColumnDataSource(data=ccf_dict)
 
 
     def plot_ccf(self, T, x_range=None):
         # First, find the best values where temperature = T
-        T_run = self.T_run.to_df()
-        good = T_run.loc[T_run['T'] == T]
-        pars = {'vsini': good.vsini.item(), '[Fe/H]': good['[Fe/H]'].item(), 'T': T,
-                'logg': good.logg.item(), 'addmode': 'simple'}
-        t1 = time.time()
-        ccf = self._ccf_interface.get_ccf(pars, df=self.df)
-        t2 = time.time()
-        print('Time to retrieve ccf with requested parameters: {}'.format(t2 - t1))
+        ccf_data = self.ccf_source.to_df()
+        good = ccf_data.loc[ccf_data['T'] == T]
+        vel, corr = good.vel.item(), good.ccf.item()
 
         # Now, plot
         p = figure(
@@ -148,37 +165,43 @@ class BokehApp(VBox):
             title_text_font_size="10pt",
             tools="pan,wheel_zoom,box_select,reset,save"
         )
-        p.line(ccf.velocity, ccf.CCF, size=2,
+        p.line(vel, corr, size=2,
                xlabel='Velocity', ylabel='CCF')
+        p.xaxis[0].axis_label = 'Velocity (km/s)'
+        p.yaxis[0].axis_label = 'CCF Power'
+
         return p
 
     def make_plots(self):
         star = self.star
-        date = self.date
-        T_run = self.T_run.to_df()
+        inst_date = self.inst_date
+        T_run = self.main_source.to_df()
         p = figure(
-            title="{} / {}".format(star, date),
+            title="{} - {}".format(star, inst_date),
             plot_width=1000, plot_height=400,
             tools="pan,wheel_zoom,tap,hover,reset",
-            title_text_font_size="10pt",
+            title_text_font_size="20pt",
         )
-        p.circle("T", "ccf_value",
+        p.circle("T", "ccf_max",
                  size=8,
                  nonselection_alpha=1.0,
-                 source=self.T_run
+                 source=self.main_source
         )
+        p.xaxis[0].axis_label = 'Temperature (K)'
+        p.yaxis[0].axis_label = 'CCF Peak Value'
+
         hover = p.select(dict(type=HoverTool))
         hover.tooltips = OrderedDict([
             ("Temperature", "@T"),
             ("vsini", "@vsini"),
-            ("[Fe/H]", "@metal"),
+            ("[Fe/H]", "@feh"),
             ("log(g)", "@logg"),
-            ("Radial Velocity (km/s)", "@rv"),
-            ("ccf peak height", "@ccf_value"),
+            ("Radial Velocity (km/s)", "@vel_max"),
+            ("ccf peak height", "@ccf_max"),
         ])
         self.mainplot = p
 
-        T = T_run.loc[T_run['ccf_value'] == T_run['ccf_value'].max()]['T'].item()
+        T = T_run.iloc[T_run['ccf_max'].idxmax()]['T'].item()
         self.ccf_plot = self.plot_ccf(T)
 
 
@@ -186,22 +209,22 @@ class BokehApp(VBox):
         self.children = [self.mainrow, self.ccfrow]
         # self.mainrow.children = [self.input_box, self._plot]
         self.mainrow.children = [self.input_box, self.mainplot]
-        self.input_box.children = [self.star_select, self.date_select]
+        self.input_box.children = [self.star_select, self.inst_date_select]
         # self.ccfrow.children = [self._ccf_plot]
         self.ccfrow.children = [self.ccf_plot]
 
     def star_change(self, obj, attrname, old, new):
         print 'Star change!'
         self.star = new
-        self.make_date_input()
+        self.make_inst_date_input()
         self.make_source()
         self.make_plots()
         self.set_children()
         curdoc().add(self)
 
-    def date_change(self, obj, attrname, old, new):
+    def inst_date_change(self, obj, attrname, old, new):
         print 'Date change!'
-        self.date = new
+        self.inst_date = new
         self.make_source()
         self.make_plots()
         self.set_children()
@@ -211,20 +234,20 @@ class BokehApp(VBox):
         super(BokehApp, self).setup_events()
         # if self.source:
         #    self.source.on_change('selected', self, 'selection_change')
-        if self.T_run:
-            self.T_run.on_change('selected', self, 'Trun_change')
+        if self.main_source:
+            self.main_source.on_change('selected', self, 'Trun_change')
         if self.star_select:
             self.star_select.on_change('value', self, 'star_change')
-        if self.date_select:
-            self.date_select.on_change('value', self, 'date_change')
+        if self.inst_date_select:
+            self.inst_date_select.on_change('value', self, 'inst_date_change')
 
 
     def Trun_change(self, obj, attrname, old, new):
         t1 = time.time()
         print(new)
-        print(self.T_run.to_df())
-        print(self.T_run.to_df().ix[new['1d']['indices']])
-        T = self.T_run.to_df().ix[new['1d']['indices']]['T'].item()
+        print(self.main_source.to_df())
+        print(self.main_source.to_df().ix[new['1d']['indices']])
+        T = self.main_source.to_df().ix[new['1d']['indices']]['T'].item()
         t2 = time.time()
         print('Time to convert T_run to dataframe: {}'.format(t2 - t1))
         t1 = time.time()
@@ -237,7 +260,15 @@ class BokehApp(VBox):
 
     @property
     def df(self):
-        return self._ccf_interface._compile_data(self.star, self.date, addmode=ADDMODE)
+        # Parse the observation into an instrument and date
+        observation = self.inst_date
+        i = observation.find('/')
+        instrument = observation[:i]
+        date = observation[i+1:]
+
+        # Get the CCF summary
+        starname = self.star 
+        return self._ccf_interface.get_ccfs(instrument, starname, date, addmode=ADDMODE)
 
 
 # The following code adds a "/bokeh/stocks/" url to the bokeh-server. This URL
@@ -247,5 +278,5 @@ class BokehApp(VBox):
 @bokeh_app.route("/bokeh/ccf/")
 @object_page("ccf")
 def make_ccf_app():
-    app = BokehApp.create(CCF_FILE)
+    app = BokehApp.create()
     return app

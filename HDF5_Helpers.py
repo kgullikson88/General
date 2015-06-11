@@ -188,6 +188,19 @@ class Full_CCF_Interface(object):
 
         return
 
+    def list_stars(self, print2screen=False):
+        """
+        List all of the stars in all of the CCF interfaces
+        """
+        stars = []
+        for inst in self._interfaces.keys():
+            if print2screen:
+                print('Stars observed with {}: \n============================\n\n'.format(inst))
+            stars.extend(self._interfaces[inst].list_stars(print2screen=print2screen))
+
+        return list(pd.unique(stars))
+
+
 
     def get_observations(self, starname, print2screen=False):
         """
@@ -205,7 +218,7 @@ class Full_CCF_Interface(object):
                         print('{}   /   {}'.format(instrument, date))
         return observations
 
-    def get_ccfs(self, instrument, starname, date):
+    def get_ccfs(self, instrument, starname, date, addmode='simple'):
         """
         Get a pandas dataframe with all the cross-correlation functions for the given instrument, star, and date
         :param instrument:
@@ -213,11 +226,13 @@ class Full_CCF_Interface(object):
         :param date:
         :return:
         """
-        int = self._interfaces[instrument]
-        data = int._compile_data(starname, date)
+        interface = self._interfaces[instrument]
+        data = interface._compile_data(starname, date, addmode=addmode)
         data['maxidx'] = data.ccf.map(np.argmax)
         data['ccf_max'] = data.apply(lambda r: r.ccf[r.maxidx], axis=1)
-        data['vel_max'] = int.velocities[data.maxidx]
+        data['vel_max'] = interface.velocities[data.maxidx]
+        data['vel'] = [interface.velocities] * len(data)
+        #data.rename(columns={'[Fe/H]': 'feh'}, inplace=True)
 
         return data
 
