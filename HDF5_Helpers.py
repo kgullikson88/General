@@ -198,7 +198,7 @@ class Full_CCF_Interface(object):
                 print('Stars observed with {}: \n============================\n\n'.format(inst))
             stars.extend(self._interfaces[inst].list_stars(print2screen=print2screen))
 
-        return pd.unique(stars)
+        return list(pd.unique(stars))
 
 
 
@@ -232,6 +232,7 @@ class Full_CCF_Interface(object):
         data['ccf_max'] = data.apply(lambda r: r.ccf[r.maxidx], axis=1)
         data['vel_max'] = interface.velocities[data.maxidx]
         data['vel'] = [interface.velocities] * len(data)
+        #data.rename(columns={'[Fe/H]': 'feh'}, inplace=True)
 
         return data
 

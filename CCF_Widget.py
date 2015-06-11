@@ -137,7 +137,7 @@ class BokehApp(VBox):
 
         # make dictionaries to turn into ColumnDataSource objects
         highest_dict = {'T': highest['T'].values,
-                        '[Fe/H]': highest['[Fe/H]'].values,
+                        'feh': highest['[Fe/H]'].values,
                         'logg': highest.logg.values,
                         'vsini': highest.vsini.values,
                         'ccf_max': highest.ccf_max.values,
@@ -165,7 +165,7 @@ class BokehApp(VBox):
             title_text_font_size="10pt",
             tools="pan,wheel_zoom,box_select,reset,save"
         )
-        p.line(ccf.velocity, ccf.CCF, size=2,
+        p.line(vel, corr, size=2,
                xlabel='Velocity', ylabel='CCF')
         p.xaxis[0].axis_label = 'Velocity (km/s)'
         p.yaxis[0].axis_label = 'CCF Power'
@@ -182,7 +182,7 @@ class BokehApp(VBox):
             tools="pan,wheel_zoom,tap,hover,reset",
             title_text_font_size="20pt",
         )
-        p.circle("T", "ccf_value",
+        p.circle("T", "ccf_max",
                  size=8,
                  nonselection_alpha=1.0,
                  source=self.main_source
@@ -194,7 +194,7 @@ class BokehApp(VBox):
         hover.tooltips = OrderedDict([
             ("Temperature", "@T"),
             ("vsini", "@vsini"),
-            ("[Fe/H]", "@metal"),
+            ("[Fe/H]", "@feh"),
             ("log(g)", "@logg"),
             ("Radial Velocity (km/s)", "@vel_max"),
             ("ccf peak height", "@ccf_max"),
@@ -264,7 +264,7 @@ class BokehApp(VBox):
         observation = self.inst_date
         i = observation.find('/')
         instrument = observation[:i]
-        date = observation[i:]
+        date = observation[i+1:]
 
         # Get the CCF summary
         starname = self.star 
