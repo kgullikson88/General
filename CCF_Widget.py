@@ -72,14 +72,14 @@ class BokehApp(VBox):
 
 
     @classmethod
-    def create(cls, ccf_filename):
+    def create(cls):
         """
         This function is called once, and is responsible for
         creating all objects (plots, datasources, etc)
         """
         # create layout widgets
         obj = cls()
-        cls._ccf_interface = Full_CCF_Interface(ccf_filename)
+        cls._ccf_interface = Full_CCF_Interface()
         obj.mainrow = HBox()
         obj.ccfrow = HBox()
         obj.input_box = VBoxForm()
@@ -101,7 +101,7 @@ class BokehApp(VBox):
     def set_defaults(self):
         starnames = self._ccf_interface.list_stars()
         observations = self._ccf_interface.get_observations(starnames[0])
-        dates = self._ccf_interface.list_dates(starnames[0])
+        observations = ['/'.join(obs) for obs in observations]
         self.star = starnames[0]
         self.inst_date = observations[0]
 
@@ -116,6 +116,7 @@ class BokehApp(VBox):
 
     def make_inst_date_input(self):
         observations = self._ccf_interface.get_observations(self.star)
+        observations = ['/'.join(obs) for obs in observations]
         self.inst_date = observations[0]
         if isinstance(self.inst_date_select, Select):
             self.inst_date_select.update(value=observations[0], options=observations)
@@ -277,5 +278,5 @@ class BokehApp(VBox):
 @bokeh_app.route("/bokeh/ccf/")
 @object_page("ccf")
 def make_ccf_app():
-    app = BokehApp.create(CCF_FILE)
+    app = BokehApp.create()
     return app
