@@ -7,6 +7,7 @@ import FittingUtilities
 from george import kernels
 
 from scipy.optimize import fmin
+from scipy.interpolate import interp1d
 import numpy as np
 from lmfit import Model, Parameters
 from skmonaco import mcimport
@@ -16,7 +17,9 @@ import statsmodels.api as sm
 from statsmodels.robust.norms import TukeyBiweight
 
 import DataStructures
-from HelperFunctions import IsListlike
+from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline
+from FittingUtilities import bound
+from astropy import units as u, constants
 
 
 try:
@@ -418,6 +421,7 @@ if emcee_import:
             return y
 
 
+
     class Bayesian_LS(object):
         def __init__(self, x=1, y=1, yerr=1):
             """
@@ -449,7 +453,6 @@ if emcee_import:
         def _lnlike(self, pars):
             """
             likelihood function. This uses the class variables for x,y,xerr, and yerr, as well as the 'model' instance.
-            Uses Monte Carlo integration to remove the nuisance parameters (the true x locations of each point)
             """
             y_pred = self.model(pars, self.x)  # Predict the y value
 
@@ -586,6 +589,8 @@ if emcee_import:
             self.sampler = MCSampler_Spoof(flatchain, flatlnprobability)
             return
 
+
+
     class GPFitter(Bayesian_LS):
         """
         A Subclass of Bayesian_LS that fits a guassian process on top of a model fit.
@@ -664,6 +669,129 @@ if emcee_import:
                 yvals.append(s)
 
             return np.array(yvals)
+
+
+class Differential_RV(object):
+    """
+    This class performs a differential RV analysis on two observations of the same star.
+    """
+    def __init__(self, observation, reference, continuum_fit_order=2):
+        """
+        Initialize the class.
+        :param observation: A list of xypoint objects for the observation spectrum
+        :param reference: A list of xypoint objects for the reference spectrum
+        """
+        
+        # Error checking
+        assert len(observation) == len(reference)
+
+        # The continuum shape should be the same for both, so we will just make it flat
+        for i, order in enumerate(observation):
+            observation[i].cont = np.ones(order.size()) * np.median(order.y)
+        for i, order in enumerate(reference):
+            reference[i].cont = np.ones(order.size()) * np.median(order.y)
+
+        self.observation = [ExtrapolatingUnivariateSpline(o.x, o.y/o.cont) for o in observation]
+        self.reference = [r.copy() for r in reference]
+        self.x_arr = [r.x for r in reference]
+        e = [ExtrapolatingUnivariateSpline(o.x, o.err, fill_value=0.0) for o in observation]
+        self.err = [np.sqrt(e(r.x)**2 + r.err**2) for e, r in zip(e, reference)]
+        self.continuum_fit_order = continuum_fit_order
+
+
+    def model(self, x, RV, *args, **kwargs):
+        """
+        Return the observation array, interpolated on x and shifted by RV km/s.
+        a, b, and c are polynomial coefficients for the continuum shape
+        x should be a list of x-axes (take from the reference star)
+        """
+        clight = constants.c.cgs.to(u.km/u.s).value
+        output = []
+        for xi, obs, ref in zip(x, self.observation, self.reference):
+            data = obs(xi*(1+RV/clight))
+            idx = ~np.isnan(data)
+            #cont = np.ones(data.size)
+            #cont[idx] = FittingUtilities.Continuum(xi[idx], data[idx], fitorder=self.continuum_fit_order,
+            #                                  lowreject=4, highreject=4)
+            cont = np.poly1d(np.polyfit(xi[idx], data[idx]/(ref.y[idx]/ref.cont[idx]), self.continuum_fit_order))(xi)
+            output.append(data/cont)
+
+        return output
+
+
+    def lnlike(self, pars):
+        """
+        likelihood function. Uses class variables for model, and the two lists with 
+        the observation and reference spectrum
+        """
+        model_orders = self.model(self.x_arr, *pars)
+
+        lnlike = 0.0
+        for ref_order, obs_order, err in zip(self.reference, model_orders, self.err):
+            idx = ~np.isnan(obs_order)
+            lnlike += -0.5 * np.sum((ref_order.y[idx] - obs_order[idx]*ref_order.cont[idx])**2 / (err[idx]**2))
+        return lnlike
+
+
+    def lnprior(self, pars):
+        """
+        Prior probability distribution for all the parameters.
+        """
+        #RV, a, b, c = pars
+        RV = pars[0]
+        if -100 < RV < 100:
+            return 0.0
+
+        return -np.inf
+
+
+    def lnprob(self, pars):
+        """
+        Log of the posterior probability of pars given the data.
+        """
+        lp = self.lnprior(pars)
+        return lp + self.lnlike(pars) if np.isfinite(lp) else -np.inf
+
+
+    def guess_fit_parameters(self, guess_pars=None):
+        """
+        Do a normal (non-bayesian) fit to the data
+        """
+
+        if guess_pars is None:
+            #pars = [0.0, 1.0, 0.0, 0.0]
+            guess_pars = [0]
+
+        lnlike = lambda pars: -self.lnlike(pars) + 100.0*bound([-50, 50], pars[0])
+        best_pars = fmin(lnlike, guess_pars)
+        return best_pars
+
+
+    def fit(self, nwalkers=100, n_burn=100, n_prod=500, guess=True, initial_pars=None, **guess_kws):
+        if guess:
+            initial_pars = self.guess_fit_parameters(**guess_kws)
+
+        pars = np.array(initial_pars)
+        ndim = pars.size
+        p0 = emcee.utils.sample_ball(pars, std=[1e-6] * ndim, size=nwalkers)
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, self.lnprob)
+
+        # Burn-in
+        print 'Running burn-in'
+        p1, lnp, _ = sampler.run_mcmc(p0, n_burn)
+        sampler.reset()
+
+        print 'Running production'
+        sampler.run_mcmc(p1, n_prod)
+
+        # Save the sampler instance as a class variable
+        self.sampler = sampler
+        return
+
+        
+
+
+
 
 
 class MCSampler_Spoof(object):
