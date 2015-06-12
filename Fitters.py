@@ -680,6 +680,7 @@ class Differential_RV(object):
         Initialize the class.
         :param observation: A list of xypoint objects for the observation spectrum
         :param reference: A list of xypoint objects for the reference spectrum
+        :param continuum_fit_order: The polynomial order with which to fit the difference in continuum between the stars.
         """
         
         # Error checking
@@ -702,17 +703,14 @@ class Differential_RV(object):
     def model(self, x, RV, *args, **kwargs):
         """
         Return the observation array, interpolated on x and shifted by RV km/s.
-        a, b, and c are polynomial coefficients for the continuum shape
         x should be a list of x-axes (take from the reference star)
+        This method should be overridden for more complicated models (such as for fitting absolute RVs)
         """
         clight = constants.c.cgs.to(u.km/u.s).value
         output = []
         for xi, obs, ref in zip(x, self.observation, self.reference):
             data = obs(xi*(1+RV/clight))
             idx = ~np.isnan(data)
-            #cont = np.ones(data.size)
-            #cont[idx] = FittingUtilities.Continuum(xi[idx], data[idx], fitorder=self.continuum_fit_order,
-            #                                  lowreject=4, highreject=4)
             cont = np.poly1d(np.polyfit(xi[idx], data[idx]/(ref.y[idx]/ref.cont[idx]), self.continuum_fit_order))(xi)
             output.append(data/cont)
 
@@ -736,8 +734,8 @@ class Differential_RV(object):
     def lnprior(self, pars):
         """
         Prior probability distribution for all the parameters.
+        Override this if you add more parameters.
         """
-        #RV, a, b, c = pars
         RV = pars[0]
         if -100 < RV < 100:
             return 0.0
@@ -755,11 +753,11 @@ class Differential_RV(object):
 
     def guess_fit_parameters(self, guess_pars=None):
         """
-        Do a normal (non-bayesian) fit to the data
+        Do a normal (non-bayesian) fit to the data. 
+        :param guess_pars: Initial guess parameters. If not given, it guesses RV=0km/s
         """
 
         if guess_pars is None:
-            #pars = [0.0, 1.0, 0.0, 0.0]
             guess_pars = [0]
 
         lnlike = lambda pars: -self.lnlike(pars) + 100.0*bound([-50, 50], pars[0])
@@ -788,7 +786,7 @@ class Differential_RV(object):
         self.sampler = sampler
         return
 
-        
+
 
 
 
