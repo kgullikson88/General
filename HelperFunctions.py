@@ -1004,3 +1004,35 @@ def is_close(num1, num2, inf_true=True, both_inf=False):
         return False
 
     return True
+
+
+class ExtrapolatingUnivariateSpline(spline):
+    """
+    Does the same thing as InterpolatedUnivariateSpline, but keeps track of if it is 
+    extrapolating
+    """
+    def __init__(self, x, y, w=None, bbox=[None]*2, k=3, ext=0, fill_value=np.nan):
+        """
+        See docstring for InterpolatedUnivariateSpline.
+        """
+        self.bounds = (min(x), max(x))
+        self.fill_value = fill_value
+        super(ExtrapolatingUnivariateSpline, self).__init__(x, y, w=w, bbox=bbox, k=k, ext=ext)
+
+    def __call__(self, x, nu=0, ext=None):
+        """
+        See docstring for InterpolatedUnivariateSpline.__call__
+        """
+        x = np.atleast_1d(x)
+        retval = super(ExtrapolatingUnivariateSpline, self).__call__(x, nu=nu, ext=ext)
+        idx = ~((x > self.bounds[0]) & (x < self.bounds[1]))
+        retval[idx] = self.fill_value
+        return retval
+
+
+
+
+
+
+
+
