@@ -6,7 +6,7 @@ import logging
 import FittingUtilities
 from george import kernels
 
-from scipy.optimize import fmin
+from scipy.optimize import fmin, brute
 from scipy.interpolate import interp1d
 import numpy as np
 from lmfit import Model, Parameters
@@ -722,6 +722,7 @@ class Differential_RV(object):
         likelihood function. Uses class variables for model, and the two lists with 
         the observation and reference spectrum
         """
+        pars = np.atleast_1d(pars)
         model_orders = self.model(self.x_arr, *pars)
 
         lnlike = 0.0
@@ -751,7 +752,7 @@ class Differential_RV(object):
         return lp + self.lnlike(pars) if np.isfinite(lp) else -np.inf
 
 
-    def guess_fit_parameters(self, guess_pars=None):
+    def guess_fit_parameters(self, guess_pars=None, search_range=(-50., 50.)):
         """
         Do a normal (non-bayesian) fit to the data. 
         :param guess_pars: Initial guess parameters. If not given, it guesses RV=0km/s
@@ -760,14 +761,17 @@ class Differential_RV(object):
         if guess_pars is None:
             guess_pars = [0]
 
-        lnlike = lambda pars: -self.lnlike(pars) + 100.0*bound([-50, 50], pars[0])
-        best_pars = fmin(lnlike, guess_pars)
+        lnlike = lambda pars: -self.lnlike(pars)# + 100.0*bound([-50, 50], pars[0])
+        best_pars = brute(lnlike, [search_range], Ns=100)
+        #best_pars = fmin(lnlike, guess_pars)
         return best_pars
 
 
     def fit(self, nwalkers=100, n_burn=100, n_prod=500, guess=True, initial_pars=None, **guess_kws):
-        if guess:
+        if guess or initial_pars is None:
             initial_pars = self.guess_fit_parameters(**guess_kws)
+            logging.info('Normal fit done: pars = ')
+            logging.info(pars)
 
         pars = np.array(initial_pars)
         ndim = pars.size
@@ -775,16 +779,47 @@ class Differential_RV(object):
         sampler = emcee.EnsembleSampler(nwalkers, ndim, self.lnprob)
 
         # Burn-in
-        print 'Running burn-in'
+        logging.info('Running burn-in')
         p1, lnp, _ = sampler.run_mcmc(p0, n_burn)
         sampler.reset()
 
-        print 'Running production'
+        logging.info('Running production')
         sampler.run_mcmc(p1, n_prod)
 
         # Save the sampler instance as a class variable
         self.sampler = sampler
         return
+
+    def plot(self, params):
+        """
+        Plot the spectra together to visually evaluate the fit
+        """
+        from matplotlib import gridspec
+        model_orders = self.model(self.x_arr, *params)
+
+        fig = plt.figure()
+        gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1]) 
+        bottom = plt.subplot(gs[1])
+        top = plt.subplot(gs[0], sharex=bottom)
+        for ref_order, obs_order in zip(self.reference, model_orders):
+            top.plot(ref_order.x, ref_order.y/ref_order.cont, 'k-', alpha=0.5)
+            top.plot(ref_order.x, obs_order, 'r-', alpha=0.5)
+            bottom.plot(ref_order.x, ref_order.y/ref_order.cont - obs_order, 'k-', alpha=0.5)
+
+        top.plot([], [], 'k-', alpha=0.5, label='Reference Spectrum')
+        top.plot([], [], 'r-', alpha=0.5, label='Observed Spectrum')
+        #top.set_xticklabels([])
+        plt.setp(top.get_xticklabels(), visible=False)
+        leg = top.legend(loc='best', fancybox=True)
+        leg.get_frame().set_alpha(0.5)
+
+        bottom.set_xlabel('Wavelength (nm)')
+        top.set_ylabel('Relative Flux')
+        bottom.set_ylabel('O-C')
+
+        fig.subplots_adjust(hspace=0.0)
+
+        plt.show()
 
 
 
