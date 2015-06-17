@@ -33,6 +33,8 @@ import sys
 import logging
 import matplotlib.pyplot as plt
 import h5py
+import multiprocessing
+import functools
 
 if pyraf_import:
     pyraf.iraf.noao()
@@ -101,6 +103,32 @@ def HelCorr(header, observatory="CTIO", idlpath="/Applications/exelis/idl83/bin/
 SMOOTH_FACTOR = 0.25
 
 
+def process_data_parallel(orders, badregions=[], interp_regions=[], extensions=True,
+                 trimsize=1, vsini=None, logspacing=False, oversample=1.0, reject_outliers=True, cores=4):
+
+    """
+    Use multiprocessing module to parallelize the data processing
+    """
+    # Set up the multiprocessing stuff
+    num_orders = len(orders) / cores + 1
+    mp_args = [orders[num_orders*i:num_orders*(i+1)] for i in range(cores)]
+    p = multiprocessing.Pool(cores)
+
+    # Call Process_Data
+    fcn = functools.partial(Process_Data, badregions=badregions, interp_regions=interp_regions,
+                            extensions=extensions, trimsize=trimsize, vsini=vsini, logspacing=logspacing,
+                            oversample=oversample, reject_outliers=reject_outliers)
+    tmp = p.map(fcn, mp_args)
+
+    # Sort the output
+    mp_out = []
+    for t in tmp:
+        mp_out.extend(t)
+
+    return sorted(mp_out, key=lambda o: o.x[0])
+
+
+
 def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
                  trimsize=1, vsini=None, logspacing=False, oversample=1.0, reject_outliers=True):
     """
@@ -115,7 +143,7 @@ def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
     :logspacing: If true, interpolate each order into a constant log-spacing.
     :return:
     """
-    if isinstance(fname, list) and isinstance(fname[0], DataStructures.xypoint):
+    if isinstance(fname, list) and all([isinstance(f, DataStructures.xypoint) for f in fname]):
         orders = fname
     else:
         if extensions:
