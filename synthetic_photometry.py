@@ -4,11 +4,13 @@ import Mamajek_Table
 import SpectralTypeRelations
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import logging
+from scipy.optimize import fmin, brute
+import numpy as np
 
 
 
 class CompanionFitter(object):
-    def __init__(self, filt, T_low=3500, T_high=12000, dT=50, feh=0.0):
+    def __init__(self, filt, T_low=3500, T_high=12000, dT=10, feh=0.0):
         """
         Initialize a CompanionFitter instance. It will pre-tabulate
         synthetic photometry for main-sequence stars with Temperatures
@@ -43,6 +45,22 @@ class CompanionFitter(object):
 
         # Interpolate the T-mag curve
         self.interpolator = spline(self.temperature, self.magnitude)
+
+
+    def fit(self, T_prim, delta_mag, delta_mag_error, T_range=(3500, 9000)):
+        """
+        Fit for the companion temperature given a primary temperature and delta-magnitude measurement
+        """
+
+        def lnlike(T2, T1, dm, dm_err):
+            dm_synth = self.__call__(T2) - self.__call__(T1)
+            logging.debug('T2 = {}: dm = {}'.format(T2, dm_synth))
+            return 0.5 * (dm - dm_synth)**2 / dm_err**2
+
+        #T_sec = fmin(lnlike, guess_T, args=(T_prim, delta_mag, delta_mag_error))
+        T_sec = brute(lnlike, [T_range], args=(T_prim, delta_mag, delta_mag_error))
+        return T_sec
+
 
 
     def __call__(self, T):
