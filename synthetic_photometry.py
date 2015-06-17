@@ -1,0 +1,69 @@
+import pysynphot
+from astropy import units as u, constants
+import Mamajek_Table
+import SpectralTypeRelations
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
+import logging
+
+
+
+class CompanionFitter(object):
+    def __init__(self, filt, T_low=3500, T_high=12000, dT=50, feh=0.0):
+        """
+        Initialize a CompanionFitter instance. It will pre-tabulate
+        synthetic photometry for main-sequence stars with Temperatures
+        ranging from T_low to T_high, in steps on dT K. All the 
+        models with have [Fe/H] = feh. Finally, we will interpolate
+        the relationship between temperature and magnitude so that
+        additional photometry points are made quickly.
+
+        :param filt: A pysynphot bandpass encoding the filter information.
+        :param T_low, T_high, dT: Parameters describing the temperature grid 
+                                  to interpolate  
+        :param feh: The metallicity [Fe/H] to use for the models
+        """
+        # Use the Mamajek table to get main-sequence relationships
+        MT = Mamajek_Table.MamajekTable()
+        MT.mam_df['radius'] = 10**(0.5*MT.mam_df.logL - 2.0*MT.mam_df.logT + 2.0*3.762)
+        MT.mam_df['logg'] = 4.44 + np.log10(MT.mam_df.Msun) - 2.0*np.log10(MT.mam_df.radius)
+        teff2radius = MT.get_interpolator('Teff', 'radius')
+        teff2mass = MT.get_interpolator('Teff', 'Msun')
+        teff2logg = MT.get_interpolator('Teff', 'logg')
+
+        # Pre-calculate the magnitude at each temperature
+        self.temperature = np.arange(T_low, T_high, dT)
+        self.magnitude = np.zeros(self.temperature.size)
+        for i, T in enumerate(self.temperature):
+            logging.info('i = {}/{}: T = {:.1f}'.format(i+1, self.temperature.size, T))
+            logg = teff2logg(T)
+            R = teff2radius(T)
+            spec = pysynphot.Icat('ck04models', T, feh, logg) * R**2
+            obs = pysynphot.Observation(spec, filt)
+            self.magnitude[i] = obs.effstim('abmag')
+
+        # Interpolate the T-mag curve
+        self.interpolator = spline(self.temperature, self.magnitude)
+
+
+    def __call__(self, T):
+        """
+         Evaluate the spline at the given temperature, returning the interpolated magnitude
+        """
+        return self.interpolator(T)
+
+    @classmethod
+    def make_box_filter(cls, center, width):
+        """
+        Make a box filter with the given parameters. Both center and width should either be in angstroms, 
+        or be astropy quantities.
+        """
+        if not isinstance(center, u.quantity.Quantity):
+            center *= u.angstrom
+        if not isinstance(width, u.quantity.Quantity):
+            width *= u.angstrom
+
+        return pysynphot.Box(center.to(u.angstrom).value, width.to(u.angstrom).value)
+
+
+
+
