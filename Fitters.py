@@ -20,6 +20,8 @@ import DataStructures
 from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline
 from FittingUtilities import bound
 from astropy import units as u, constants
+from astropy.modeling import fitting
+from astropy.modeling.polynomial import Chebyshev2D
 
 
 try:
@@ -691,8 +693,10 @@ class Differential_RV(object):
             observation[i].cont = np.ones(order.size()) * np.median(order.y)
         for i, order in enumerate(reference):
             reference[i].cont = np.ones(order.size()) * np.median(order.y)
+            #reference[i].y /= cont
 
-        self.observation = [ExtrapolatingUnivariateSpline(o.x, o.y/o.cont) for o in observation]
+        #self.observation = [ExtrapolatingUnivariateSpline(o.x, o.y/o.cont) for o in observation]
+        self.observation = [ExtrapolatingUnivariateSpline(o.x, o.y) for o in observation]
         self.reference = [r.copy() for r in reference]
         self.x_arr = [r.x for r in reference]
         e = [ExtrapolatingUnivariateSpline(o.x, o.err, fill_value=0.0) for o in observation]
@@ -700,20 +704,56 @@ class Differential_RV(object):
         self.continuum_fit_order = continuum_fit_order
 
 
-    def model(self, x, RV, *args, **kwargs):
+    def model_with_blaze(self, x, RV, *args, **kwargs):
         """
         Return the observation array, interpolated on x and shifted by RV km/s.
         x should be a list of x-axes (take from the reference star)
         This method should be overridden for more complicated models (such as for fitting absolute RVs)
         """
+        # Constant (speed of light)
         clight = constants.c.cgs.to(u.km/u.s).value
+        
+        # Make blaze function for both the observation and template from the args
+        xdeg, ydeg = self.blaze_x_degree, self.blaze_y_degree
+        xdom, ydom = self.blaze_x_domain, self.blaze_y_domain
+        ref_pars = dict(zip(self.blaze_param_names, args[:len(self.blaze_param_names)]))
+        obs_pars = dict(zip(self.blaze_param_names, args[len(self.blaze_param_names):]))
+        ref_blazefcn = Chebyshev2D(xdeg, ydeg, x_domain=xdom, y_domain=ydom, **ref_pars)
+        obs_blazefcn = Chebyshev2D(xdeg, ydeg, x_domain=xdom, y_domain=ydom, **obs_pars)
+
+
         output = []
-        for xi, obs, ref in zip(x, self.observation, self.reference):
+        for i, (xi, obs, ref) in enumerate(zip(x, self.observation, self.reference)):
+            data = obs(xi*(1+RV/clight))
+            #idx = ~np.isnan(data)
+            ap = np.array([i]*data.size)
+            pix = np.arange(data.size)
+            ref_blaze = ref_blazefcn(ap, pix)
+            obs_blaze = obs_blazefcn(ap, pix)
+            output.append(ref_blaze / obs_blaze * data)
+            #output.append(obs_blaze / ref_blaze * data)
+            #cont = np.poly1d(np.polyfit(xi[idx], data[idx]/(ref.y[idx]/ref.cont[idx]), self.continuum_fit_order))(xi)
+            #output.append(data/cont)
+
+        return output
+
+    def model(self, x, RV):
+
+        """
+        Return the observation array, interpolated on x and shifted by RV km/s.
+        x should be a list of x-axes (take from the reference star)
+        This method should be overridden for more complicated models (such as for fitting absolute RVs)
+        """
+        # Constant (speed of light)
+        clight = constants.c.cgs.to(u.km/u.s).value
+
+        output = []
+        for i, (xi, obs, ref) in enumerate(zip(x, self.observation, self.reference)):
             data = obs(xi*(1+RV/clight))
             idx = ~np.isnan(data)
-            cont = np.poly1d(np.polyfit(xi[idx], data[idx]/(ref.y[idx]/ref.cont[idx]), self.continuum_fit_order))(xi)
+            
+            cont = np.poly1d(np.polyfit(xi[idx], data[idx]/(ref.y[idx]), self.continuum_fit_order))(xi)
             output.append(data/cont)
-
         return output
 
 
@@ -728,7 +768,8 @@ class Differential_RV(object):
         lnlike = 0.0
         for ref_order, obs_order, err in zip(self.reference, model_orders, self.err):
             idx = ~np.isnan(obs_order)
-            lnlike += -0.5 * np.sum((ref_order.y[idx] - obs_order[idx]*ref_order.cont[idx])**2 / (err[idx]**2))
+            #lnlike += -0.5 * np.sum((ref_order.y[idx] - obs_order[idx]*ref_order.cont[idx])**2 / (err[idx]**2) + np.log(2*np.pi*err[idx]))
+            lnlike += -0.5 * np.sum((ref_order.y[idx] - obs_order[idx])**2 / (err[idx]**2) + np.log(2*np.pi*err[idx]))
         return lnlike
 
 
@@ -737,6 +778,7 @@ class Differential_RV(object):
         Prior probability distribution for all the parameters.
         Override this if you add more parameters.
         """
+
         RV = pars[0]
         if -100 < RV < 100:
             return 0.0
@@ -763,8 +805,28 @@ class Differential_RV(object):
 
         lnlike = lambda pars: -self.lnlike(pars)# + 100.0*bound([-50, 50], pars[0])
         best_pars = brute(lnlike, [search_range], Ns=100)
-        #best_pars = fmin(lnlike, guess_pars)
         return best_pars
+
+
+    def initialize_blaze_fit(self, blaze, x_degree=2, y_degree=6):
+        """
+        Initialize a blaze function fit using a flat field
+        """
+        # Fit the blaze function
+        aps = np.hstack([[i]*b.size() for i, b in enumerate(blaze)])
+        pixels = np.hstack([np.arange(b.size()) for b in blaze])
+        values = np.hstack([b.y for b in blaze])
+        blaze_fcn = ChebFit(aps, pixels, values, x_degree=x_degree, y_degree=y_degree)
+
+        # Save class variables for making a similar polynomial
+        self.initial_blaze_pars = dict(zip(blaze_fcn.param_names, blaze_fcn.parameters))
+        self.blaze_x_degree = blaze_fcn.x_degree
+        self.blaze_y_degree = blaze_fcn.y_degree
+        self.blaze_x_domain = blaze_fcn.x_domain
+        self.blaze_y_domain = blaze_fcn.y_domain
+        self.blaze_param_names = blaze_fcn.param_names
+        return blaze_fcn
+
 
 
     def fit(self, nwalkers=100, n_burn=100, n_prod=500, guess=True, initial_pars=None, **guess_kws):
@@ -773,7 +835,7 @@ class Differential_RV(object):
             logging.info('Normal fit done: pars = ')
             logging.info(pars)
 
-        pars = np.array(initial_pars)
+        pars = np.atleast_1d(initial_pars)
         ndim = pars.size
         p0 = emcee.utils.sample_ball(pars, std=[1e-6] * ndim, size=nwalkers)
         sampler = emcee.EnsembleSampler(nwalkers, ndim, self.lnprob)
@@ -790,6 +852,7 @@ class Differential_RV(object):
         self.sampler = sampler
         return
 
+
     def plot(self, params):
         """
         Plot the spectra together to visually evaluate the fit
@@ -802,9 +865,11 @@ class Differential_RV(object):
         bottom = plt.subplot(gs[1])
         top = plt.subplot(gs[0], sharex=bottom)
         for ref_order, obs_order in zip(self.reference, model_orders):
-            top.plot(ref_order.x, ref_order.y/ref_order.cont, 'k-', alpha=0.5)
+            #top.plot(ref_order.x, ref_order.y/ref_order.cont, 'k-', alpha=0.5)
+            top.plot(ref_order.x, ref_order.y, 'k-', alpha=0.5)
             top.plot(ref_order.x, obs_order, 'r-', alpha=0.5)
-            bottom.plot(ref_order.x, ref_order.y/ref_order.cont - obs_order, 'k-', alpha=0.5)
+            #bottom.plot(ref_order.x, ref_order.y/ref_order.cont - obs_order, 'k-', alpha=0.5)
+            bottom.plot(ref_order.x, ref_order.y - obs_order, 'k-', alpha=0.5)
 
         top.plot([], [], 'k-', alpha=0.5, label='Reference Spectrum')
         top.plot([], [], 'r-', alpha=0.5, label='Observed Spectrum')
@@ -850,3 +915,14 @@ def RobustFit(x, y, fitorder=3, weight_fcn=TukeyBiweight()):
     fitter = sm.RLM(y, X, M=weight_fcn)
     results = fitter.fit()
     return results.predict(X)
+
+
+def ChebFit(x, y, z, x_degree=2, y_degree=2):
+    p_init = Chebyshev2D(x_degree=x_degree, y_degree=y_degree)
+    f = fitting.LinearLSQFitter()
+
+    p = f(p_init, x, y, z)
+
+    return p
+
+    
