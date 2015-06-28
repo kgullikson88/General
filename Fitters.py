@@ -15,9 +15,14 @@ import matplotlib.pyplot as plt
 import george
 import statsmodels.api as sm
 from statsmodels.robust.norms import TukeyBiweight
+import os
+import glob
+import json
+import pandas as pd
+import triangle
 
 import DataStructures
-from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline
+from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline, ensure_dir
 from FittingUtilities import bound
 from astropy import units as u, constants
 from astropy.modeling import fitting
@@ -936,19 +941,22 @@ def ChebFit(x, y, z, x_degree=2, y_degree=2):
     
 if multinest_import and emcee_import:
     class MultiNestFitter(Bayesian_LS):
-        def __init__(self, x=1, y=1, yerr=1, n_params=3):
+        def __init__(self, x=1, y=1, yerr=1, param_names=None):
             """
             Class to perform a bayesian least squares fit to data with errors in only the y-axis.
+            All of the parameters are REQUIRED.
 
             :param x:  A numpy ndarray with the independent variable
             :param y:  A numpy ndarray with the dependent variable
             :param yerr:  A numpy ndarray with the uncertainty in the dependent variable
-            :param n_params: The number of parameters in the model. I wish I could get this by introspection or something...
+            :param param_names: The names of parameters, in a list/set/numpy array/iterable
             """
             self.x = x
             self.y = y
             self.yerr = yerr
-            self.n_params = n_params
+            self.n_params = len(param_names)
+            self.param_names = param_names
+            return
 
 
         def mnest_prior(self, cube, ndim, nparams):
@@ -966,7 +974,8 @@ if multinest_import and emcee_import:
             This is probably okay as it is. You may (but probably not) need to override
             _lnlike, but not this one.
             """
-            return self._lnlike(cube)
+            pars = [cube[i] for i in range(nparams)]
+            return self._lnlike(pars)
 
 
         def fit(self, n_live_points=1000, basename='chains/single-',
@@ -995,9 +1004,7 @@ if multinest_import and emcee_import:
                 :func:`pymultinest.run`.
             """
             # Make sure the output directory exists
-            folder = os.path.abspath(os.path.dirname(basename))
-            if not os.path.exists(folder):
-                os.makedirs(folder)
+            ensure_dir(basename)
 
             #If previous fit exists, see if it's using the same
             # observed properties
@@ -1006,17 +1013,8 @@ if multinest_import and emcee_import:
             if os.path.exists(propfile):
                 with open(propfile) as f:
                     props = json.load(f)
-                if set(props.keys()) != set(self.properties.keys()):
+                if set(props) != set(self.param_names):
                     prop_nomatch = True
-                else:
-                    for k,v in props.items():
-                        if np.size(v)==2:
-                            if not self.properties[k][0] == v[0] and \
-                                    self.properties[k][1] == v[1]:
-                                props_nomatch = True
-                        else:
-                            if not self.properties[k] == v:
-                                props_nomatch = True
 
             if prop_nomatch and not overwrite:
                 raise ValueError('Properties not same as saved chains ' +
@@ -1030,13 +1028,13 @@ if multinest_import and emcee_import:
 
             self._mnest_basename = basename
 
-            pymultinest.run(self.mnest_loglike, self.mnest_prior, self.n_params,
+            pymultinest.run(self.mnest_lnlike, self.mnest_prior, self.n_params,
                             n_live_points=n_live_points, outputfiles_basename=basename,
                             verbose=verbose,
                             **kwargs)
 
             with open(propfile, 'w') as f:
-                json.dump(self.properties, f, indent=2)
+                json.dump(self.param_names, f, indent=2)
 
             self._make_samples()
 
@@ -1048,5 +1046,59 @@ if multinest_import and emcee_import:
             Make MCMC samples out of a run. MUST call fit() method before this!
             """
             chain = np.loadtxt('{}post_equal_weights.dat'.format(self._mnest_basename))
-            self.chain = chain
+            
+            chain_dict = {self.param_names[i]: chain[:, i] for i in range(self.n_params)}
+            chain_dict['lnprob'] = chain[:, -1]
 
+            self.samples = pd.DataFrame(data=chain_dict)
+            return
+
+        def predict(self, x, N=100, highest=False):
+            """
+            predict the y value for the given x values. Use the N most probable MCMC chains if highest=False,
+            otherwise use the first N chains.
+            """
+            if self.samples is None:
+                logging.warn('Need to run the fit method before predict!')
+                return
+
+            # Find the N best walkers
+            if N == 'all':
+                N = self.samples.shape[0]
+            else:
+                N = min(N, self.samples.shape[0])
+
+            if highest:
+                samples = self.samples.sort('lnprob', ascending=False)[:N]
+            else:
+                indices = np.random.randint(0, self.samples.shape[0], N)
+                samples = self.samples.ix[indices]
+
+            pars = samples[self.param_names].as_matrix()
+            y = np.array([self.model(p, x) for p in pars])
+            return y
+
+        def triangle(self, **kws):
+            if self.samples is None:
+                logging.warn('Need to run the fit method before predict!')
+                return
+
+            samples = self.samples[self.param_names].as_matrix()
+            triangle.corner(samples, labels=self.param_names, **kws)
+
+
+        @property
+        def mnest_analyzer(self):
+            """
+            PyMultiNest Analyzer object associated with fit.  
+            See PyMultiNest documentation for more.
+            """
+            return pymultinest.Analyzer(self.n_params, self._mnest_basename)
+
+        @property
+        def evidence(self):
+            """
+            Log(evidence) from multinest fit
+            """
+            s = self.mnest_analyzer.get_stats()
+            return (s['global evidence'],s['global evidence error'])
