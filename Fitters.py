@@ -1038,8 +1038,15 @@ if multinest_import and emcee_import:
             with open(propfile, 'w') as f:
                 json.dump(self.properties, f, indent=2)
 
+            self._make_samples()
+
             return
 
 
-
+        def _make_samples(self):
+            """
+            Make MCMC samples out of a run. MUST call fit() method before this!
+            """
+            chain = np.loadtxt('{}post_equal_weights.dat'.format(self._mnest_basename))
+            self.chain = chain
 
