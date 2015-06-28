@@ -32,6 +32,14 @@ except ImportError:
     logging.warn("emcee module not loaded! BayesFit and bayesian_total_least_squares are unavailable!")
     emcee_import = False
 
+try:
+    import pymultinest
+    multinest_import = True
+
+except ImportError:
+    logging.warn('pymultinest module not loaded. MultiNestFitter will not be available!')
+    multinest_import = False
+
 
 def RobustFit(x, y, fitorder=3, weight_fcn=TukeyBiweight()):
     """
@@ -459,7 +467,7 @@ if emcee_import:
             y_pred = self.model(pars, self.x)  # Predict the y value
 
             # Make the log-likelihood
-            return -0.5 * np.sum((self.y - y_pred) ** 2 / self.yerr * 2)
+            return -0.5 * np.sum((self.y - y_pred) ** 2 / self.yerr * 2 + np.log(2*np.pi*self.yerr**2))
 
 
         def lnprior(self, pars):
@@ -926,3 +934,112 @@ def ChebFit(x, y, z, x_degree=2, y_degree=2):
     return p
 
     
+if multinest_import and emcee_import:
+    class MultiNestFitter(Bayesian_LS):
+        def __init__(self, x=1, y=1, yerr=1, n_params=3):
+            """
+            Class to perform a bayesian least squares fit to data with errors in only the y-axis.
+
+            :param x:  A numpy ndarray with the independent variable
+            :param y:  A numpy ndarray with the dependent variable
+            :param yerr:  A numpy ndarray with the uncertainty in the dependent variable
+            :param n_params: The number of parameters in the model. I wish I could get this by introspection or something...
+            """
+            self.x = x
+            self.y = y
+            self.yerr = yerr
+            self.n_params = n_params
+
+
+        def mnest_prior(self, cube, ndim, nparams):
+            """
+            This pretty much MUST be overridden for any practical use!
+            Transform the 'cube' parameter, which holds everything being fit,
+            from a uniform distibution on [0,1] to uniform on [min, max] for 
+            each parameter
+            """
+            return
+
+
+        def mnest_lnlike(self, cube, ndim, nparams):
+            """
+            This is probably okay as it is. You may (but probably not) need to override
+            _lnlike, but not this one.
+            """
+            return self._lnlike(cube)
+
+
+        def fit(self, n_live_points=1000, basename='chains/single-',
+                      verbose=True, refit=False, overwrite=False,
+                      **kwargs):
+            """
+            Fits model using MultiNest, via pymultinest. This function was taken almost entirely
+            form Timothy Morton's 'isochrones' code on github.
+
+            :param n_live_points:
+                Number of live points to use for MultiNest fit.
+            :param basename:
+                Where the MulitNest-generated files will live.  
+                By default this will be in a folder named `chains`
+                in the current working directory.  Calling this 
+                will define a `_mnest_basename` attribute for 
+                this object.
+            :param verbose:
+                Whether you want MultiNest to talk to you.
+            :param refit, overwrite:
+                Set either of these to true if you want to 
+                delete the MultiNest files associated with the
+                given basename and start over.
+            :param **kwargs:
+                Additional keyword arguments will be passed to 
+                :func:`pymultinest.run`.
+            """
+            # Make sure the output directory exists
+            folder = os.path.abspath(os.path.dirname(basename))
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+
+            #If previous fit exists, see if it's using the same
+            # observed properties
+            prop_nomatch = False
+            propfile = '{}properties.json'.format(basename)
+            if os.path.exists(propfile):
+                with open(propfile) as f:
+                    props = json.load(f)
+                if set(props.keys()) != set(self.properties.keys()):
+                    prop_nomatch = True
+                else:
+                    for k,v in props.items():
+                        if np.size(v)==2:
+                            if not self.properties[k][0] == v[0] and \
+                                    self.properties[k][1] == v[1]:
+                                props_nomatch = True
+                        else:
+                            if not self.properties[k] == v:
+                                props_nomatch = True
+
+            if prop_nomatch and not overwrite:
+                raise ValueError('Properties not same as saved chains ' +
+                                '(basename {}*). '.format(basename) +
+                                'Use overwrite=True to fit.')
+
+
+            if refit or overwrite:
+                files = glob.glob('{}*'.format(basename))
+                [os.remove(f) for f in files]
+
+            self._mnest_basename = basename
+
+            pymultinest.run(self.mnest_loglike, self.mnest_prior, self.n_params,
+                            n_live_points=n_live_points, outputfiles_basename=basename,
+                            verbose=verbose,
+                            **kwargs)
+
+            with open(propfile, 'w') as f:
+                json.dump(self.properties, f, indent=2)
+
+            return
+
+
+
+
