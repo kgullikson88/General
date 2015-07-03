@@ -1265,7 +1265,10 @@ class RVFitter(Bayesian_LS):
         ccf = ccf[good]
         idx = ccf.y.argmax()
         rv_guess = ccf.x[idx]
-        vsini_guess = fwhm(ccf.x, ccf.y, k=0)
+        try:
+            vsini_guess = fwhm(ccf.x, ccf.y, k=0)
+        except:
+            vsini_guess = 50.0
         T_ff_guess, f_pars = self._fit_ff_teff(self.x, self.y, self.model_spec, rv_guess, vsini_guess, 12000.0)
         self.guess_pars = [rv_guess, vsini_guess, 0.5, T_ff_guess, self._T]
         self.guess_pars.extend(f_pars)
