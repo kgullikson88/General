@@ -564,7 +564,8 @@ if emcee_import:
                 indices = np.argsort(self.sampler.flatlnprobability)[:N]
                 pars = self.sampler.flatchain[indices]
             else:
-                pars = self.sampler.flatchain[:N]
+                indices = np.random.randint(0, self.sampler.flatchain.shape[0], N)
+                pars = self.sampler.flatchain[indices]
 
             y = np.array([self.model(p, x) for p in pars])
             return y
@@ -974,7 +975,7 @@ if multinest_import and emcee_import:
             This is probably okay as it is. You may (but probably not) need to override
             _lnlike, but not this one.
             """
-            pars = [cube[i] for i in range(nparams)]
+            pars = np.array([cube[i] for i in range(nparams)])
             return self._lnlike(pars)
 
 
