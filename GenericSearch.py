@@ -103,7 +103,7 @@ def HelCorr(header, observatory="CTIO", idlpath="/Applications/exelis/idl83/bin/
 SMOOTH_FACTOR = 0.25
 
 
-def process_data_parallel(orders, badregions=[], interp_regions=[], extensions=True,
+def Process_Data(orders, badregions=[], interp_regions=[], extensions=True,
                  trimsize=1, vsini=None, logspacing=False, oversample=1.0, reject_outliers=True, cores=4):
 
     """
@@ -129,7 +129,7 @@ def process_data_parallel(orders, badregions=[], interp_regions=[], extensions=T
 
 
 
-def Process_Data(fname, badregions=[], interp_regions=[], extensions=True,
+def Process_Data_serial(fname, badregions=[], interp_regions=[], extensions=True,
                  trimsize=1, vsini=None, logspacing=False, oversample=1.0, reject_outliers=True):
     """
 
