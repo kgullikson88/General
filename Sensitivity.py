@@ -1,3 +1,5 @@
+from __future__ import division, print_function
+
 import os
 import sys
 from re import search
@@ -162,9 +164,9 @@ def Analyze_Old(fileList,
     model_list = StellarModel.GetModelList(metal=[0, ], temperature=range(3000, 6100, 100), model_directory=modeldir)
     for modelnum, modelfile in enumerate(model_list):
         temp, gravity, metallicity = StellarModel.ClassifyModel(modelfile)
-        print "Reading in file %s" % modelfile
+        print("Reading in file %s" % modelfile)
         x, y, c = np.loadtxt(modelfile, usecols=(0, 1, 2), unpack=True)
-        print "Processing file..."
+        print("Processing file...")
         # c = FittingUtilities.Continuum(x, y, fitorder=2, lowreject=1.5, highreject=5)
         n = 1.0 + 2.735182e-4 + 131.4182 / x ** 2 + 2.76249e8 / x ** 4  # Index of refraction of air
         model = DataStructures.xypoint(x=x * units.angstrom.to(units.nm) / n, y=10 ** y, cont=10 ** c)
@@ -177,7 +179,7 @@ def Analyze_Old(fileList,
         # Now that we have a spline function for the broadened data,
         # begin looping over the files
         for fname in fileList:
-            print fname
+            print(fname)
             output_dir = output_directories[fname]
             outfile = open(logfilenames[fname], "a")
 
@@ -196,7 +198,7 @@ def Analyze_Old(fileList,
                 sys.exit("Cannot find %s in the vsini data: %s" % (starname, vsini_file))
 
             if debug:
-                print starname, vsini
+                print(starname, vsini)
 
             # Check for companions in my master spreadsheet
             known_stars = []
@@ -223,14 +225,14 @@ def Analyze_Old(fileList,
             massratio = secondary_mass / primary_mass
 
             for rv in vel_list:
-                print "Testing model with rv = ", rv
+                print("Testing model with rv = ", rv)
                 orders = [order.copy() for order in orders_original]  # Make a copy of orders
                 model_orders = []
                 for ordernum, order in enumerate(orders):
                     # Get the flux ratio
                     scale = GetFluxRatio(known_stars, temp, order.x)
                     if debug:
-                        print "Scale factor for order %i is %.3g" % (ordernum, scale.mean())
+                        print("Scale factor for order %i is %.3g" % (ordernum, scale.mean()))
 
                     # Add the model to the data
                     model = (modelfcn(order.x * (1.0 + rv / lightspeed)) - 1.0) * scale
@@ -278,7 +280,7 @@ def Analyze_Old(fileList,
                     orderweights.append(scale.mean())
 
                 # Do the actual cross-correlation
-                print "Cross-correlating..."
+                print("Cross-correlating...")
                 corr = Correlate.Correlate(orders,
                                            model_orders,
                                            debug=debug,
@@ -298,7 +300,7 @@ def Analyze_Old(fileList,
                 significance = (corr.y[idx] - mean) / std
                 if debug:
                     corrfile = "%s%s_t%i_v%i" % (output_dir, fname.split("/")[-1].split(".fits")[0], temp, rv)
-                    print "Outputting CCF to %s" % corrfile
+                    print("Outputting CCF to %s" % corrfile)
                     np.savetxt(corrfile, np.transpose((corr.x, corr.y - mean, np.ones(corr.size()) * std)),
                                fmt="%.10g")
                 if abs(vmax - rv) <= tolerance:
@@ -309,7 +311,7 @@ def Analyze_Old(fileList,
                     #Not found
                     outfile.write("%s\t%i\t\t\t%i\t\t\t\t%.2f\t\t%.4f\t\t%i\t\tno\t\tN/A\n" % (
                         fname, primary_temp, temp, secondary_mass, massratio, rv))
-                print "Done with rv ", rv
+                print("Done with rv ", rv)
             outfile.close()
 
 
@@ -332,7 +334,7 @@ def get_sec_spt(row):
         sec_mass = q * mass
         return MS.GetSpectralType('mass', sec_mass)[0]
     else:
-        print row
+        print(row)
         raise ValueError('Must give enough information to figure out the spectral type!')
 
 
@@ -511,7 +513,7 @@ def Analyze(fileList,
                         date = header['DATE-OBS'].split('T')[0]
 
                         components = get_companions(starname)
-                        print components
+                        print(components)
                         primary_temp = components['temperature']
                         primary_radius = components['radius']
                         primary_mass = components['mass']
@@ -650,10 +652,6 @@ def check_detection(corr, params, mode='text', tol=5):
 
         # Get or create a group for the secondary star temperature
         Tsec = str(int(params['secondary_temp']))
-        #print d.keys()
-        ##print Tsec
-        #print type(Tsec)
-        #print Tsec in d.keys()
         if Tsec in d.keys():
             T = d[Tsec]
         else:
@@ -877,6 +875,27 @@ def read_hdf5(hdf5_file):
     return df
 
 
+def heatmap(df, **plot_kws):
+    """
+    Make a heatmap of the pandas dataframe using the first three columns
+    """
+    xcol, ycol, color_col = df.columns[:3]
+    x_range = (df[xcol].min(), df[xcol].max())
+    y_range = (df[ycol].min(), df[ycol].max())
+    aspect_ratio = (x_range[1] - x_range[0]) / (y_range[1] - y_range[0])
+    plot_extents = np.hstack((x_range, y_range[::-1]))
+    fig, ax = plt.subplots()
+    im = ax.matshow(df.pivot(ycol, xcol, color_col), aspect=aspect_ratio, extent=plot_extents, **plot_kws)
+    ax.xaxis.set_ticks_position('bottom')
+    cbar = plt.colorbar(im)
+
+    ax.set_xlabel(xcol)
+    ax.set_ylabel(ycol)
+    cbar.set_label(color_col)
+
+    return fig, ax, im
+
+
 def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=True, combine=False):
     """
     This uses the output of a previous run of check_sensitivity, and makes plots
@@ -930,16 +949,19 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
             dataframes['significance'].pop(key)
             continue
 
-        sns.heatmap(dataframes['detrate'][key].pivot('temperature', 'vsini', 'detection rate'))
+        #sns.heatmap(dataframes['detrate'][key].pivot('temperature', 'vsini', 'detection rate'))
+        heatmap(dataframes['detrate'][key][['temperature', 'vsini', 'detection rate']])
+    
         plt.title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
         plt.savefig('Figures/T_vsini_Detrate_{}.{}.pdf'.format(star, date))
 
         plt.figure(i * 3 + 2)
-        print key
-        print dataframes['significance'][key]
-        print dataframes['significance'][key].pivot('temperature', 'vsini', 'significance')
-        sns.heatmap(dataframes['significance'][key].pivot('temperature', 'vsini', 'significance'),
-                    robust=True)
+        print(key)
+        print(dataframes['significance'][key])
+        print(dataframes['significance'][key].pivot('temperature', 'vsini', 'significance'))
+        #sns.heatmap(dataframes['significance'][key].pivot('temperature', 'vsini', 'significance'),
+        #            robust=True)
+        heatmap(dataframes['significance'][key]['temperature', 'vsini', 'significance'])
         plt.title('Detection Significance for {} ({}) on {}'.format(star, spt, date))
         plt.savefig('Figures/T_vsini_Significance_{}.{}.pdf'.format(star, date))
 
