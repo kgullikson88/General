@@ -103,7 +103,7 @@ def HelCorr(header, observatory="CTIO", idlpath="/Applications/exelis/idl83/bin/
 SMOOTH_FACTOR = 0.25
 
 
-def Process_Data(orders, badregions=[], interp_regions=[], extensions=True,
+def Process_Data_parallel(orders, badregions=[], interp_regions=[], extensions=True,
                  trimsize=1, vsini=None, logspacing=False, oversample=1.0, reject_outliers=True, cores=4):
 
     """
@@ -115,7 +115,7 @@ def Process_Data(orders, badregions=[], interp_regions=[], extensions=True,
     p = multiprocessing.Pool(cores)
 
     # Call Process_Data
-    fcn = functools.partial(Process_Data, badregions=badregions, interp_regions=interp_regions,
+    fcn = functools.partial(Process_Data_serial, badregions=badregions, interp_regions=interp_regions,
                             extensions=extensions, trimsize=trimsize, vsini=vsini, logspacing=logspacing,
                             oversample=oversample, reject_outliers=reject_outliers)
     tmp = p.map(fcn, mp_args)
@@ -127,6 +127,9 @@ def Process_Data(orders, badregions=[], interp_regions=[], extensions=True,
 
     return sorted(mp_out, key=lambda o: o.x[0])
 
+
+def Process_Data(*args, **kwargs):
+    return Process_Data_serial(*args, **kwargs)
 
 
 def Process_Data_serial(fname, badregions=[], interp_regions=[], extensions=True,
