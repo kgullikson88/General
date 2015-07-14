@@ -896,7 +896,7 @@ def heatmap(df, **plot_kws):
     return fig, ax, im
 
 
-def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=True, combine=False):
+def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=True, combine=False, **heatmap_kws):
     """
     This uses the output of a previous run of check_sensitivity, and makes plots
     :keyword interactive: If True, the user will pick which stars to plot
@@ -908,10 +908,14 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
     if not update and os.path.isfile('Sensitivity_Dataframe.csv'):
         df = pd.read_csv('Sensitivity_Dataframe.csv')
     else:
-        df = read_hdf5(hdf5_file)
+        if hdf5_file.endswith('hdf5'):
+            df = read_hdf5(hdf5_file)
 
-        # Save the dataframe for later use
-        df.to_csv('Sensitivity_Dataframe.csv', index=False)
+            # Save the dataframe for later use
+            df.to_csv('Sensitivity_Dataframe.csv', index=False)
+        elif hdf5_file.endswith('csv'):
+            # Treat the input as a csv file
+            df = pd.read_csv(hdf5_file)
 
     # Group by a bunch of keys that probably don't change, but could
     groups = df.groupby(('star', 'date', '[Fe/H]', 'logg', 'addmode', 'primary SpT'))
@@ -950,27 +954,25 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
             continue
 
         #sns.heatmap(dataframes['detrate'][key].pivot('temperature', 'vsini', 'detection rate'))
-        heatmap(dataframes['detrate'][key][['temperature', 'vsini', 'detection rate']])
+        heatmap(dataframes['detrate'][key][['vsini', 'temperature', 'detection rate']], **heatmap_kws)
     
         plt.title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
-        plt.savefig('Figures/T_vsini_Detrate_{}.{}.pdf'.format(star, date))
+        plt.savefig('Figures/T_vsini_Detrate_{}.{}.pdf'.format(star.replace(' ', '_'), date))
 
         plt.figure(i * 3 + 2)
-        print(key)
-        print(dataframes['significance'][key])
-        print(dataframes['significance'][key].pivot('temperature', 'vsini', 'significance'))
         #sns.heatmap(dataframes['significance'][key].pivot('temperature', 'vsini', 'significance'),
         #            robust=True)
-        heatmap(dataframes['significance'][key]['temperature', 'vsini', 'significance'])
+        heatmap(dataframes['significance'][key][['vsini', 'temperature', 'significance']], **heatmap_kws)
         plt.title('Detection Significance for {} ({}) on {}'.format(star, spt, date))
-        plt.savefig('Figures/T_vsini_Significance_{}.{}.pdf'.format(star, date))
+        plt.savefig('Figures/T_vsini_Significance_{}.{}.pdf'.format(star.replace(' ', '_'), date))
 
         plt.figure(i * 3 + 3)
-        p = dataframes['detrate'][key].pivot('contrast', 'vsini', 'detection rate')
-        ylabels = [round(float(L), 2) for L in p.index]
-        sns.heatmap(p, yticklabels=ylabels)
+        #p = dataframes['detrate'][key].pivot('vsini', 'contrast', 'detection rate')
+        #ylabels = [round(float(L), 2) for L in p.index]
+        #sns.heatmap(p, yticklabels=ylabels)
+        heatmap(dataframes['detrate'][key][['vsini', 'contrast', 'detection rate']], **heatmap_kws)
         plt.title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
-        plt.savefig('Figures/contrast_vsini_Detrate_{}.{}.pdf'.format(star, date))
+        plt.savefig('Figures/contrast_vsini_Detrate_{}.{}.pdf'.format(star.replace(' ', '_'), date))
 
     if interactive:
         plt.show()
