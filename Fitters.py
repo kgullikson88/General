@@ -539,11 +539,21 @@ if emcee_import:
 
             # Burn-in
             print 'Running burn-in'
-            p1, lnp, _ = sampler.run_mcmc(p0, n_burn)
+            #p1, lnp, _ = sampler.run_mcmc(p0, n_burn)
+            i = 0
+            for p1, lnp, _ in sampler.sample(p0, iterations=n_burn):
+                if i % 10 == 0:
+                    logging.info('Done with burn-in iteration {} / {}'.format(i+1, n_burn))
+                i += 1
             sampler.reset()
 
             print 'Running production'
-            sampler.run_mcmc(p1, n_prod)
+            #sampler.run_mcmc(p1, n_prod)
+            i = 0
+            for p1, lnp, _ in sampler.sample(p0, iterations=n_prod):
+                if i % 10 == 0:
+                    logging.info('Done with production iteration {} / {}'.format(i+1, n_prod))
+                i += 1
 
             # Save the sampler instance as a class variable
             self.sampler = sampler
@@ -1161,6 +1171,8 @@ class RVFitter(Bayesian_LS):
         self._T = T
         self._logg = logg
         self._feh = feh
+        a, b = min(x[0]), max(x[-1])
+        self._xScaler = lambda xi: (2*xi - b - a) / (b - a)
 
         super(RVFitter, self).__init__(x, y, yerr)
         return
@@ -1187,7 +1199,7 @@ class RVFitter(Bayesian_LS):
             mi = fcn(xi*(1+rv/self._clight))
             prim_bb = blackbody(xi*u.nm.to(u.cm), Tsource)
             ff_bb = blackbody(xi*u.nm.to(u.cm), Tff)
-            factor = factor_fcn(np.median(xi))
+            factor = factor_fcn(np.median(self._xScaler(xi)))
             model_orders.append(mi/factor * prim_bb/ff_bb)
 
         return model_orders
@@ -1242,9 +1254,10 @@ class RVFitter(Bayesian_LS):
             waves.append(np.median(wave))
             factors.append(f)
         
-        f_pars = np.polyfit(waves, factors, 3)
+        waves, factors = np.array(waves), np.array(factors)
+        f_pars = np.polyfit(self._xScaler(waves), factors, 3)
         f_fcn = np.poly1d(f_pars)
-        f = f_fcn(self.model_spec.x)
+        f = f_fcn(self._xScaler(self.model_spec.x))
 
         import pylab
         pylab.plot(waves, factors, 'bo')
@@ -1270,7 +1283,7 @@ class RVFitter(Bayesian_LS):
             vsini_guess = fwhm(ccf.x, ccf.y, k=0)
         except:
             vsini_guess = 50.0
-        T_ff_guess, f_pars = self._fit_ff_teff(self.x, self.y, self.model_spec, rv_guess, vsini_guess, 12000.0)
+        T_ff_guess, f_pars = self._fit_ff_teff(self.x, self.y, self.model_spec, rv_guess, vsini_guess, self._T)
         self.guess_pars = [rv_guess, vsini_guess, 0.5, T_ff_guess, self._T]
         self.guess_pars.extend(f_pars)
 
