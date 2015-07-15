@@ -1185,8 +1185,8 @@ class RVFitter(Bayesian_LS):
         """
 
         rv, vsini, epsilon, Tff, Tsource = p[:5]
-        factor_pars = p[5:]
-        factor_fcn = np.poly1d(factor_pars)
+        #factor_pars = p[5:]
+        #factor_fcn = np.poly1d(factor_pars)
 
         model = Broaden.RotBroad(self.model_spec, vsini*u.km.to(u.cm), 
                                  epsilon=epsilon, 
@@ -1199,18 +1199,28 @@ class RVFitter(Bayesian_LS):
             mi = fcn(xi*(1+rv/self._clight))
             prim_bb = blackbody(xi*u.nm.to(u.cm), Tsource)
             ff_bb = blackbody(xi*u.nm.to(u.cm), Tff)
-            factor = factor_fcn(np.median(self._xScaler(xi)))
-            model_orders.append(mi/factor * prim_bb/ff_bb)
+            #factor = factor_fcn(np.median(self._xScaler(xi)))
+            #model_orders.append(mi/factor * prim_bb/ff_bb)
+            model_orders.append(mi * prim_bb/ff_bb)
 
         return model_orders
+
+    def _fit_factor(self, waves, model_fluxes, data_fluxes, fitorder=3):
+        wl = [np.median(w) for w in waves]
+        resid = [np.median(data/model) for data, model in zip(data_fluxes, model_fluxes)]
+        
+        fcn = np.poly1d(np.polyfit(wl, resid, fitorder))
+        return [fcn(w) for w in wl]
+
 
 
     def _lnlike(self, pars):
         y_pred = self.model(pars, self.x)
+        scale_factor = self._fit_factor(self.x, y_pred, self.y)
 
         s = 0
-        for yi, yi_err, ypred_i in zip(self.y, self.yerr, y_pred):
-            s += -0.5*np.sum((yi-ypred_i)**2 / yi_err**2 + np.log(2*np.pi*yi_err**2) )
+        for yi, yi_err, ypred_i, f in zip(self.y, self.yerr, y_pred, scale_factor):
+            s += -0.5*np.sum((yi-ypred_i*f)**2 / yi_err**2 + np.log(2*np.pi*yi_err**2) )
         return s
 
 
@@ -1285,7 +1295,7 @@ class RVFitter(Bayesian_LS):
             vsini_guess = 50.0
         T_ff_guess, f_pars = self._fit_ff_teff(self.x, self.y, self.model_spec, rv_guess, vsini_guess, self._T)
         self.guess_pars = [rv_guess, vsini_guess, 0.5, T_ff_guess, self._T]
-        self.guess_pars.extend(f_pars)
+        #self.guess_pars.extend(f_pars)
 
         return self.guess_pars
 
@@ -1311,7 +1321,12 @@ class RVFitter(Bayesian_LS):
         else:
             pars = self.sampler.flatchain[:N]
 
-        y = [self.model(p, x) for p in pars]
+        y = []
+        for p in pars:
+            ypred = self.model(p, x)
+            scale_factor = self._fit_factor(self.x, ypred, self.y)
+            y.append([yi*f for yi, f in zip(ypred, scale_factor)])
+        #y = [self.model(p, x) for p in pars]
         return y
         
     def plot(self, N=100, ax=None, **plot_kws):
