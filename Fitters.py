@@ -28,6 +28,7 @@ from astropy.modeling.polynomial import Chebyshev2D
 import DataStructures
 from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline, ensure_dir, fwhm
 
+
 #from astropy.analytic_functions import blackbody_lambda as blackbody
 from PlotBlackbodies import Planck as blackbody
 import StellarModel
@@ -1510,14 +1511,23 @@ class RVFitter(Bayesian_LS):
         
         :param feh: The metallicity ([Fe/H]) in use
         """
+
+        # Find the smallest order
+        N = min([o.size() for o in echelle_spec])
         
         # Concatenate the echelle orders
-        x = [o.x for o in echelle_spec]
-        y = [o.y for o in echelle_spec]
-        yerr = [o.err for o in echelle_spec]
+        x = [o.x[:N] for o in echelle_spec]
+        y = [o.y[:N] for o in echelle_spec]
+        yerr = [o.err[:N] for o in echelle_spec]
         self.spec_orders = echelle_spec
 
         # Get the requested model
+        hdf5_int = StellarModel.HDF5Interface(model_library)
+        dataspec = StellarModel.DataSpectrum(wls=x, fls=y, sigmas=yerr)
+        interpolator = StellarModel.Interpolator(hdf5_int, dataspec)
+        model_flux = interpolator(dict(temp=T, logg=logg, Z=feh))
+        model = DataStructures.xypoint(x=interpolator.wl, y=model_flux)
+        """
         model_list = StellarModel.GetModelList(type='hdf5',
                                                hdf5_file=model_library,
                                                temperature=[T],
@@ -1529,6 +1539,7 @@ class RVFitter(Bayesian_LS):
                                                    vsini_values=[0.0], vac2air=True, 
                                                    logspace=True)
         model = modeldict[T][logg][feh][0.0][0.0]
+        """
 
         # Only keep the parts of the model we need
         idx = (model.x > x[0][0]-10) & (model.x < x[-1][-1]+10)
