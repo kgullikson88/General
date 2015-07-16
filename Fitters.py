@@ -1520,13 +1520,14 @@ class RVFitter(Bayesian_LS):
         y = [o.y[:N] for o in echelle_spec]
         yerr = [o.err[:N] for o in echelle_spec]
         self.spec_orders = echelle_spec
-
+        ds_x = [xi*10 for xi in x]
+ 
         # Get the requested model
         hdf5_int = StellarModel.HDF5Interface(model_library)
-        dataspec = StellarModel.DataSpectrum(wls=x, fls=y, sigmas=yerr)
+        dataspec = StellarModel.DataSpectrum(wls=ds_x, fls=y, sigmas=yerr)
         interpolator = StellarModel.Interpolator(hdf5_int, dataspec)
         model_flux = interpolator(dict(temp=T, logg=logg, Z=feh))
-        model = DataStructures.xypoint(x=interpolator.wl, y=model_flux)
+        model = DataStructures.xypoint(x=interpolator.wl/10., y=model_flux)
         """
         model_list = StellarModel.GetModelList(type='hdf5',
                                                hdf5_file=model_library,
