@@ -1265,7 +1265,7 @@ if multinest_import and emcee_import:
 
 
 
-class RVFitter(Bayesian_LS):
+class RVFitter_Old(Bayesian_LS):
     """
     Fits a model spectrum to the data, finding the RV shift
     """
@@ -1490,7 +1490,7 @@ class RVFitter(Bayesian_LS):
 
 
 
-class RVFitter_MultiNest(MultiNestFitter):
+class RVFitter(Bayesian_LS):
     """
     Fits a model spectrum to the data, finding the RV shift
     """
@@ -1543,13 +1543,13 @@ class RVFitter_MultiNest(MultiNestFitter):
         a, b = min(x[0]), max(x[-1])
         self._xScaler = lambda xi: (2*xi - b - a) / (b - a)
 
-        super(RVFitter_MultiNest, self).__init__(x, y, yerr, param_names=['RV', 'vsini', 'epsilon', 'T_ff', 'T_source'])
+        super(RVFitter, self).__init__(x, y, yerr, param_names=['RV', 'vsini', 'epsilon', 'T_ff', 'T_source'])
         return
 
     def mnest_prior(self, cube, ndim, nparams):
         cube[0] = cube[0]*200. - 100.  # RV - uniform on (-100, 100)
         cube[1] = cube[1]*400.         # vsini - uniform on (0, 400)
-        cube[3] = cube[3]*9000 + 1000. # flat-field temperature - uniform on (1000, 10000)
+        cube[3] = cube[3]*2000 + 2500. # flat-field temperature - uniform on (2500, 4500)
         cube[4] = norm(loc=self._T, scale=1000).ppf(cube[4])  # source temperature - gaussian with large std. dev.
         return 
 
