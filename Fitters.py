@@ -8,6 +8,7 @@ from george import kernels
 
 from scipy.optimize import fmin, brute
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline as spline
+from scipy.stats import norm
 import numpy as np
 from lmfit import Model, Parameters
 from skmonaco import mcimport
@@ -1346,12 +1347,221 @@ class RVFitter(Bayesian_LS):
 
 
 
+class RVFitter_MultiNest(MultiNestFitter):
+    """
+    Fits a model spectrum to the data, finding the RV shift
+    """
+    def __init__(self, echelle_spec, model_library, T=9000, logg=4.0, feh=0.0):
+        """
+        Initialize the RVFitter class. This class uses a phoenix model
+        spectrum to find the best radial velocity shift of the given data.
+
+        :param echelle_spec: A list of DataStructures.xypoint instances containing 
+                             each order of the echelle spectrum to fit
+
+        :param model_library: The path to an HDF5 file containing a phoenix model grid.
+
+        :param T: The model temperature (in Kelvin) to use
+        
+        :param logg: The surface gravity (in cgs units) to use
+        
+        :param feh: The metallicity ([Fe/H]) in use
+        """
+        
+        # Concatenate the echelle orders
+        x = [o.x for o in echelle_spec]
+        y = [o.y for o in echelle_spec]
+        yerr = [o.err for o in echelle_spec]
+        self.spec_orders = echelle_spec
+
+        # Get the requested model
+        model_list = StellarModel.GetModelList(type='hdf5',
+                                               hdf5_file=model_library,
+                                               temperature=[T],
+                                               metal=[feh],
+                                               logg=[logg])
+    
+        modeldict, _ = StellarModel.MakeModelDicts(model_list, type='hdf5', 
+                                                   hdf5_file=model_library,
+                                                   vsini_values=[0.0], vac2air=True, 
+                                                   logspace=True)
+        model = modeldict[T][logg][feh][0.0][0.0]
+
+        # Only keep the parts of the model we need
+        idx = (model.x > x[0][0]-10) & (model.x < x[-1][-1]+10)
+        self.model_spec = model[idx].copy()
+        self.model_spec.cont = RobustFit(self.model_spec.x, self.model_spec.y, fitorder=3)
+        
+        # Save some variables as class vars
+        self._clight = constants.c.cgs.to(u.km/u.s).value
+        self._T = T
+        self._logg = logg
+        self._feh = feh
+        a, b = min(x[0]), max(x[-1])
+        self._xScaler = lambda xi: (2*xi - b - a) / (b - a)
+
+        super(RVFitter_MultiNest, self).__init__(x, y, yerr, param_names=['RV', 'vsini', 'epsilon', 'T_ff', 'T_source'])
+        return
+
+    def mnest_prior(self, cube, ndim, nparams):
+        cube[0] = cube[0]*200. - 100.  # RV - uniform on (-100, 100)
+        cube[1] = cube[1]*400.         # vsini - uniform on (0, 400)
+        cube[3] = cube[3]*9000 + 1000. # flat-field temperature - uniform on (1000, 10000)
+        cube[4] = norm(loc=self._T, scale=1000).ppf(cube[4])  # source temperature - gaussian with large std. dev.
+        return 
+
+    
+    def model(self, p, x):
+        """
+        Generate a model spectrum by convolving with a rotational profile,
+        and shifting to the appropriate velocity
+        """
+
+        rv, vsini, epsilon, Tff, Tsource = p[:5]
+
+        model = Broaden.RotBroad(self.model_spec, vsini*u.km.to(u.cm), 
+                                 epsilon=epsilon, 
+                                 linear=True, findcont=False)
+
+        fcn = spline(model.x, model.y/model.cont)
+
+        model_orders = []
+        for xi in x:
+            mi = fcn(xi*(1+rv/self._clight))
+            prim_bb = blackbody(xi*u.nm.to(u.cm), Tsource)
+            ff_bb = blackbody(xi*u.nm.to(u.cm), Tff)
+            #factor = factor_fcn(np.median(self._xScaler(xi)))
+            #model_orders.append(mi/factor * prim_bb/ff_bb)
+            model_orders.append(mi * prim_bb/ff_bb)
+
+        return model_orders
+
+    def _fit_factor(self, waves, model_fluxes, data_fluxes, fitorder=3):
+        wl = [np.median(w) for w in waves]
+        resid = [np.median(data/model) for data, model in zip(data_fluxes, model_fluxes)]
+        
+        fcn = np.poly1d(np.polyfit(wl, resid, fitorder))
+        return [fcn(w) for w in wl]
 
 
 
+    def _lnlike(self, pars):
+        y_pred = self.model(pars, self.x)
+        scale_factor = self._fit_factor(self.x, y_pred, self.y)
+
+        s = 0
+        for yi, yi_err, ypred_i, f in zip(self.y, self.yerr, y_pred, scale_factor):
+            s += -0.5*np.sum((yi-ypred_i*f)**2 / yi_err**2 + np.log(2*np.pi*yi_err**2) )
+        return s
 
 
+    def _fit_ff_teff(self, x, y, model_spec, RV, vsini, Tsource):
+    
+        model = Broaden.RotBroad(model_spec, vsini*u.km.to(u.cm), linear=True, findcont=False)
+        fcn = spline(model.x, model.y/model.cont)
+        clight = constants.c.cgs.to(u.km/u.s).value
+
+        residual_spec = []
+        for xi, yi in zip(x, y):
+            mi = fcn(xi*(1+RV/clight))
+            prim_bb = blackbody(xi*u.nm.to(u.cm), Tsource)
+            residual_spec.append(prim_bb*mi/yi)
+
+        def errfcn(Tsec, wavearr, fluxarr):
+            s = 0
+            for wave, flux in zip(wavearr, fluxarr):
+                sec_bb = blackbody(wave*u.nm.to(u.cm), Tsec)
+                f = np.median(flux / sec_bb)
+                s += 0.5*np.sum((sec_bb*f - flux)**2)
+            return s
+
+        search_range = (2000, 8000)
+        best_pars = brute(errfcn, [search_range], Ns=50, args=(x, residual_spec))
+        best_Tsec = best_pars[0]
+        waves = []
+        factors = []
+        for wave, flux in zip(x, residual_spec):
+            sec_bb = blackbody(wave*u.nm.to(u.cm), best_Tsec)
+            f = np.median(flux / sec_bb)
+            waves.append(np.median(wave))
+            factors.append(f)
+        
+        waves, factors = np.array(waves), np.array(factors)
+        f_pars = np.polyfit(self._xScaler(waves), factors, 3)
+        f_fcn = np.poly1d(f_pars)
+        f = f_fcn(self._xScaler(self.model_spec.x))
+
+        import pylab
+        pylab.plot(waves, factors, 'bo')
+        pylab.plot(self.model_spec.x, f, 'r--')
+        pylab.show()
+
+        return best_pars[0], f_pars
 
 
+    def guess_fit_parameters(self):
+        """Guess the rv by cross-correlating
+        """
+
+        retdict = Correlate.GetCCF(self.spec_orders, self.model_spec, resolution=None, 
+                               process_model=True, rebin_data=True, 
+                               vsini=0.0, addmode='simple')
+        ccf = retdict['CCF']
+        good = (ccf.x >-200) & (ccf.x < 200)
+        ccf = ccf[good]
+        idx = ccf.y.argmax()
+        rv_guess = ccf.x[idx]
+        try:
+            vsini_guess = fwhm(ccf.x, ccf.y, k=0)
+        except:
+            vsini_guess = 50.0
+        T_ff_guess, f_pars = self._fit_ff_teff(self.x, self.y, self.model_spec, rv_guess, vsini_guess, self._T)
+        self.guess_pars = [rv_guess, vsini_guess, 0.5, T_ff_guess, self._T]
+        #self.guess_pars.extend(f_pars)
+
+        return self.guess_pars
+
+    def predict(self, x, N=100, highest=False):
+        """
+        predict the y value for the given x values. Use the N most probable MCMC chains if highest=False,
+        otherwise use the first N chains.
+        """
+        if self.samples is None:
+            logging.warn('Need to run the fit method before predict!')
+            return
+
+        # Find the N best walkers
+        if N == 'all':
+            N = self.samples.shape[0]
+        else:
+            N = min(N, self.samples.shape[0])
+
+        if highest:
+            samples = self.samples.sort('lnprob', ascending=False)[:N]
+        else:
+            indices = np.random.randint(0, self.samples.shape[0], N)
+            samples = self.samples.ix[indices]
+
+        pars = samples[self.param_names].as_matrix()
+        y = []
+        for p in pars:
+            ypred = self.model(p, x)
+            scale_factor = self._fit_factor(self.x, ypred, self.y)
+            y.append([yi*f for yi, f in zip(ypred, scale_factor)])
+        return y
 
 
+        
+    def plot(self, N=100, ax=None, **plot_kws):
+        ypred = self.predict(self.x, N=N)
+
+        if ax is None:
+            ax = plt.gca()
+
+        for i, (xi, yi) in enumerate(zip(self.x, self.y)):
+            ax.plot(xi, yi, 'k-', **plot_kws)
+            for j in range(len(ypred)):
+                mi = ypred[j][i]
+                ax.plot(xi, mi, 'b-', **plot_kws)
+
+        return ax
