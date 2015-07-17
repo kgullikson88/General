@@ -953,16 +953,18 @@ def fwhm(x, y, k=10, ret_roots=False):
     roots = s.roots()
 
     if len(roots) > 2:
-        raise MultiplePeaks("The dataset appears to have multiple peaks, and "
-                            "thus the FWHM can't be determined.")
+        # Multiple peaks. Use the two that straddle the maximum value
+        maxvel = x[np.argmax(y)]
+        left_idx = np.argmin(maxvel - roots)
+        right_idx = np.argmin(roots - maxvel)
+        roots = np.array((roots[left_idx], roots[right_idx]))
     elif len(roots) < 2:
         raise NoPeaksFound("No proper peaks were found in the data set; likely "
                            "the dataset is flat (e.g. all zeros).")
-    else:
-        if ret_roots:
-            return roots[0], roots[1]
+    if ret_roots:
+        return roots[0], roots[1]
 
-        return abs(roots[1] - roots[0])
+    return abs(roots[1] - roots[0])
 
 
 def integral(x, y, I, k=10):
