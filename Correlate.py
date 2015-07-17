@@ -84,8 +84,7 @@ for fname in model_list:
 def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weights=False, prim_teff=10000.0):
     # Read in the model if necessary
     if isinstance(model, str):
-        if debug:
-            print "Reading in the input model from %s" % model
+        logging.debug("Reading in the input model from {0:s}".format(model))
         x, y = np.loadtxt(model, usecols=(0, 1), unpack=True)
         x = x * units.angstrom.to(units.nm)
         y = 10 ** y
@@ -98,22 +97,19 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weigh
 
 
     # Linearize the x-axis of the model
-    if debug:
-        print "Linearizing model"
+    logging.debug('Linearizing model')
     xgrid = np.linspace(model.x[0], model.x[-1], model.size())
     model = FittingUtilities.RebinData(model, xgrid)
 
 
     # Broaden
-    if debug:
-        print "Rotationally broadening model to vsini = %g km/s" % (vsini * units.cm.to(units.km))
+    logging.debug("Rotationally broadening model to vsini = {0:g} km/s".format(vsini * units.cm.to(units.km)))
     if vsini > 1.0 * units.km.to(units.cm):
         model = RotBroad.Broaden(model, vsini, linear=True)
 
 
     # Reduce resolution
-    if debug:
-        print "Convolving to the detector resolution of %g" % resolution
+    logging.debug(u"Convolving to the detector resolution of {}".format(resolution))
     if resolution is not None and  5000 < resolution < 500000:
         model = FittingUtilities.ReduceResolution(model, resolution)
 
@@ -157,7 +153,6 @@ def Process(model, data, vsini, resolution, debug=False, oversample=1, get_weigh
         #    flux_ratio.append(np.median(sec_flux) / np.median(prim_flux))
         #    weights.append(np.sum(np.array(slopes) ** 2))
 
-    print "\n"
     # if get_weights:
     # weights = np.array(weights) * np.array(flux_ratio)
     #    print "Weights: ", np.array(weights) / np.sum(weights)
@@ -206,8 +201,7 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
 
     # Re-sample all orders of the data to logspacing, if necessary
     if rebin_data:
-        if debug:
-            print "Resampling data to log-spacing"
+        logging.debug("Resampling data to log-spacing")
         for i, order in enumerate(data):
             start = np.log(order.x[0])
             end = np.log(order.x[-1])
@@ -338,18 +332,17 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
 
     if get_weights:
         if debug:
-            print "Weight components: "
-            print "lam_0  info  flux ratio,  S/N"
+            print("Weight components: ")
+            print("lam_0  info  flux ratio,  S/N")
             for i, f, o, s in zip(info_content, flux_ratio, data, snr):
-                print np.median(o.x), i, f, s
+                print(np.median(o.x), i, f, s)
         info_content = (np.array(info_content) - min(info_content)) / (max(info_content) - min(info_content))
         flux_ratio = (np.array(flux_ratio) - min(flux_ratio)) / (max(flux_ratio) - min(flux_ratio))
         snr = (np.array(snr) - min(snr)) / (max(snr) - min(snr))
         orderweights = (1.0 * info_content ** 2 + 1.0 * flux_ratio ** 2 + 1.0 * snr ** 2)
         orderweights /= orderweights.sum()
-        if debug:
-            print "Weights = "
-            print orderweights
+        logging.debug('Weights:')
+        logging.debug(orderweights)
 
     # Add up the individual CCFs
     total = corrlist[0].copy()
