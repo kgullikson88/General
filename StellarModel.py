@@ -468,7 +468,7 @@ class Interpolator:
         self.cache_dump = cache_dump  #how many to clear once the maximum cache has been reached
 
 
-    def _determine_chunk_log(self):
+    def _determine_chunk_log(self, tol=10):
         '''
         Using the DataSpectrum, determine the minimum chunksize that we can use and then truncate the synthetic
         wavelength grid and the returned spectra.
@@ -478,12 +478,13 @@ class Interpolator:
         '''
 
         wave_grid = self.interface.wl
-        wl_min, wl_max = np.min(self.DataSpectrum.wls), np.max(self.DataSpectrum.wls)
+        wl_min, wl_max = np.min(self.DataSpectrum.wls) - tol, np.max(self.DataSpectrum.wls) + tol
         # Length of the raw synthetic spectrum
         len_wg = len(wave_grid)
         #ind_wg = np.arange(len_wg) #Labels of pixels
         #Length of the data
-        len_data = np.sum((self.wl > wl_min) & (self.wl < wl_max))  #How much of the synthetic spectrum do we need?
+        len_data = np.sum(
+            (self.wl > wl_min - tol) & (self.wl < wl_max + tol))  # How much of the synthetic spectrum do we need?
 
         #Find the smallest length synthetic spectrum that is a power of 2 in length and larger than the data spectrum
         chunk = len_wg
@@ -520,14 +521,14 @@ class Interpolator:
 
     def _determine_chunk(self):
         '''
-        Using the DataSpectrum, set the bounds of the interpolator to +/- 5 Ang
+        Using the DataSpectrum, set the bounds of the interpolator to +/- 50 Ang
         '''
 
         wave_grid = self.interface.wl
         wl_min, wl_max = np.min(self.DataSpectrum.wls), np.max(self.DataSpectrum.wls)
 
-        ind_low = (np.abs(wave_grid - (wl_min - 5.))).argmin()
-        ind_high = (np.abs(wave_grid - (wl_max + 5.))).argmin()
+        ind_low = (np.abs(wave_grid - (wl_min - 50.))).argmin()
+        ind_high = (np.abs(wave_grid - (wl_max + 50.))).argmin()
 
         self.wl = self.wl[ind_low:ind_high]
 
