@@ -588,11 +588,11 @@ if emcee_import:
                 if i % 10 == 0:
                     logging.info('Done with burn-in iteration {} / {}'.format(i+1, n_burn))
                 i += 1
-            sampler.reset()
+            #sampler.reset()
 
             print 'Running production'
             i = 0
-            for p1, lnp, _ in sampler.sample(p0, lnprob0=lnp, rstate0=rstate, iterations=n_prod):
+            for p1, lnp, _ in sampler.sample(p1, lnprob0=lnp, rstate0=rstate, iterations=n_prod):
                 if i % 10 == 0:
                     logging.info('Done with production iteration {} / {}'.format(i+1, n_prod))
                 i += 1
@@ -601,8 +601,10 @@ if emcee_import:
             self.sampler = sampler
 
             # Put the chain in a pandas array for easier access/manipulation
-            chain_dict = {self.param_names[i]: sampler.flatchain[:, i] for i in range(self.n_params)}
-            chain_dict['lnprob'] = sampler.flatlnprobability
+            samples = sampler.chain[:, n_burn:, :].reshape((-1, ndim))
+            lnprob = sampler.lnprobability[:, n_burn:].flatten()
+            chain_dict = {self.param_names[i]: samples[:, i] for i in range(self.n_params)}
+            chain_dict['lnprob'] = lnprob
             self.samples = pd.DataFrame(data=chain_dict)
             return
 
