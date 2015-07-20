@@ -123,12 +123,8 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1), excel_
     with h5py.File(hdf5_filename, 'r') as f:
         primaries = f.keys()
         for p in primaries:
-            if debug:
-                print(p)
             secondaries = f[p].keys()
             for s in secondaries:
-                if debug:
-                    print('\t{}'.format(s))
                 if addmode not in f[p][s].keys():
                     continue
                 logging.info('Primary: {}\tSecondary: {}'.format(p, s))
@@ -165,11 +161,11 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1), excel_
                         gravity.append(ds.attrs['logg'])
                         metallicity.append(ds.attrs['[Fe/H]'])
                         ccf.append(fcn(vel_arr))
-                if debug:
-                    print()
                 data = pd.DataFrame(data={'Primary': [p]*len(ccf), 'Secondary': [s]*len(ccf),
                                           'Temperature': temperature, 'vsini': vsini_values,
                                           'logg': gravity, '[Fe/H]': metallicity, 'CCF': ccf})
+                data.drop_duplicates(subset=('Temperature', 'vsini', 'logg', '[Fe/H]', 'Primary', 'Secondary'),
+                                     inplace=True)
                 summary_dfs.append(find_best_pars(data, velocity=vel_max, vel_arr=vel_arr, N=N_best))
                 del data
 
