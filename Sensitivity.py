@@ -6,19 +6,19 @@ from re import search
 from collections import defaultdict
 import itertools
 import logging
-import FittingUtilities
+
 from scipy.interpolate import InterpolatedUnivariateSpline as interp
 import numpy as np
 from astropy import units, constants
-
 import matplotlib.pyplot as plt
-
 import pandas as pd
 from astropy.io import fits
 from astropy.io import ascii
 from astropy.analytic_functions import blackbody_lambda
 import h5py
 import seaborn as sns
+
+import FittingUtilities
 import DataStructures
 import GenericSearch
 import StellarModel
@@ -31,6 +31,7 @@ import Broaden
 import Correlate
 import EstimateDetection
 import Mamajek_Table
+
 
 
 
@@ -882,6 +883,7 @@ def heatmap(df, **plot_kws):
     xcol, ycol, color_col = df.columns[:3]
     x_range = (df[xcol].min(), df[xcol].max())
     y_range = (df[ycol].min(), df[ycol].max())
+    logging.debug(df[[xcol, ycol, color_col]])
     aspect_ratio = (x_range[1] - x_range[0]) / (y_range[1] - y_range[0])
     plot_extents = np.hstack((x_range, y_range[::-1]))
     fig, ax = plt.subplots()
@@ -933,6 +935,7 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
     # Compile dataframes for each star
     dataframes = defaultdict(lambda: defaultdict(pd.DataFrame))
     for key in keys:
+        logging.info(key)
         g = groups.get_group(key)
         detrate = g.groupby(('temperature', 'vsini', 'logL', 'contrast')).apply(
             lambda df: float(sum(df.significance.notnull())) / float(len(df)))
