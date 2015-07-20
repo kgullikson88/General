@@ -155,6 +155,60 @@ def combine_hdf5_real(file_list, output_file, overwrite=True):
                 f.flush()
 
 
+def combine_hdf5_sensitivity(file_list, output_file='tmp.fits', overwrite=True):
+    """
+    Combine several hdf5 files into one. The structure is assumed to be that of the sensitivity analysis
+    :param file_list: A list containing the filenames of the hdf5 files to combine
+    :param output_file: The name of the file to output with the combined data
+    :param overwrite: If True, it overwrites any duplicated datasets.
+                      The last hdf5 file in the file_list will not be overwritten.
+    :return: None
+    """
+    with h5py.File(output_file, 'w') as output:
+        # Loop over the files in file_list
+        for fname in file_list:
+            with h5py.File(fname, 'r') as f:
+                logging.debug('\n\nFile {}'.format(fname))
+                # Star name
+                for star_name, star in f.iteritems():
+                    logging.debug('Star {}'.format(star_name))
+                    s = create_group(output, star_name, star.attrs, overwrite)
+
+                    # Date
+                    for date_str, date in star.iteritems():
+                        logging.debug('\tDate {}'.format(date_str))
+                        d = create_group(s, date_str, date.attrs, overwrite)
+
+                        # Temperature
+                        for T_string, Teff in date.iteritems():
+                            logging.debug('\t\tT = {}'.format(T_string))
+                            T = create_group(d, T_string, Teff.attrs, overwrite)
+
+                            # Loop over datasets
+                            for ds_name, ds in Teff.iteritems():
+                                # Make a more informative dataset name
+                                ds_name = 'logg{}_metal{:+.1f}_vsini{}_rv{:+.0f}_mode-{}'.format(ds.attrs['logg'],
+                                                                                                 ds.attrs['[Fe/H]'],
+                                                                                                 ds.attrs['vsini'],
+                                                                                                 ds.attrs['rv'],
+                                                                                                 ds.attrs['addmode'])
+
+                                # Dataset attributes should not be big things like arrays.
+                                if 'velocity' in ds.attrs:
+                                    data = np.array((ds.attrs['velocity'], ds.value))
+                                else:
+                                    data = ds.value
+
+                                # Make attributes dictionary
+                                attrs = {k: ds.attrs[k] for k in ['logg', '[Fe/H]', 'vsini', 'rv', 'addmode',
+                                                                  'detected', 'significance']}
+
+                                new_ds = create_dataset(T, ds_name, attrs, data, overwrite,
+                                                        chunks=True, maxshape=(2, None))
+
+                f.flush()
+
+
 
 class Full_CCF_Interface(object):
     """
