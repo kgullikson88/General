@@ -306,12 +306,13 @@ def get_detected_objects_new(df, siglim=5, Terr_lim=3, Toffset=2000):
     :param df: A DataFrame such as one output by get_ccf_summary with N > 1
     :param siglim: The minimum significance to count as detected
     :param Terr_lim: The maximum number of standard deviations of (Measured - Actual) to allow for detected objects
+    :param Toffset: The absolute difference to allow between the true and measured temperature.
     :return: A dataframe similar to df, but with fewer rows
     """
     S = get_initial_uncertainty(df)
     S['Tdiff'] = S.Tmeas - S.Tactual
     mean, std = S.Tdiff.mean(), S.Tdiff.std()
-    detected = S.loc[(S.significance > 5.0) & (S.Tdiff - mean < 3 * std) & (abs(S.Tdiff) < Toffset)]
+    detected = S.loc[(S.significance > siglim) & (S.Tdiff - mean < Terr_lim * std) & (abs(S.Tdiff) < Toffset)]
     return pd.merge(detected[['Primary', 'Secondary']], df, on=['Primary', 'Secondary'], how='left')
 
 
