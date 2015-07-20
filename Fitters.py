@@ -29,6 +29,7 @@ import DataStructures
 from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline, ensure_dir, fwhm
 
 
+
 #from astropy.analytic_functions import blackbody_lambda as blackbody
 from PlotBlackbodies import Planck as blackbody
 import StellarModel
@@ -587,11 +588,11 @@ if emcee_import:
                 if i % 10 == 0:
                     logging.info('Done with burn-in iteration {} / {}'.format(i+1, n_burn))
                 i += 1
-            sampler.reset()
+            #sampler.reset()
 
             print 'Running production'
             i = 0
-            for p1, lnp, _ in sampler.sample(p0, lnprob0=lnp, rstate0=rstate, iterations=n_prod):
+            for p1, lnp, _ in sampler.sample(p1, lnprob0=lnp, rstate0=rstate, iterations=n_prod):
                 if i % 10 == 0:
                     logging.info('Done with production iteration {} / {}'.format(i+1, n_prod))
                 i += 1
@@ -600,8 +601,10 @@ if emcee_import:
             self.sampler = sampler
 
             # Put the chain in a pandas array for easier access/manipulation
-            chain_dict = {self.param_names[i]: sampler.flatchain[:, i] for i in range(self.n_params)}
-            chain_dict['lnprob'] = sampler.flatlnprobability
+            samples = sampler.chain[:, n_burn:, :].reshape((-1, ndim))
+            lnprob = sampler.lnprobability[:, n_burn:].flatten()
+            chain_dict = {self.param_names[i]: samples[:, i] for i in range(self.n_params)}
+            chain_dict['lnprob'] = lnprob
             self.samples = pd.DataFrame(data=chain_dict)
             return
 
@@ -1495,7 +1498,8 @@ class RVFitter(Bayesian_LS):
     """
     Fits a model spectrum to the data, finding the RV shift
     """
-    def __init__(self, echelle_spec, model_library, T=9000, logg=4.0, feh=0.0):
+
+    def __init__(self, echelle_spec, model_library, T=9000, logg=4.0, feh=0.0, fit_bb_fluxes=False):
         """
         Initialize the RVFitter class. This class uses a phoenix model
         spectrum to find the best radial velocity shift of the given data.
@@ -1521,14 +1525,29 @@ class RVFitter(Bayesian_LS):
         yerr = [o.err[:N] for o in echelle_spec]
         self.spec_orders = echelle_spec
         ds_x = [xi*10 for xi in x]
- 
-        # Get the requested model
+
+        # Save some variables as class vars
+        self._clight = constants.c.cgs.to(u.km / u.s).value
+        a, b = min(x[0]), max(x[-1])
+        self._xScaler = lambda xi: (2 * xi - b - a) / (b - a)
+        self._T = None
+        self._logg = None
+        self._feh = None
+
+        parnames = ['RV', 'vsini', 'epsilon']
+        if fit_bb_fluxes:
+            parnames.extend(['T_ff', 'T_source'])
+        super(RVFitter, self).__init__(x, y, yerr, param_names=parnames)
+
+        # Make an interpolator instance using Starfish machinery.
         hdf5_int = StellarModel.HDF5Interface(model_library)
         dataspec = StellarModel.DataSpectrum(wls=ds_x, fls=y, sigmas=yerr)
-        interpolator = StellarModel.Interpolator(hdf5_int, dataspec)
+        self.interpolator = StellarModel.Interpolator(hdf5_int, dataspec)
+        self.update_model(Teff=T, logg=logg, feh=feh)
+        """
         model_flux = interpolator(dict(temp=T, logg=logg, Z=feh))
         model = DataStructures.xypoint(x=interpolator.wl/10., y=model_flux)
-        """
+
         model_list = StellarModel.GetModelList(type='hdf5',
                                                hdf5_file=model_library,
                                                temperature=[T],
@@ -1540,7 +1559,7 @@ class RVFitter(Bayesian_LS):
                                                    vsini_values=[0.0], vac2air=True, 
                                                    logspace=True)
         model = modeldict[T][logg][feh][0.0][0.0]
-        """
+
 
         # Only keep the parts of the model we need
         idx = (model.x > x[0][0]-10) & (model.x < x[-1][-1]+10)
@@ -1548,21 +1567,41 @@ class RVFitter(Bayesian_LS):
         self.model_spec.cont = RobustFit(self.model_spec.x, self.model_spec.y, fitorder=3)
         
         # Save some variables as class vars
-        self._clight = constants.c.cgs.to(u.km/u.s).value
         self._T = T
         self._logg = logg
         self._feh = feh
-        a, b = min(x[0]), max(x[-1])
-        self._xScaler = lambda xi: (2*xi - b - a) / (b - a)
+        """
 
-        super(RVFitter, self).__init__(x, y, yerr, param_names=['RV', 'vsini', 'epsilon', 'T_ff', 'T_source'])
         return
+
+    def update_model(self, Teff=9000, logg=4.5, feh=0.0):
+        # make sure this is not the model we already have
+        if Teff == self._T and logg == self._logg and feh == self._feh:
+            return
+
+        # Interpolate the model
+        model_flux = self.interpolator(dict(temp=Teff, logg=logg, Z=feh))
+        model = DataStructures.xypoint(x=self.interpolator.wl / 10., y=model_flux)
+
+        # Only keep the parts of the model we need
+        idx = (model.x > self.x[0][0] - 10) & (model.x < self.x[-1][-1] + 10)
+        self.model_spec = model[idx].copy()
+        self.model_spec.cont = RobustFit(self.model_spec.x, self.model_spec.y, fitorder=3)
+
+        # Update instance variables
+        self._T = Teff
+        self._logg = logg
+        self._feh = feh
+        return
+
 
     def mnest_prior(self, cube, ndim, nparams):
         cube[0] = cube[0]*200. - 100.  # RV - uniform on (-100, 100)
         cube[1] = cube[1]*400.         # vsini - uniform on (0, 400)
-        cube[3] = cube[3]*2000 + 2500. # flat-field temperature - uniform on (2500, 4500)
-        cube[4] = norm(loc=self._T, scale=1000).ppf(cube[4])  # source temperature - gaussian with large std. dev.
+
+        if ndim > 3:
+            cube[3] = cube[3] * 2000 + 2500.  # flat-field temperature - uniform on (2500, 4500)
+            cube[4] = norm(loc=self._T, scale=1000).ppf(cube[4])  # source temperature - gaussian with large std. dev.
         return 
 
     
@@ -1572,7 +1611,12 @@ class RVFitter(Bayesian_LS):
         and shifting to the appropriate velocity
         """
 
-        rv, vsini, epsilon, Tff, Tsource = p[:5]
+        if len(p) > 3:
+            rv, vsini, epsilon, Tff, Tsource = p[:5]
+            estimate_bb_fluxes = True
+        else:
+            rv, vsini, epsilon = p
+            estimate_bb_fluxes = False
 
         model = Broaden.RotBroad(self.model_spec, vsini*u.km.to(u.cm), 
                                  epsilon=epsilon, 
@@ -1583,11 +1627,11 @@ class RVFitter(Bayesian_LS):
         model_orders = []
         for xi in x:
             mi = fcn(xi*(1+rv/self._clight))
-            prim_bb = blackbody(xi*u.nm.to(u.cm), Tsource)
-            ff_bb = blackbody(xi*u.nm.to(u.cm), Tff)
-            #factor = factor_fcn(np.median(self._xScaler(xi)))
-            #model_orders.append(mi/factor * prim_bb/ff_bb)
-            model_orders.append(mi * prim_bb/ff_bb)
+            if estimate_bb_fluxes:
+                prim_bb = blackbody(xi * u.nm.to(u.cm), Tsource)
+                ff_bb = blackbody(xi * u.nm.to(u.cm), Tff)
+                mi *= prim_bb / ff_bb
+            model_orders.append(mi)
 
         return model_orders
 
@@ -1602,12 +1646,28 @@ class RVFitter(Bayesian_LS):
 
     def _lnlike(self, pars):
         y_pred = self.model(pars, self.x)
-        scale_factor = self._fit_factor(self.x, y_pred, self.y)
+        scale_factor = self._fit_factor(self.x, y_pred, self.y) if len(pars) > 3 else np.ones(len(y_pred))
+        # scale_factor = self._fit_factor(self.x, y_pred, self.y)
+        #scale_factor = np.ones(len(y_pred))
 
         s = 0
         for yi, yi_err, ypred_i, f in zip(self.y, self.yerr, y_pred, scale_factor):
             s += -0.5*np.sum((yi-ypred_i*f)**2 / yi_err**2 + np.log(2*np.pi*yi_err**2) )
         return s
+
+
+    def lnprior(self, pars):
+        """Prior probability function for emcee: flat in all variables except Tsource
+        """
+        if len(pars) > 3:
+            rv, vsini, epsilon, Tff, Tsource = pars[:5]
+        else:
+            rv, vsini, epsilon = pars
+            Tff = 3500.
+            Tsource = self._T
+        if -100 < rv < 100 and 0 < vsini < 400 and 0 < epsilon < 1 and 1000 < Tff < 10000:
+            return -0.5 * (Tsource - self._T) ** 2 / (300 ** 2)
+        return -np.inf
 
 
     def _fit_ff_teff(self, x, y, model_spec, RV, vsini, Tsource):
@@ -1646,33 +1706,31 @@ class RVFitter(Bayesian_LS):
         f_fcn = np.poly1d(f_pars)
         f = f_fcn(self._xScaler(self.model_spec.x))
 
-        import pylab
-        pylab.plot(waves, factors, 'bo')
-        pylab.plot(self.model_spec.x, f, 'r--')
-        pylab.show()
-
         return best_pars[0], f_pars
 
 
-    def guess_fit_parameters(self):
-        """Guess the rv by cross-correlating
+    def guess_fit_parameters(self, vsini_trials=10, *args, **kwargs):
+        """Guess the rv and vsini by cross-correlating on a small grid
         """
 
-        retdict = Correlate.GetCCF(self.spec_orders, self.model_spec, resolution=None, 
-                               process_model=True, rebin_data=True, 
-                               vsini=0.0, addmode='simple')
-        ccf = retdict['CCF']
-        good = (ccf.x >-200) & (ccf.x < 200)
-        ccf = ccf[good]
-        idx = ccf.y.argmax()
-        rv_guess = ccf.x[idx]
-        try:
-            vsini_guess = fwhm(ccf.x, ccf.y, k=0)
-        except:
-            vsini_guess = 50.0
+        vsini_vals = np.linspace(10, 400, vsini_trials)
+        max_ccf = np.empty(vsini_vals.size)
+        max_vel = np.empty(vsini_vals.size)
+        for i, vsini in enumerate(vsini_vals):
+            logging.debug('Trying vsini = {} km/s'.format(vsini))
+            data = [o.copy() for o in self.spec_orders]
+            retdict = Correlate.GetCCF(data, self.model_spec.copy(), resolution=None,
+                                       process_model=True, rebin_data=True,
+                                       vsini=vsini, addmode='simple')
+            ccf = retdict['CCF']
+            idx = np.argmax(ccf.y)
+            max_ccf[i] = ccf.y[idx]
+            max_vel[i] = ccf.x[idx]
+        rv_guess = max_vel[np.argmax(max_ccf)]
+        vsini_guess = vsini_vals[np.argmax(max_ccf)]
+
         T_ff_guess, f_pars = self._fit_ff_teff(self.x, self.y, self.model_spec, rv_guess, vsini_guess, self._T)
         self.guess_pars = [rv_guess, vsini_guess, 0.5, T_ff_guess, self._T]
-        #self.guess_pars.extend(f_pars)
 
         return self.guess_pars
 
@@ -1701,7 +1759,7 @@ class RVFitter(Bayesian_LS):
         y = []
         for p in pars:
             ypred = self.model(p, x)
-            scale_factor = self._fit_factor(self.x, ypred, self.y)
+            scale_factor = self._fit_factor(self.x, ypred, self.y) if len(pars) > 3 else np.ones(len(ypred))
             y.append([yi*f for yi, f in zip(ypred, scale_factor)])
         return y
 
@@ -1720,3 +1778,118 @@ class RVFitter(Bayesian_LS):
                 ax.plot(xi, mi, 'b-', **plot_kws)
 
         return ax
+
+    def _estimate_logg(self, logg_lims=(3.0, 5.0), rv=0.0, vsini=100, N=10, refine=False, **kwargs):
+        """
+        Fit log(g) on a grid. The quality of fit is determined by order overlap, so you need some!
+
+        :param logg_lims: iterable of size >= 2 - gives the limits in log(g) to search
+        :param rv: float - The approximate radial velocity of the star (km/s)
+        :param vsini: float - the projected rotational velocity of the star (km/s)
+        :param N: int - the number of points to include in the initial log(g) grid
+        :param refine: boolean - if True, search on a finer grid near the best point
+        :return: the best log(g) for this data
+        """
+        logg_grid = np.linspace(logg_lims[0], logg_lims[1], N)
+        lnlike = []
+        for logg in logg_grid:
+            logging.debug('logg = {}'.format(logg))
+            self.update_model(Teff=self._T, logg=logg, feh=self._feh)
+            flattened_orders = self.flatten_spectrum(plot=False, pars=(rv, vsini, 0.5, 3500, self._T))
+
+            # Find how well the orders overlap
+            lnl = 0.0
+            for i, left in enumerate(flattened_orders):
+                if i < len(flattened_orders) - 1:
+                    right = flattened_orders[i + 1]
+                    right_fcn = spline(right.x, right.y)
+                    idx = left.x > right.x[0]
+                    lnl += -0.5 * np.sum((left.y[idx] - right_fcn(left.x[idx])) ** 2)
+
+            lnlike.append(lnl)
+
+        if refine:
+            # Make a finer grid near the maximum
+            max_idx = np.argmax(lnlike)
+            logg_grid = np.linspace(logg_grid[max_idx - 1], logg_grid[max_idx + 1], 10)
+            lnlike = []
+            for logg in logg_grid:
+                logging.debug('logg = {}'.format(logg))
+                self.update_model(Teff=self._T, logg=logg, feh=self._feh)
+                flattened_orders = self.flatten_spectrum(plot=False, pars=(rv, vsini, 0.5, 3500, self._T))
+
+                lnl = 0.0
+                for i, left in enumerate(flattened_orders):
+                    if i < len(flattened_orders) - 1:
+                        right = flattened_orders[i + 1]
+                        right_fcn = spline(right.x, right.y)
+                        idx = left.x > right.x[0]
+                        lnl += -0.5 * np.sum((left.y[idx] - right_fcn(left.x[idx])) ** 2)
+
+                lnlike.append(lnl)
+
+        return logg_grid[np.argmax(lnlike)]
+
+
+    def flatten_spectrum(self, plot=False, pars=None, return_lnlike=False, update_logg=False, **kwargs):
+        """
+        Returns a flattened spectrum as a list of DataStructures.xypoint instances
+        :return:
+        """
+        # Get the best parameters from the samples if it has been fit; otherwise, guess them
+        if pars is None:
+            if self.samples is not None:
+                pars = self.samples.mean()[['RV', 'vsini', 'epsilon', 'T_ff', 'T_source']].values
+            else:
+                logging.info('Guessing initial parameters via cross-correlation...')
+                pars = self.guess_fit_parameters(**kwargs)
+            print(pars)
+
+        if update_logg:
+            logging.info('Estimating log(g)...')
+            best_logg = self._estimate_logg(rv=pars[0], vsini=pars[1], **kwargs)
+            logging.info('Best log(g) = {:.2f}'.format(best_logg))
+            self.update_model(Teff=self._T, feh=self._feh, logg=best_logg)
+
+        # Get the model orders and scale factor
+        model_orders = self.model(pars, self.x)
+        scale_factor = self._fit_factor(self.x, model_orders, self.y)
+
+        # Normalize and (optionally) plot
+        Tff, Tsource = pars[3:]
+        normalized = []
+        normalized_err = []
+        lnlike = 0.0
+        if plot:
+            fig, ax = plt.subplots()  # figsize=(15, 10))
+        for xi, yi, yi_err, model, f in zip(self.x, self.y, self.yerr, model_orders, scale_factor):
+            prim_bb = blackbody(xi * u.nm.to(u.cm), Tsource)
+            ff_bb = blackbody(xi * u.nm.to(u.cm), Tff)
+
+            cont = RobustFit(xi, yi / model, 2)
+
+            normed = yi * (ff_bb / prim_bb) / cont
+            normed_err = yi_err * (ff_bb / prim_bb) / cont
+
+            if plot:
+                ax.plot(xi, normed, alpha=0.5)
+                ax.plot(xi, model * ff_bb / prim_bb, 'k-', lw=1)
+
+            normalized.append(normed)
+            normalized_err.append(normed_err)
+
+            lnlike += -0.5 * np.sum(
+                (normed - model * ff_bb / prim_bb) ** 2 / normed_err ** 2 + np.log(2 * np.pi * normed_err ** 2))
+
+        if plot:
+            plt.show()
+
+        # Convert the normalized spectra to xypoint instances
+        flattened = [DataStructures.xypoint(x=xi, y=n, err=n_err) for xi, n, n_err in
+                     zip(self.x, normalized, normalized_err)]
+
+        # Calculate and return the log-likelihood of the fit if requested
+        if return_lnlike:
+            return flattened, lnlike
+
+        return flattened
