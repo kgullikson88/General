@@ -1818,8 +1818,11 @@ class RVFitter(Bayesian_LS):
 
         if refine:
             # Make a finer grid near the maximum
+            logging.debug(lnlike)
             max_idx = np.argmax(lnlike)
-            logg_grid = np.linspace(logg_grid[max_idx - 1], logg_grid[max_idx + 1], 10)
+            low = logg_grid[max(0, max_idx-1)]
+            high = logg_grid[min(len(logg_grid)-1, max_idx+1)]
+            logg_grid = np.linspace(low, high, 10)
             lnlike = []
             for logg in logg_grid:
                 logging.debug('logg = {}'.format(logg))
