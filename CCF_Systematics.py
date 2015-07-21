@@ -688,6 +688,7 @@ def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500, fitorder=1, fitter_c
 
     # Plot
     fig, ax = plt.subplots(1, 1)
+    fig.subplots_adjust(left=0.15, bottom=0.18)
     ax.errorbar(final.Tactual, final.Tmeas, xerr=final.Tact_err, yerr=final.Tmeas_err, fmt='ko')
     lim = [3000, 7000]
     xplot = np.linspace(lim[0], lim[1], 100)
