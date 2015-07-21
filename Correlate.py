@@ -1,14 +1,14 @@
 import sys
 import os
 import warnings
-import FittingUtilities
-import RotBroad_Fast as RotBroad
 import logging
 
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import numpy as np
 from astropy import units, constants
 
+import FittingUtilities
+import RotBroad_Fast as RotBroad
 import DataStructures
 import HelperFunctions
 from PlotBlackbodies import Planck
@@ -267,7 +267,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
             info_content.append(np.sum(np.array(slopes) ** 2))
             snr.append(1.0 / np.std(order.y))
 
-        reduceddata = order.y
+        reduceddata = order.y / order.cont
         reducedmodel = model.y / model.cont
         """ Old method of getting normalized CCF
         meandata = reduceddata.mean()

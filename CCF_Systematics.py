@@ -123,12 +123,8 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1), excel_
     with h5py.File(hdf5_filename, 'r') as f:
         primaries = f.keys()
         for p in primaries:
-            if debug:
-                print(p)
             secondaries = f[p].keys()
             for s in secondaries:
-                if debug:
-                    print('\t{}'.format(s))
                 if addmode not in f[p][s].keys():
                     continue
                 logging.info('Primary: {}\tSecondary: {}'.format(p, s))
@@ -165,11 +161,11 @@ def get_ccf_summary(hdf5_filename, vel_arr=np.arange(-900.0, 900.0, 0.1), excel_
                         gravity.append(ds.attrs['logg'])
                         metallicity.append(ds.attrs['[Fe/H]'])
                         ccf.append(fcn(vel_arr))
-                if debug:
-                    print()
                 data = pd.DataFrame(data={'Primary': [p]*len(ccf), 'Secondary': [s]*len(ccf),
                                           'Temperature': temperature, 'vsini': vsini_values,
                                           'logg': gravity, '[Fe/H]': metallicity, 'CCF': ccf})
+                data.drop_duplicates(subset=('Temperature', 'vsini', 'logg', '[Fe/H]', 'Primary', 'Secondary'),
+                                     inplace=True)
                 summary_dfs.append(find_best_pars(data, velocity=vel_max, vel_arr=vel_arr, N=N_best))
                 del data
 
@@ -310,12 +306,13 @@ def get_detected_objects_new(df, siglim=5, Terr_lim=3, Toffset=2000):
     :param df: A DataFrame such as one output by get_ccf_summary with N > 1
     :param siglim: The minimum significance to count as detected
     :param Terr_lim: The maximum number of standard deviations of (Measured - Actual) to allow for detected objects
+    :param Toffset: The absolute difference to allow between the true and measured temperature.
     :return: A dataframe similar to df, but with fewer rows
     """
     S = get_initial_uncertainty(df)
     S['Tdiff'] = S.Tmeas - S.Tactual
     mean, std = S.Tdiff.mean(), S.Tdiff.std()
-    detected = S.loc[(S.significance > 5.0) & (S.Tdiff - mean < 3 * std) & (abs(S.Tdiff) < Toffset)]
+    detected = S.loc[(S.significance > siglim) & (S.Tdiff - mean < Terr_lim * std) & (abs(S.Tdiff) < Toffset)]
     return pd.merge(detected[['Primary', 'Secondary']], df, on=['Primary', 'Secondary'], how='left')
 
 
@@ -691,6 +688,7 @@ def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500, fitorder=1, fitter_c
 
     # Plot
     fig, ax = plt.subplots(1, 1)
+    fig.subplots_adjust(left=0.15, bottom=0.18)
     ax.errorbar(final.Tactual, final.Tmeas, xerr=final.Tact_err, yerr=final.Tmeas_err, fmt='ko')
     lim = [3000, 7000]
     xplot = np.linspace(lim[0], lim[1], 100)

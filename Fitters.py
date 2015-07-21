@@ -3,12 +3,11 @@ A set of functions for various types of fitting.
 """
 
 import logging
-import FittingUtilities
-from george import kernels
 import os
 import glob
 import json
 
+from george import kernels
 from scipy.optimize import fmin, brute
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.stats import norm
@@ -25,8 +24,10 @@ from astropy import units as u, constants
 from astropy.modeling import fitting
 from astropy.modeling.polynomial import Chebyshev2D
 
+import FittingUtilities
 import DataStructures
 from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline, ensure_dir, fwhm
+
 
 
 
@@ -1718,7 +1719,14 @@ class RVFitter(Bayesian_LS):
         max_vel = np.empty(vsini_vals.size)
         for i, vsini in enumerate(vsini_vals):
             logging.debug('Trying vsini = {} km/s'.format(vsini))
-            data = [o.copy() for o in self.spec_orders]
+            data = []
+            for o in self.spec_orders:
+                prim_bb = blackbody(o.x * u.nm.to(u.cm), self._T)
+                ff_bb = blackbody(o.x * u.nm.to(u.cm), 3500)
+                o.cont = np.median(o.y) * prim_bb / ff_bb
+                data.append(o)
+            # data = [o.copy() for o in self.spec_orders]
+
             retdict = Correlate.GetCCF(data, self.model_spec.copy(), resolution=None,
                                        process_model=True, rebin_data=True,
                                        vsini=vsini, addmode='simple')
@@ -1810,8 +1818,11 @@ class RVFitter(Bayesian_LS):
 
         if refine:
             # Make a finer grid near the maximum
+            logging.debug(lnlike)
             max_idx = np.argmax(lnlike)
-            logg_grid = np.linspace(logg_grid[max_idx - 1], logg_grid[max_idx + 1], 10)
+            low = logg_grid[max(0, max_idx-1)]
+            high = logg_grid[min(len(logg_grid)-1, max_idx+1)]
+            logg_grid = np.linspace(low, high, 10)
             lnlike = []
             for logg in logg_grid:
                 logging.debug('logg = {}'.format(logg))
