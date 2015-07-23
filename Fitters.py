@@ -55,20 +55,33 @@ except ImportError:
     multinest_import = False
 
 
-def RobustFit(x, y, fitorder=3, weight_fcn=TukeyBiweight()):
+def RobustFit(x, y, fitorder=3, weight_fcn=TukeyBiweight(), badregions=None):
     """
     Performs a robust fit (less sensitive to outliers) to x and y
     :param x: A numpy.ndarray with the x-coordinates of the function to fit
     :param y: A numpy.ndarray with the y-coordinates of the function to fit
     :param fitorder: The order of the fit
+    :param badregions: A list of lists containing wavelength regions to ignore in the fit
     :return:
     """
     # Re-scale x for stability
-    x = (x - x.mean()) / x.std()
+    if badregions is None:
+        x_train = x
+        y_train = y
+    else:
+        cond = np.any([(x >= reg[0]) & (x <= reg[1]) for reg in badregions], axis=0)
+        x_train = x[~cond]
+        y_train = y[~cond]
+    m, s = x.mean(), x.std()
+
+    x = (x - m) / s
+    x_train = (x_train - m) / s
     X = np.ones(x.size)
+    X_train = np.ones(x_train.size)
     for i in range(1, fitorder + 1):
         X = np.column_stack((X, x ** i))
-    fitter = sm.RLM(y, X, M=weight_fcn)
+        X_train = np.column_stack((X_train, x_train ** i))
+    fitter = sm.RLM(y_train, X_train, M=weight_fcn)
     results = fitter.fit()
     return results.predict(X)
 
@@ -1076,23 +1089,6 @@ class MCSampler_Spoof(object):
         self.flatlnprobability = flatlnprobability
         return
 
-
-def RobustFit(x, y, fitorder=3, weight_fcn=TukeyBiweight()):
-    """
-    Performs a robust fit (less sensitive to outliers) to x and y
-    :param x: A numpy.ndarray with the x-coordinates of the function to fit
-    :param y: A numpy.ndarray with the y-coordinates of the function to fit
-    :param fitorder: The order of the fit
-    :return:
-    """
-    # Re-scale x for stability
-    x = (x - x.mean()) / x.std()
-    X = np.ones(x.size)
-    for i in range(1, fitorder + 1):
-        X = np.column_stack((X, x ** i))
-    fitter = sm.RLM(y, X, M=weight_fcn)
-    results = fitter.fit()
-    return results.predict(X)
 
 
 def ChebFit(x, y, z, x_degree=2, y_degree=2):
