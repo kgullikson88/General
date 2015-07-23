@@ -19,6 +19,7 @@ import DataStructures
 import pySIMBAD as sim
 import SpectralTypeRelations
 import readmultispec as multispec
+from statsmodels.stats.proportion import proportion_confint
 
 
 try:
@@ -203,7 +204,7 @@ def CheckMultiplicitySB9(starname):
     return companion
 
 
-def BinomialErrors(nobs, Nsamp, alpha=0.16):
+def BinomialErrors_old(nobs, Nsamp, alpha=0.16):
     """
     One sided confidence interval for a binomial test.
 
@@ -224,6 +225,24 @@ def BinomialErrors(nobs, Nsamp, alpha=0.16):
     upper_errfcn = lambda c: binom.cdf(nobs, Nsamp, c) - alpha
     lower_errfcn = lambda c: binom.cdf(nobs, Nsamp, c) - (1.0 - alpha)
     return p0, bisect(lower_errfcn, 0, 1), bisect(upper_errfcn, 0, 1)
+
+def Binomialerrors(nobs, Nsamp, alpha=0.05, method='jeffrey'):
+    """
+    This is basically just statsmodels.stats.proportion.proportion_confint
+    with a different default method. It also returns the proportion nobs/Nsamp
+    """
+    low, high = proportion_confint(nobs, Nsampe, method=method, alpha=alpha)
+    
+    if nobs == 0:
+        low = 0.0
+        p = 0.0
+    elif nobs == Nsamp:
+        high = 1.0
+        p = 1.0
+    else:
+        p = float(nobs) / float(Nsamp)
+
+    return p, low, high
 
 
 def GetSurrounding(full_list, value, return_index=False):
@@ -1062,8 +1081,7 @@ def CombineXYpoints(xypts, snr=None, xspacing=None, numpoints=None, interp_order
       xypoint. Useful for combining several orders/chips
       or for coadding spectra
 
-    Warning! This function is basically un-tested! It is NOT used
-    in TelFit!
+    Warning! This function is basically un-tested! 
 
       ***Optional keywords***
       snr: the spectra will be weighted by the signal-to-noise ratio
@@ -1097,13 +1115,16 @@ def CombineXYpoints(xypts, snr=None, xspacing=None, numpoints=None, interp_order
     numvals = np.zeros(x.size, dtype=np.float)  # The number of arrays each x point is in
     normalization = 0.0
     for xypt in xypts:
-        interpolator = ErrorPropagationSpline(xypt.x, xypt.y / xypt.cont, xypt.err / xypt.cont, k=interp_order)
+        #interpolator = ErrorPropagationSpline(xypt.x, xypt.y / xypt.cont, xypt.err / xypt.cont, k=interp_order)
+        interpolator = spline(xypt.x, xypt.y/xypt.cont, k=interp_order)
+        err_interpolator = spline(xypt.x, xypt.err/xypt.cont, k=interp_order)
         left = np.searchsorted(full_array.x, xypt.x[0])
         right = np.searchsorted(full_array.x, xypt.x[-1], side='right')
         if right < xypt.size():
             right += 1
         numvals[left:right] += 1.0
-        val, err = interpolator(full_array.x[left:right])
+        #val, err = interpolator(full_array.x[left:right])
+        val, err = interpolator(full_array.x[left:right]), err_interpolator(full_array.x[left:right])
         full_array.y[left:right] += val
         full_array.err[left:right] += err ** 2
         # print(interpolator(full_array.x[left:right]))
