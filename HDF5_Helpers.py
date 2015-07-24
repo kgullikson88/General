@@ -228,9 +228,9 @@ class Full_CCF_Interface(object):
                        'HET': '{}/School/Research/HET_data/SyntheticData/'.format(home),
                        'CHIRON': '{}/School/Research/CHIRON_data/SyntheticData/'.format(home),
                        'IGRINS': '{}/School/Research/IGRINS_data/SyntheticData/'.format(home)}
-        self._fitters = {'TS23': CCF_Systematics.Bayesian_LS,
-                         'HET': CCF_Systematics.Bayesian_LS,
-                         'CHIRON': CCF_Systematics.Bayesian_LS,
+        self._fitters = {'TS23': Fitters.Bayesian_LS,
+                         'HET': Fitters.Bayesian_LS,
+                         'CHIRON': Fitters.Bayesian_LS,
                          'IGRINS': Fitters.Bayesian_LS}
         self._flatchain_format = '{directory}{instrument}_{addmode}_flatchain.npy'
         self._flatlnprob_format = '{directory}{instrument}_{addmode}_flatlnprob.npy'
