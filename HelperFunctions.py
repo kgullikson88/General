@@ -1015,9 +1015,11 @@ def is_close(num1, num2, inf_true=True, both_inf=False):
     :param both_inf: Require that both numbers be infinite, instead of just one
     :return: boolean
     """
-    if num1 == num2:
-        # Handles things like strings
-        return True
+    if isinstance(num1, basestring) or isinstance(num2, basestring):
+        return num1 == num2
+    #if num1 == num2:
+    #    # Handles things like strings
+    #    return True
     if np.isfinite(num1) and np.isfinite(num2):
         return np.isclose(num1, num2)
 
