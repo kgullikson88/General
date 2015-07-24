@@ -754,6 +754,16 @@ if emcee_import:
                 return
 
             self.sampler = MCSampler_Spoof(flatchain, flatlnprobability)
+
+            # Make samples
+            if self.n_params is None:
+                self.n_params = flatchain.shape[1]
+            if self.param_names is None:
+                self.param_names = ['a{}'.format(i) for i in range(self.n_params)]
+            chain_dict = {self.param_names[i]: flatchain[:, i] for i in range(self.n_params)}
+            chain_dict['lnprob'] = flatlnprobability
+            self.samples = pd.DataFrame(data=chain_dict)
+
             return
 
         def triangle(self, **kws):
