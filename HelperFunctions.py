@@ -941,14 +941,14 @@ def RobustFit(*args, **kwargs):
     raise NotImplementedError('This function has moved to the Fitters module!')
 
 
-def add_magnitudes(mag_list):
+def add_magnitudes(*mag_list):
     """
     Combine magnitudes in the right way
-    :param mag_list: a list-like object of magnitudes
+    :param mag_list: Several magnitudes. Can be numpy arrays or floats
     :return: the total magnitude
     """
-    flux_list = [10 ** (-m / 2.5) for m in mag_list]
-    total_flux = np.sum(flux_list)
+    flux_list = np.array([10 ** (-m / 2.5) for m in mag_list])
+    total_flux = np.sum(flux_list, axis=0)
     total_mag = -2.5 * np.log10(total_flux)
     return total_mag
 
