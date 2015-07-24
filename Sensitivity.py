@@ -33,20 +33,7 @@ import EstimateDetection
 import Mamajek_Table
 
 
-
-
-
-
-
-
-
-
-
-# logging.basicConfig(level=logging.ERROR)
-
-
-sns.set_context('poster', font_scale=1.5)
-
+sns.set_context('paper', font_scale=1.5)
 
 MS = SpectralTypeRelations.MainSequence()
 
@@ -876,7 +863,7 @@ def read_hdf5(hdf5_file):
     return df
 
 
-def heatmap(df, **plot_kws):
+def heatmap(df, ax=None, make_cbar=True, make_labels=True, **plot_kws):
     """
     Make a heatmap of the pandas dataframe using the first three columns
     """
@@ -886,16 +873,22 @@ def heatmap(df, **plot_kws):
     logging.debug(df[[xcol, ycol, color_col]])
     aspect_ratio = (x_range[1] - x_range[0]) / (y_range[1] - y_range[0])
     plot_extents = np.hstack((x_range, y_range[::-1]))
-    fig, ax = plt.subplots()
+
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        aspect_ratio = 'auto'
     im = ax.matshow(df.pivot(ycol, xcol, color_col), aspect=aspect_ratio, extent=plot_extents, **plot_kws)
     ax.xaxis.set_ticks_position('bottom')
-    cbar = plt.colorbar(im)
+    if make_cbar:
+        cbar = plt.colorbar(im)
+        cbar.set_label(color_col)
 
-    ax.set_xlabel(xcol)
-    ax.set_ylabel(ycol)
-    cbar.set_label(color_col)
+    if make_labels:
+        ax.set_xlabel(xcol)
+        ax.set_ylabel(ycol)
 
-    return fig, ax, im
+    return im
 
 
 def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=True, combine=False, **heatmap_kws):
@@ -1056,7 +1049,7 @@ def add_top_axis(axis, spt_values=('M5', 'M0', 'K5', 'K0', 'G5', 'G0')):
     return top
 
 
-def parse_input(inp):
+def parse_input(inp, sort_output=True, ensure_unique=True):
     """
     Parse the user input to get a list of integers
     :param inp: Can be in the form 'a-b', 'a,b,c', 'a-b,c-d', etc.
@@ -1073,7 +1066,12 @@ def parse_input(inp):
                 final_list.append(i)
         else:
             final_list.append(int(l))
-    return pd.unique(sorted(final_list))
+
+    if ensure_unique:
+        final_list = pd.unique(final_list)
+    if sort_output:
+        final_list = sorted(final_list)
+    return final_list
 
 
 def plot_expected(orders, prim_spt, Tsec, instrument, vsini=None, rv=0.0, twoaxes=False):
