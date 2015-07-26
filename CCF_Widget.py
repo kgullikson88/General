@@ -221,16 +221,13 @@ class BokehApp(VBox):
 
     def Trun_change(self, obj, attrname, old, new):
         t1 = time.time()
-        print(new)
-        print(self.main_source.to_df())
-        print(self.main_source.to_df().ix[new['1d']['indices']])
         T = self.main_source.to_df().ix[new['1d']['indices']]['T'].item()
         t2 = time.time()
-        print('Time to convert T_run to dataframe: {}'.format(t2 - t1))
+        logging.debug('Time to convert T_run to dataframe: {}'.format(t2 - t1))
         t1 = time.time()
         self.ccf_plot = self.plot_ccf(T)
         t2 = time.time()
-        print('Time to make ccf plot: {}'.format(t2 - t1))
+        logging.debug('Time to make ccf plot: {}'.format(t2 - t1))
         self.set_children()
         curdoc().add(self)
 
