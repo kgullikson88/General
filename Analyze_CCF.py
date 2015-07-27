@@ -52,7 +52,7 @@ class CCF_Interface(object):
         self._df = self._compile_data(addmode=addmode)
 
 
-    def _compile_data(self, starname=None, date=None, addmode='simple'):
+    def _compile_data(self, starname=None, date=None, addmode='simple', read_ccf=True):
         """
         Private function. This reads in all the datasets for the given star and date
         :param starname: the name of the star. Must be in self.hdf5
@@ -94,8 +94,8 @@ class CCF_Interface(object):
             #print('Stars: ', self.list_stars())
             datasets = self.hdf5[starname][date].keys()
             data = defaultdict(list)
-            for ds_name in datasets:
-                ds = self.hdf5[starname][date][ds_name]
+            for ds_name, ds in self.hdf5[starname][date].iteritems():  # in datasets:
+                #ds = self.hdf5[starname][date][ds_name]
                 am = ds.attrs['addmode']
                 if addmode == 'all' or addmode == am:
                     data['T'].append(ds.attrs['T'])
@@ -103,10 +103,20 @@ class CCF_Interface(object):
                     data['[Fe/H]'].append(ds.attrs['[Fe/H]'])
                     data['vsini'].append(ds.attrs['vsini'])
                     data['addmode'].append(am)
-                    v = ds.value
-                    vel, corr = v[0], v[1]
-                    fcn = spline(vel, corr)
-                    data['ccf'].append(fcn(self.velocities))
+                    data['name'].append(ds.name)
+                    if not 'ccf_max' in ds.attrs and 'vel_max' in ds.attrs:
+                        vel, corr = ds.value
+                        idx = np.argmax(corr)
+                        data['ccf_max'].append(corr[idx])
+                        data['vel_max'].append(vel[idx])
+                    else:
+                        data['ccf_max'].append(ds.attrs['ccf_max'])
+                        data['vel_max'].append(ds.attrs['vel_max'])
+                    if read_ccf:
+                        v = ds.value
+                        vel, corr = v[0], v[1]
+                        fcn = spline(vel, corr)
+                        data['ccf'].append(fcn(self.velocities))
 
             data['Star'] = [starname] * len(data['T'])
             data['Date'] = [date] * len(data['T'])
