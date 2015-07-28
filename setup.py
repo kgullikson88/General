@@ -9,9 +9,9 @@ requires = ['TelFit',
             'emcee',
             'scikit-learn',
             'lmfit',
-            'skmonaco',  # IS THIS THE PACKAGE NAME?
+            'scikit-monaco', 
             'statsmodels',
-            'triangle-plot'  # MAKE SURE THIS IS THE RIGHT NAME,
+            'triangle-plot'
             'pymultinest',
             'seaborn',
             'astroquery',
