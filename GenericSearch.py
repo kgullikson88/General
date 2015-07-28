@@ -813,6 +813,9 @@ def save_ccf(corr, params, mode='text', update=True):
                         # Hope for the best...
                         pass
                     ds[:] = np.array((corr.x, corr.y))
+                    idx = np.argmax(corr.y)
+                    ds.attrs['vel_max'] = corr.x[idx]
+                    ds.attrs['ccf_max'] = corr.y[idx]
                     f.flush()
                     f.close()
                 return
@@ -848,6 +851,9 @@ def save_ccf(corr, params, mode='text', update=True):
         # Add attributes to the dataset
         for a in attr_pars:
             ds.attrs[a] = params[a]
+        idx = np.argmax(corr.y)
+        ds.attrs['vel_max'] = corr.x[idx]
+        ds.attrs['ccf_max'] = corr.y[idx]
 
         f.flush()
         f.close()
