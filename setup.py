@@ -11,7 +11,7 @@ requires = ['TelFit',
             'lmfit',
             'scikit-monaco', 
             'statsmodels',
-            'triangle-plot'
+            'triangle-plot',
             'pymultinest',
             'seaborn',
             'astroquery',
