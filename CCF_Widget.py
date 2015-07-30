@@ -115,29 +115,6 @@ class BokehApp(VBox):
             )
 
     def make_source(self):
-        """
-        # Get the CCF summary
-        data = self.df
-
-        # Pull out the best CCFS for each temperature
-        idx = data.groupby(['T']).apply(lambda x: x['ccf_max'].idxmax())
-        highest = data.iloc[idx].copy()
-
-        # make dictionaries to turn into ColumnDataSource objects
-        highest_dict = {'T': highest['T'].values,
-                        'feh': highest['[Fe/H]'].values,
-                        'logg': highest.logg.values,
-                        'vsini': highest.vsini.values,
-                        'ccf_max': highest.ccf_max.values,
-                        'vel_max': highest.vel_max.values}
-        ccf_dict = {'ccf': highest.ccf.values,
-                    'vel': highest.vel.values,
-                    'T': highest['T'].values}
-
-
-        self.main_source = ColumnDataSource(data=highest_dict)
-        self.ccf_source = ColumnDataSource(data=ccf_dict)
-        """
         self.main_source = ColumnDataSource(data=self.df)
 
 
@@ -157,7 +134,7 @@ class BokehApp(VBox):
         p = figure(
             title='{} K'.format(T),
             x_range=x_range,
-            plot_width=500, plot_height=400,
+            plot_width=600, plot_height=400,
             title_text_font_size="10pt",
             tools="pan,wheel_zoom,box_select,reset,save"
         )
@@ -168,17 +145,16 @@ class BokehApp(VBox):
 
         return p
 
-    def make_plots(self):
+    def plot_Trun(self):
         star = self.star
         inst_date = self.inst_date
 
-        # Pull out the best CCFS for each temperature
         data = self.selected_df
         idx = data.groupby(['T']).apply(lambda x: x['ccf_max'].idxmax())
-        highest = data.iloc[idx].copy()
+        highest = data.ix[idx].copy()
         source = ColumnDataSource(data=highest)
+        self.current_source = source
 
-        #T_run = self.main_source.to_df()
         p = figure(
             title="{} - {}".format(star, inst_date),
             plot_width=1000, plot_height=400,
@@ -202,28 +178,36 @@ class BokehApp(VBox):
             ("Radial Velocity (km/s)", "@vel_max"),
             ("ccf peak height", "@ccf_max"),
         ])
-        self.mainplot = p
+        return p, highest
 
-        # Make the parameter plot (vsini vs. [Fe/H])
-        p2 = figure(
+    def make_parplot(self):
+        p = figure(
             title="CCF Parameters",
-            plot_width=400, plot_height=400,
+            plot_width=500, plot_height=400,
             tools="pan,wheel_zoom,box_select,hover,reset",
             title_text_font_size="20pt",
         )
-        p2.circle("vsini", "feh",
+        p.circle("vsini", "feh",
                  size=12,
-                 nonselection_alpha=0.6,
+                 nonselection_alpha=0.01,
                  source=self.main_source
         )
-        p2.xaxis[0].axis_label = 'vsini (km/s)'
-        p2.yaxis[0].axis_label = '[Fe/H]'
-        self.par_plot = p2
+        p.xaxis[0].axis_label = 'vsini (km/s)'
+        p.yaxis[0].axis_label = '[Fe/H]'
+        return p
+
+
+    def make_plots(self):
+        # Make the main plot (temperature vs ccf max value)
+        self.mainplot, highest = self.plot_Trun()
+
+        # Make the parameter plot (vsini vs. [Fe/H])
+        self.par_plot = self.make_parplot()
 
         # Finally, make the CCF plot
         name, T = highest.sort('ccf_max', ascending=False)[['name', 'T']].values[0]
         self.ccf_plot = self.plot_ccf(name, T)
-        self.current_source = source
+        return
 
 
     def set_children(self):
@@ -233,7 +217,7 @@ class BokehApp(VBox):
         self.lower_row.children = [self.ccf_plot, self.par_plot]
 
     def star_change(self, obj, attrname, old, new):
-        print 'Star change!'
+        logging.debug('Star change!')
         self.star = new
         self.make_inst_date_input()
         self.make_source()
@@ -242,7 +226,7 @@ class BokehApp(VBox):
         curdoc().add(self)
 
     def inst_date_change(self, obj, attrname, old, new):
-        print 'Date change!'
+        logging.debug('Date change!')
         self.inst_date = new
         self.make_source()
         self.make_plots()
@@ -255,6 +239,8 @@ class BokehApp(VBox):
         #    self.source.on_change('selected', self, 'selection_change')
         if self.current_source:
             self.current_source.on_change('selected', self, 'Trun_change')
+        if self.main_source:
+            self.main_source.on_change('selected', self, 'par_change')
         if self.star_select:
             self.star_select.on_change('value', self, 'star_change')
         if self.inst_date_select:
@@ -271,6 +257,15 @@ class BokehApp(VBox):
         self.ccf_plot = self.plot_ccf(name, T)
         t2 = time.time()
         logging.debug('Time to make ccf plot: {}'.format(t2 - t1))
+        self.set_children()
+        curdoc().add(self)
+
+    def par_change(self, obj, attrname, old, new):
+        # Update plots
+        self.mainplot, highest = self.plot_Trun()
+        name, T = highest.sort('ccf_max', ascending=False)[['name', 'T']].values[0]
+        self.ccf_plot = self.plot_ccf(name, T)
+
         self.set_children()
         curdoc().add(self)
 
