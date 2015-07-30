@@ -14,6 +14,7 @@ from bokeh.properties import String, Instance
 from bokeh.server.app import bokeh_app
 from bokeh.server.utils.plugins import object_page
 from bokeh.models.widgets import HBox, VBox, VBoxForm, Select
+from bokeh.io import hplot
 
 from Analyze_CCF import CCF_Interface
 from HDF5_Helpers import Full_CCF_Interface
@@ -31,15 +32,16 @@ class BokehApp(VBox):
     # data sources
     main_source = Instance(ColumnDataSource)
     current_source = Instance(ColumnDataSource)
-    #ccf_source = Instance(ColumnDataSource)
 
     # layout boxes
-    mainrow = Instance(HBox)
-    ccfrow = Instance(HBox)
+    upper_row = Instance(HBox)  # Shows CCF height vs. temperature
+    #parbox = Instance(HBox)   # Shows vsini vs [Fe/H]
+    lower_row = Instance(HBox)   # Shows CCF
 
     # plots
     mainplot = Instance(Plot)
     ccf_plot = Instance(Plot)
+    par_plot = Instance(Plot)
 
     # inputs
     star = String(default=u"HIP 92855")
@@ -64,8 +66,9 @@ class BokehApp(VBox):
         # create layout widgets
         obj = cls()
         #obj._ccf_interface = Full_CCF_Interface()
-        obj.mainrow = HBox()
-        obj.ccfrow = HBox()
+        obj.upper_row = HBox()
+        obj.lower_row = HBox()
+        #obj.parbox = HBox()
         obj.input_box = VBoxForm()
 
         # create input widgets
@@ -154,7 +157,7 @@ class BokehApp(VBox):
         p = figure(
             title='{} K'.format(T),
             x_range=x_range,
-            plot_width=1000, plot_height=500,
+            plot_width=500, plot_height=400,
             title_text_font_size="10pt",
             tools="pan,wheel_zoom,box_select,reset,save"
         )
@@ -170,7 +173,7 @@ class BokehApp(VBox):
         inst_date = self.inst_date
 
         # Pull out the best CCFS for each temperature
-        data = self.df
+        data = self.selected_df
         idx = data.groupby(['T']).apply(lambda x: x['ccf_max'].idxmax())
         highest = data.iloc[idx].copy()
         source = ColumnDataSource(data=highest)
@@ -183,7 +186,7 @@ class BokehApp(VBox):
             title_text_font_size="20pt",
         )
         p.circle("T", "ccf_max",
-                 size=8,
+                 size=10,
                  nonselection_alpha=0.9,
                  source=source
         )
@@ -201,16 +204,33 @@ class BokehApp(VBox):
         ])
         self.mainplot = p
 
+        # Make the parameter plot (vsini vs. [Fe/H])
+        p2 = figure(
+            title="CCF Parameters",
+            plot_width=400, plot_height=400,
+            tools="pan,wheel_zoom,box_select,hover,reset",
+            title_text_font_size="20pt",
+        )
+        p2.circle("vsini", "feh",
+                 size=12,
+                 nonselection_alpha=0.6,
+                 source=self.main_source
+        )
+        p2.xaxis[0].axis_label = 'vsini (km/s)'
+        p2.yaxis[0].axis_label = '[Fe/H]'
+        self.par_plot = p2
+
+        # Finally, make the CCF plot
         name, T = highest.sort('ccf_max', ascending=False)[['name', 'T']].values[0]
         self.ccf_plot = self.plot_ccf(name, T)
         self.current_source = source
 
 
     def set_children(self):
-        self.children = [self.mainrow, self.ccfrow]
-        self.mainrow.children = [self.input_box, self.mainplot]
+        self.children = [self.upper_row, self.lower_row]
+        self.upper_row.children = [self.input_box, self.mainplot]
         self.input_box.children = [self.star_select, self.inst_date_select]
-        self.ccfrow.children = [self.ccf_plot]
+        self.lower_row.children = [self.ccf_plot, self.par_plot]
 
     def star_change(self, obj, attrname, old, new):
         print 'Star change!'
@@ -242,17 +262,8 @@ class BokehApp(VBox):
 
 
     def Trun_change(self, obj, attrname, old, new):
-        #t1 = time.time()
-        #df = self.current_source.to_df()
-        #t2 = time.time()
-        #logging.debug('Time to convert T_run to dataframe: {}'.format(t2 - t1))
 
-        #print(df)
-        #print(df.ix[new['1d']['indices']])
-        #T, name = df.ix[new['1d']['indices']][['T', 'name']]
         idx = int(new['1d']['indices'][0])
-        logging.info(idx)
-        print(idx)
         T = self.current_source.data['T'][idx]
         name = self.current_source.data['name'][idx]
         logging.debug('T = {}\nName = {}\n'.format(T, name))
@@ -283,6 +294,14 @@ class BokehApp(VBox):
         #return self._ccf_interface.get_ccfs(instrument, starname, date, addmode=ADDMODE)
         df = self._ccf_interface.make_summary_df(instrument, starname, date, addmode=ADDMODE)
         return df.rename(columns={'[Fe/H]': 'feh'})
+
+    @property 
+    def selected_df(self):
+        df = self.df
+        selected = self.main_source.selected['1d']['indices']
+        if selected:
+            df = df.iloc[selected, :]
+        return df 
 
 # The following code adds a "/bokeh/stocks/" url to the bokeh-server. This URL
 # will render this BokehApp. If you don't want serve this applet from a Bokeh
