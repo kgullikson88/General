@@ -6,6 +6,7 @@ import os
 from collections import OrderedDict
 import sys
 import time
+import logging
 
 from bokeh.models import ColumnDataSource, Plot, HoverTool
 from bokeh.plotting import figure, curdoc
@@ -46,6 +47,8 @@ class BokehApp(VBox):
 
     def __init__(self, *args, **kwargs):
         super(BokehApp, self).__init__(*args, **kwargs)
+        #self._ccf_interface = Full_CCF_Interface()
+        #self.df_cache = {}
 
 
     @classmethod
@@ -56,7 +59,7 @@ class BokehApp(VBox):
         """
         # create layout widgets
         obj = cls()
-        cls._ccf_interface = Full_CCF_Interface()
+        obj._ccf_interface = Full_CCF_Interface()
         obj.mainrow = HBox()
         obj.ccfrow = HBox()
         obj.input_box = VBoxForm()
@@ -93,7 +96,7 @@ class BokehApp(VBox):
 
     def make_inst_date_input(self):
         observations = self._ccf_interface.get_observations(self.star)
-        observations = ['/'.join(obs) for obs in observations]
+        observations = ['/'.join(obs).ljust(20, ' ') for obs in observations]
         self.inst_date = observations[0]
         if isinstance(self.inst_date_select, Select):
             self.inst_date_select.update(value=observations[0], options=observations)
@@ -238,15 +241,22 @@ class BokehApp(VBox):
         observation = self.inst_date
         i = observation.find('/')
         instrument = observation[:i]
-        date = observation[i+1:]
+        date = observation[i+1:].strip()
 
         # Get the CCF summary
         starname = self.star 
-        return self._ccf_interface.get_ccfs(instrument, starname, date, addmode=ADDMODE)
+
+        # Check if this setup has been cached
+        key = (starname, instrument, date)
+        if key in self.df_cache:
+            return self.df_cache[key]
+
+        #return self._ccf_interface.get_ccfs(instrument, starname, date, addmode=ADDMODE)
+        return self._ccf_interface.make_summary_df(instrument, starname, date, addmode=ADDMODE)
 
 
 # The following code adds a "/bokeh/stocks/" url to the bokeh-server. This URL
-# will render this StockApp. If you don't want serve this applet from a Bokeh
+# will render this BokehApp. If you don't want serve this applet from a Bokeh
 # server (for instance if you are embedding in a separate Flask application),
 # then just remove this block of code.
 @bokeh_app.route("/bokeh/ccf/")
