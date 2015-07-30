@@ -3,7 +3,6 @@ This is a module to read in an HDF5 file with CCFs.
 Use this to determine the best parameters, and plot the best CCF for each star/date
 """
 import h5py
-# import DataStructures
 import numpy as np
 import pandas as pd
 from collections import defaultdict

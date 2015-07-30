@@ -20,7 +20,7 @@ from Analyze_CCF import CCF_Interface
 from HDF5_Helpers import Full_CCF_Interface
 
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 # Parse command-line arguments 
 ADDMODE = 'simple'
@@ -35,7 +35,6 @@ class BokehApp(VBox):
 
     # layout boxes
     upper_row = Instance(HBox)  # Shows CCF height vs. temperature
-    #parbox = Instance(HBox)   # Shows vsini vs [Fe/H]
     lower_row = Instance(HBox)   # Shows CCF
 
     # plots
@@ -65,10 +64,8 @@ class BokehApp(VBox):
         """
         # create layout widgets
         obj = cls()
-        #obj._ccf_interface = Full_CCF_Interface()
         obj.upper_row = HBox()
         obj.lower_row = HBox()
-        #obj.parbox = HBox()
         obj.input_box = VBoxForm()
 
         # create input widgets
@@ -77,7 +74,6 @@ class BokehApp(VBox):
         obj.make_inst_date_input()
 
         # outputs
-        # obj.pretext = PreText(text="", width=500)
         obj.make_source()
         obj.make_plots()
 
@@ -119,10 +115,6 @@ class BokehApp(VBox):
 
 
     def plot_ccf(self, name, T, x_range=None):
-        # First, find the best values where temperature = T
-        #ccf_data = self.ccf_source.to_df()
-        #good = ccf_data.loc[ccf_data['T'] == T]
-        #vel, corr = good.vel.item(), good.ccf.item()
 
         # Load the ccf from the HDF5 file.
         observation = self.inst_date
@@ -235,8 +227,6 @@ class BokehApp(VBox):
 
     def setup_events(self):
         super(BokehApp, self).setup_events()
-        # if self.source:
-        #    self.source.on_change('selected', self, 'selection_change')
         if self.current_source:
             self.current_source.on_change('selected', self, 'Trun_change')
         if self.main_source:
