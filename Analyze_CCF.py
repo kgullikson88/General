@@ -16,6 +16,9 @@ class CCF_Interface(object):
         self.velocities = vel
         self._df = None
 
+    def __getitem__(self, path):
+        return self.hdf5[path]
+
 
     def list_stars(self, print2screen=False):
         """
@@ -104,14 +107,15 @@ class CCF_Interface(object):
                     data['vsini'].append(ds.attrs['vsini'])
                     data['addmode'].append(am)
                     data['name'].append(ds.name)
-                    if not 'ccf_max' in ds.attrs and 'vel_max' in ds.attrs:
+                    try:
+                        data['ccf_max'].append(ds.attrs['ccf_max'])
+                        data['vel_max'].append(ds.attrs['vel_max'])
+                    except KeyError:
                         vel, corr = ds.value
                         idx = np.argmax(corr)
                         data['ccf_max'].append(corr[idx])
                         data['vel_max'].append(vel[idx])
-                    else:
-                        data['ccf_max'].append(ds.attrs['ccf_max'])
-                        data['vel_max'].append(ds.attrs['vel_max'])
+                        
                     if read_ccf:
                         v = ds.value
                         vel, corr = v[0], v[1]
