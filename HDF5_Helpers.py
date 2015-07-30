@@ -283,10 +283,11 @@ class Full_CCF_Interface(object):
         """
         interface = self._interfaces[instrument]
         data = interface._compile_data(starname, date, addmode=addmode, read_ccf=True)
-        data['maxidx'] = data.ccf.map(np.argmax)
-        data['ccf_max'] = data.apply(lambda r: r.ccf[r.maxidx], axis=1)
-        data['vel_max'] = interface.velocities[data.maxidx]
+        #data['maxidx'] = data.ccf.map(np.argmax)
+        #data['ccf_max'] = data.apply(lambda r: r.ccf[r.maxidx], axis=1)
+        #data['vel_max'] = interface.velocities[data.maxidx]
         data['vel'] = [interface.velocities] * len(data)
+        data['Instrument'] = instrument
         #data.rename(columns={'[Fe/H]': 'feh'}, inplace=True)
 
         return data
@@ -294,7 +295,24 @@ class Full_CCF_Interface(object):
     def make_summary_df(self, instrument, starname, date, addmode='simple', read_ccf=False):
         interface = self._interfaces[instrument]
         data = interface._compile_data(starname, date, addmode=addmode, read_ccf=read_ccf)
+        data['Instrument'] = instrument
         return data
+
+    def load_ccf(self, instrument, name=None, star=None, date=None, T=None, feh=None, logg=None, vsini=None):
+        """ Load the ccf from the appropriate interface. Must give either name or every other parameter
+
+        name: The full path in the HDF5 file to the dataset. This is given in the 'name' column of the DataFrame
+              returned by make_summary_df or get_ccfs
+        """
+        interface = self._interfaces[instrument]
+        if name is not None:
+            ds = interface[name]
+            vel, corr = ds.value
+            return vel, corr
+        elif all([a is not None for a in [star, date, T, feh, logg, vsini]]):
+            raise NotImplementedError
+        else:
+            raise ValueError('Must give either the full HDF5 path to the dataset in the name keyword, or every other parameter')
 
 
     def get_measured_temperature(self, starname, date, Tmax, instrument=None, N=7, addmode='simple'):
