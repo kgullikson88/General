@@ -18,6 +18,9 @@ from bokeh.models.widgets import HBox, VBox, VBoxForm, Select
 from Analyze_CCF import CCF_Interface
 from HDF5_Helpers import Full_CCF_Interface
 
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+
 # Parse command-line arguments 
 ADDMODE = 'simple'
 
@@ -27,7 +30,8 @@ class BokehApp(VBox):
 
     # data sources
     main_source = Instance(ColumnDataSource)
-    ccf_source = Instance(ColumnDataSource)
+    current_source = Instance(ColumnDataSource)
+    #ccf_source = Instance(ColumnDataSource)
 
     # layout boxes
     mainrow = Instance(HBox)
@@ -47,8 +51,8 @@ class BokehApp(VBox):
 
     def __init__(self, *args, **kwargs):
         super(BokehApp, self).__init__(*args, **kwargs)
-        #self._ccf_interface = Full_CCF_Interface()
-        #self.df_cache = {}
+        self._ccf_interface = Full_CCF_Interface()
+        self._df_cache = {}
 
 
     @classmethod
@@ -59,7 +63,7 @@ class BokehApp(VBox):
         """
         # create layout widgets
         obj = cls()
-        obj._ccf_interface = Full_CCF_Interface()
+        #obj._ccf_interface = Full_CCF_Interface()
         obj.mainrow = HBox()
         obj.ccfrow = HBox()
         obj.input_box = VBoxForm()
@@ -108,6 +112,7 @@ class BokehApp(VBox):
             )
 
     def make_source(self):
+        """
         # Get the CCF summary
         data = self.df
 
@@ -129,13 +134,21 @@ class BokehApp(VBox):
 
         self.main_source = ColumnDataSource(data=highest_dict)
         self.ccf_source = ColumnDataSource(data=ccf_dict)
+        """
+        self.main_source = ColumnDataSource(data=self.df)
 
 
-    def plot_ccf(self, T, x_range=None):
+    def plot_ccf(self, name, T, x_range=None):
         # First, find the best values where temperature = T
-        ccf_data = self.ccf_source.to_df()
-        good = ccf_data.loc[ccf_data['T'] == T]
-        vel, corr = good.vel.item(), good.ccf.item()
+        #ccf_data = self.ccf_source.to_df()
+        #good = ccf_data.loc[ccf_data['T'] == T]
+        #vel, corr = good.vel.item(), good.ccf.item()
+
+        # Load the ccf from the HDF5 file.
+        observation = self.inst_date
+        i = observation.find('/')
+        instrument = observation[:i]
+        vel, corr = self._ccf_interface.load_ccf(instrument, name)
 
         # Now, plot
         p = figure(
@@ -155,7 +168,14 @@ class BokehApp(VBox):
     def make_plots(self):
         star = self.star
         inst_date = self.inst_date
-        T_run = self.main_source.to_df()
+
+        # Pull out the best CCFS for each temperature
+        data = self.df
+        idx = data.groupby(['T']).apply(lambda x: x['ccf_max'].idxmax())
+        highest = data.iloc[idx].copy()
+        source = ColumnDataSource(data=highest)
+
+        #T_run = self.main_source.to_df()
         p = figure(
             title="{} - {}".format(star, inst_date),
             plot_width=1000, plot_height=400,
@@ -164,8 +184,8 @@ class BokehApp(VBox):
         )
         p.circle("T", "ccf_max",
                  size=8,
-                 nonselection_alpha=1.0,
-                 source=self.main_source
+                 nonselection_alpha=0.9,
+                 source=source
         )
         p.xaxis[0].axis_label = 'Temperature (K)'
         p.yaxis[0].axis_label = 'CCF Peak Value'
@@ -181,16 +201,15 @@ class BokehApp(VBox):
         ])
         self.mainplot = p
 
-        T = T_run.iloc[T_run['ccf_max'].idxmax()]['T'].item()
-        self.ccf_plot = self.plot_ccf(T)
+        name, T = highest.sort('ccf_max', ascending=False)[['name', 'T']].values[0]
+        self.ccf_plot = self.plot_ccf(name, T)
+        self.current_source = source
 
 
     def set_children(self):
         self.children = [self.mainrow, self.ccfrow]
-        # self.mainrow.children = [self.input_box, self._plot]
         self.mainrow.children = [self.input_box, self.mainplot]
         self.input_box.children = [self.star_select, self.inst_date_select]
-        # self.ccfrow.children = [self._ccf_plot]
         self.ccfrow.children = [self.ccf_plot]
 
     def star_change(self, obj, attrname, old, new):
@@ -214,8 +233,8 @@ class BokehApp(VBox):
         super(BokehApp, self).setup_events()
         # if self.source:
         #    self.source.on_change('selected', self, 'selection_change')
-        if self.main_source:
-            self.main_source.on_change('selected', self, 'Trun_change')
+        if self.current_source:
+            self.current_source.on_change('selected', self, 'Trun_change')
         if self.star_select:
             self.star_select.on_change('value', self, 'star_change')
         if self.inst_date_select:
@@ -223,12 +242,22 @@ class BokehApp(VBox):
 
 
     def Trun_change(self, obj, attrname, old, new):
+        #t1 = time.time()
+        #df = self.current_source.to_df()
+        #t2 = time.time()
+        #logging.debug('Time to convert T_run to dataframe: {}'.format(t2 - t1))
+
+        #print(df)
+        #print(df.ix[new['1d']['indices']])
+        #T, name = df.ix[new['1d']['indices']][['T', 'name']]
+        idx = int(new['1d']['indices'][0])
+        logging.info(idx)
+        print(idx)
+        T = self.current_source.data['T'][idx]
+        name = self.current_source.data['name'][idx]
+        logging.debug('T = {}\nName = {}\n'.format(T, name))
         t1 = time.time()
-        T = self.main_source.to_df().ix[new['1d']['indices']]['T'].item()
-        t2 = time.time()
-        logging.debug('Time to convert T_run to dataframe: {}'.format(t2 - t1))
-        t1 = time.time()
-        self.ccf_plot = self.plot_ccf(T)
+        self.ccf_plot = self.plot_ccf(name, T)
         t2 = time.time()
         logging.debug('Time to make ccf plot: {}'.format(t2 - t1))
         self.set_children()
@@ -248,12 +277,12 @@ class BokehApp(VBox):
 
         # Check if this setup has been cached
         key = (starname, instrument, date)
-        if key in self.df_cache:
-            return self.df_cache[key]
+        if key in self._df_cache:
+            return self._df_cache[key]
 
         #return self._ccf_interface.get_ccfs(instrument, starname, date, addmode=ADDMODE)
-        return self._ccf_interface.make_summary_df(instrument, starname, date, addmode=ADDMODE)
-
+        df = self._ccf_interface.make_summary_df(instrument, starname, date, addmode=ADDMODE)
+        return df.rename(columns={'[Fe/H]': 'feh'})
 
 # The following code adds a "/bokeh/stocks/" url to the bokeh-server. This URL
 # will render this BokehApp. If you don't want serve this applet from a Bokeh
