@@ -1630,7 +1630,7 @@ class RVFitter(Bayesian_LS):
 
         model_orders = []
         for xi in x:
-            mi = fcn(xi*(1+rv/self._clight))
+            mi = fcn(xi*(1-rv/self._clight))
             if estimate_bb_fluxes:
                 prim_bb = blackbody(xi * u.nm.to(u.cm), Tsource)
                 ff_bb = blackbody(xi * u.nm.to(u.cm), Tff)
@@ -1737,7 +1737,7 @@ class RVFitter(Bayesian_LS):
             idx = np.argmax(ccf.y)
             max_ccf[i] = ccf.y[idx]
             max_vel[i] = ccf.x[idx]
-        rv_guess = max_vel[np.argmax(max_ccf)]
+        rv_guess = -max_vel[np.argmax(max_ccf)]
         vsini_guess = vsini_vals[np.argmax(max_ccf)]
 
         T_ff_guess, f_pars = self._fit_ff_teff(self.x, self.y, self.model_spec, rv_guess, vsini_guess, self._T)
@@ -1858,7 +1858,7 @@ class RVFitter(Bayesian_LS):
         return lnl
             
     
-    def _estimate_logg_teff(self, logg_lims=(3.0, 5.0),teff_range = 2000.0, rv=0.0, vsini=100,N=10, **kwargs):
+    def _estimate_logg_teff(self, logg_lims=(3.0, 5.0),teff_range = 1000.0, rv=0.0, vsini=100,N=10, **kwargs):
         teff_lims    = (np.max([self._T-teff_range/2,6000.0]),np.min([self._T+teff_range/2,30000.0]))
         the_ranges   = [teff_lims,logg_lims]
         bruteresults = brute(self._teff_logg_like,the_ranges,(rv,vsini),Ns=N,finish=None)      
