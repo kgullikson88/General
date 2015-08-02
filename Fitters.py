@@ -1844,9 +1844,10 @@ class RVFitter(Bayesian_LS):
 
         return logg_grid[np.argmax(lnlike)]
     
-    def _teff_logg_like(self,input_pars,rv=0.0, vsini=100,**kwargs):
+    def _teff_logg_like(self, input_pars, rv=0.0, vsini=100, **kwargs):
         self.update_model(Teff=input_pars[0], logg=input_pars[1], feh=self._feh)
         flattened_orders = self.flatten_spectrum(plot=False, pars=(rv, vsini, 0.5, 3500, self._T))
+
         # Find how well the orders overlap
         lnl = 0.0
         for i, left in enumerate(flattened_orders):
@@ -1858,11 +1859,12 @@ class RVFitter(Bayesian_LS):
         return lnl
             
     
-    def _estimate_logg_teff(self, logg_lims=(3.0, 5.0),teff_range = 1000.0, rv=0.0, vsini=100,N=10, **kwargs):
-        teff_lims    = (np.max([self._T-teff_range/2,6000.0]),np.min([self._T+teff_range/2,30000.0]))
-        the_ranges   = [teff_lims,logg_lims]
-        bruteresults = brute(self._teff_logg_like,the_ranges,(rv,vsini),Ns=N,finish=None)      
-        return bruteresults[0],bruteresults[1]
+    def _estimate_logg_teff(self, logg_lims=(3.0, 5.0), teff_range=1000.0, rv=0.0, vsini=100, N=10, **kwargs):
+        teff_lims    = (np.max([self._T-teff_range/2,6000.0]), np.min([self._T+teff_range/2,30000.0]))
+        the_ranges   = [teff_lims, logg_lims]
+        bruteresults = brute(self._teff_logg_like, the_ranges, (rv,vsini), Ns=N, finish=None)      
+        return bruteresults[0], bruteresults[1]
+        
 
     def flatten_spectrum(self, plot=False, pars=None, return_lnlike=False, update_logg=False, update_teff_logg=False, **kwargs):
         """
@@ -1878,11 +1880,14 @@ class RVFitter(Bayesian_LS):
                 pars = self.guess_fit_parameters(**kwargs)
             print(pars)
 
-        if update_logg:
+        if update_logg and not update_teff_logg:
             logging.info('Estimating log(g)...')
             best_logg = self._estimate_logg(rv=pars[0], vsini=pars[1], **kwargs)
             logging.info('Best log(g) = {:.2f}'.format(best_logg))
             self.update_model(Teff=self._T, feh=self._feh, logg=best_logg)
+            logging.info('RE-Guessing inital RV and Vsini for updated logg')
+            pars = self.guess_fit_parameters(**kwargs)
+
         if update_teff_logg:
             logging.info('Estimating log(g) and Teff...')
             best_teff,best_logg = self._estimate_logg_teff(rv=pars[0], vsini=pars[1], **kwargs)
