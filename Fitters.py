@@ -1503,7 +1503,7 @@ class RVFitter(Bayesian_LS):
     Fits a model spectrum to the data, finding the RV shift
     """
 
-    def __init__(self, echelle_spec, model_library, T=9000, logg=4.0, feh=0.0, fit_bb_fluxes=False):
+    def __init__(self, echelle_spec, model_library, T=9000, logg=4.0, feh=0.0, fit_bb_fluxes=False, norm_model=True):
         """
         Initialize the RVFitter class. This class uses a phoenix model
         spectrum to find the best radial velocity shift of the given data.
@@ -1518,6 +1518,9 @@ class RVFitter(Bayesian_LS):
         :param logg: The surface gravity (in cgs units) to use
         
         :param feh: The metallicity ([Fe/H]) in use
+
+        :param norm_model: Whether or not to fit the continuum to the model spectrum. If False, the model
+                           spectra in model_library are assumed to be pre-normalized.
         """
 
         # Find the smallest order
@@ -1537,6 +1540,7 @@ class RVFitter(Bayesian_LS):
         self._T = None
         self._logg = None
         self._feh = None
+        self._normalize_model = norm_model
 
         parnames = ['RV', 'vsini', 'epsilon']
         if fit_bb_fluxes:
@@ -1590,7 +1594,10 @@ class RVFitter(Bayesian_LS):
         # Only keep the parts of the model we need
         idx = (model.x > self.x[0][0] - 10) & (model.x < self.x[-1][-1] + 10)
         self.model_spec = model[idx].copy()
-        self.model_spec.cont = RobustFit(self.model_spec.x, self.model_spec.y, fitorder=3)
+        if self._normalize_model:
+            self.model_spec.cont = RobustFit(self.model_spec.x, self.model_spec.y, fitorder=3)
+        else:
+            self.model_spec.cont = np.ones(self.model_spec.size())
 
         # Update instance variables
         self._T = Teff
@@ -1859,14 +1866,15 @@ class RVFitter(Bayesian_LS):
         return lnl
             
     
-    def _estimate_logg_teff(self, logg_lims=(3.0, 5.0), teff_range=1000.0, rv=0.0, vsini=100, N=10, **kwargs):
+    def _estimate_logg_teff(self, logg_lims=(3.0, 5.0), teff_range=1000.0, rv=0.0, vsini=100, N=10, refine=False, **kwargs):
         teff_lims    = (np.max([self._T-teff_range/2,6000.0]), np.min([self._T+teff_range/2,30000.0]))
         the_ranges   = [teff_lims, logg_lims]
-        bruteresults = brute(self._teff_logg_like, the_ranges, (rv,vsini), Ns=N, finish=None)      
+        finish = fmin if refine else None
+        bruteresults = brute(self._teff_logg_like, the_ranges, (rv,vsini), Ns=N, finish=finish)    
         return bruteresults[0], bruteresults[1]
-        
 
-    def flatten_spectrum(self, plot=False, pars=None, return_lnlike=False, update_logg=False, update_teff_logg=False, **kwargs):
+
+    def flatten_spectrum(self, plot=False, pars=None, return_lnlike=False, update_logg=False, update_teff_logg=False, fitorder=2, **kwargs):
         """
         Returns a flattened spectrum as a list of DataStructures.xypoint instances
         :return:
@@ -1913,13 +1921,18 @@ class RVFitter(Bayesian_LS):
             prim_bb = blackbody(xi * u.nm.to(u.cm), Tsource)
             ff_bb = blackbody(xi * u.nm.to(u.cm), Tff)
 
-            cont = RobustFit(xi, yi / model, 2)
+            cont = RobustFit(xi, yi / model, fitorder)
+            #cont = FittingUtilities.Continuum(xi, yi / model, fitorder, lowreject=2, highreject=5)
+            #tmp = DataStructures.xypoint(x=xi, y=yi/model)
+            #cont = astropy_smooth(tmp, vel=500.0)
 			
             normed = yi * (ff_bb / prim_bb) / cont
             normed_err = yi_err * (ff_bb / prim_bb) / cont
             if plot:
                 ax.plot(xi, normed, alpha=0.5)
                 ax.plot(xi, model * ff_bb / prim_bb, 'k-', lw=1)
+                #ax.plot(xi, yi / model, 'k-', alpha=0.4)
+                #ax.plot(xi, cont, 'r-', alpha=0.8, lw=2)
 
             normalized.append(normed)
             normalized_err.append(normed_err)
