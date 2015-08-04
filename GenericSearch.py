@@ -178,7 +178,8 @@ def Process_Data_serial(fname, badregions=[], interp_regions=[], extensions=True
             """
             # order.y = order.cont.mean() + HelperFunctions.HighPassFilter(order,
             #                                                             vel=smooth_factor * vsini * u.km.to(u.cm))
-            smoothed = HelperFunctions.astropy_smooth(order, vel=SMOOTH_FACTOR * vsini, linearize=False)
+            #smoothed = HelperFunctions.astropy_smooth(order, vel=SMOOTH_FACTOR * vsini, linearize=False)
+            smoothed = HelperFunctions.astropy_smooth(order, vel=SMOOTH_FACTOR * vsini, linearize=True)
             order.y += order.cont.mean() - smoothed
             order.cont = np.ones(order.size()) * order.cont.mean()
 
@@ -285,8 +286,8 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
 
     # Divide by the same smoothing kernel as we used for the data
     if vsini_primary is not None:
-        smooth_factor = 0.5
         """ old method
+        smooth_factor = 0.5
         d_logx = np.log(xgrid[1] / xgrid[0])
         theta = GenericSmooth.roundodd(vsini_primary / 3e5 * smooth_factor / d_logx)
         print "Window size = {}\ndlogx = {}\nvsini = {}".format(theta, d_logx, vsini_primary)
@@ -296,7 +297,8 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
         """
         # model.y = HelperFunctions.HighPassFilter(model, vel=smooth_factor * vsini_primary * u.km.to(u.cm),
         #                                         linearize=True)
-        model.y -= HelperFunctions.astropy_smooth(model, vel=SMOOTH_FACTOR * vsini_primary, linearize=True)
+        #model.y -= HelperFunctions.astropy_smooth(model, vel=SMOOTH_FACTOR * vsini_primary, linearize=True)
+        model.y -= HelperFunctions.astropy_smooth(model, vel=SMOOTH_FACTOR * vsini_primary, linearize=False)
         minval = min(model.y)
         model.y += abs(minval)
         model.cont = abs(minval) * np.ones(model.size())

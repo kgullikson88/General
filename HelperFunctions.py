@@ -603,7 +603,7 @@ def astropy_smooth(data, vel, linearize=False, kernel=convolution.Gaussian1DKern
     Smooth using an astropy filter
     :param data: An xypoint with the data to smooth
     :param vel: The velocity scale to smooth out. Can either by an astropy quantities or a float in km/s
-    :param linearize: If True, we will linearize the model before smoothing
+    :param linearize: If True, we will put the data in a constant log-wavelength spacing grid before smoothing.
     :param kernel: The astropy kernel to use for smoothing
     :param kern_args: Kernel arguments beyond width
     :return: A smoothed version of the data, on the same wavelength grid as the data
@@ -613,7 +613,7 @@ def astropy_smooth(data, vel, linearize=False, kernel=convolution.Gaussian1DKern
         original_data = data.copy()
         datafcn = spline(data.x, data.y, k=3)
         linear = DataStructures.xypoint(data.x.size)
-        linear.x = np.linspace(data.x[0], data.x[-1], linear.size())
+        linear.x = np.logspace(np.log10(data.x[0]), np.log10(data.x[-1]), linear.size())
         linear.y = datafcn(linear.x)
         data = linear
 
@@ -621,8 +621,10 @@ def astropy_smooth(data, vel, linearize=False, kernel=convolution.Gaussian1DKern
     if not isinstance(vel, units.quantity.Quantity):
         vel *= units.km / units.second
 
-    featuresize = (np.median(data.x) * vel / constants.c).decompose().value
-    dlam = data.x[1] - data.x[0]
+    #featuresize = (np.median(data.x) * vel / constants.c).decompose().value
+    #dlam = data.x[1] - data.x[0]
+    featuresize = (vel / constants.c).decompose().value
+    dlam = np.log(data.x[1] / data.x[0])
     Npix = featuresize / dlam
 
     # Make kernel and smooth
