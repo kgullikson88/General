@@ -27,8 +27,7 @@ from astropy.modeling.polynomial import Chebyshev2D
 import FittingUtilities
 import DataStructures
 from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline, ensure_dir, fwhm
-
-
+##import pdb
 
 
 #from astropy.analytic_functions import blackbody_lambda as blackbody
@@ -477,12 +476,10 @@ if emcee_import:
             self.samples = None
             self.n_params = None
             self.param_names = None
-
             if param_names is not None:
                 self.n_params = len(param_names)
                 self.param_names = param_names
             return
-
 
         def model(self, p, x):
             """
@@ -1506,7 +1503,7 @@ class RVFitter(Bayesian_LS):
     Fits a model spectrum to the data, finding the RV shift
     """
 
-    def __init__(self, echelle_spec, model_library, T=9000, logg=4.0, feh=0.0, fit_bb_fluxes=False):
+    def __init__(self, echelle_spec, model_library, T=9000, logg=4.0, feh=0.0, fit_bb_fluxes=False, norm_model=True):
         """
         Initialize the RVFitter class. This class uses a phoenix model
         spectrum to find the best radial velocity shift of the given data.
@@ -1521,6 +1518,9 @@ class RVFitter(Bayesian_LS):
         :param logg: The surface gravity (in cgs units) to use
         
         :param feh: The metallicity ([Fe/H]) in use
+
+        :param norm_model: Whether or not to fit the continuum to the model spectrum. If False, the model
+                           spectra in model_library are assumed to be pre-normalized.
         """
 
         # Find the smallest order
@@ -1540,6 +1540,7 @@ class RVFitter(Bayesian_LS):
         self._T = None
         self._logg = None
         self._feh = None
+        self._normalize_model = norm_model
 
         parnames = ['RV', 'vsini', 'epsilon']
         if fit_bb_fluxes:
@@ -1593,7 +1594,10 @@ class RVFitter(Bayesian_LS):
         # Only keep the parts of the model we need
         idx = (model.x > self.x[0][0] - 10) & (model.x < self.x[-1][-1] + 10)
         self.model_spec = model[idx].copy()
-        self.model_spec.cont = RobustFit(self.model_spec.x, self.model_spec.y, fitorder=3)
+        if self._normalize_model:
+            self.model_spec.cont = RobustFit(self.model_spec.x, self.model_spec.y, fitorder=3)
+        else:
+            self.model_spec.cont = np.ones(self.model_spec.size())
 
         # Update instance variables
         self._T = Teff
@@ -1633,7 +1637,7 @@ class RVFitter(Bayesian_LS):
 
         model_orders = []
         for xi in x:
-            mi = fcn(xi*(1+rv/self._clight))
+            mi = fcn(xi*(1-rv/self._clight))
             if estimate_bb_fluxes:
                 prim_bb = blackbody(xi * u.nm.to(u.cm), Tsource)
                 ff_bb = blackbody(xi * u.nm.to(u.cm), Tff)
@@ -1740,11 +1744,11 @@ class RVFitter(Bayesian_LS):
             idx = np.argmax(ccf.y)
             max_ccf[i] = ccf.y[idx]
             max_vel[i] = ccf.x[idx]
-        rv_guess = max_vel[np.argmax(max_ccf)]
+        rv_guess = -max_vel[np.argmax(max_ccf)]
         vsini_guess = vsini_vals[np.argmax(max_ccf)]
 
         T_ff_guess, f_pars = self._fit_ff_teff(self.x, self.y, self.model_spec, rv_guess, vsini_guess, self._T)
-        self.guess_pars = [rv_guess, vsini_guess, 0.5, T_ff_guess, self._T]
+        self.guess_pars = [rv_guess, vsini_guess, 0.5, self._T, self._T]
 
         return self.guess_pars
 
@@ -1846,9 +1850,31 @@ class RVFitter(Bayesian_LS):
                 lnlike.append(lnl)
 
         return logg_grid[np.argmax(lnlike)]
+    
+    def _teff_logg_like(self, input_pars, rv=0.0, vsini=100, **kwargs):
+        self.update_model(Teff=input_pars[0], logg=input_pars[1], feh=self._feh)
+        flattened_orders = self.flatten_spectrum(plot=False, pars=(rv, vsini, 0.5, 3500, self._T))
+
+        # Find how well the orders overlap
+        lnl = 0.0
+        for i, left in enumerate(flattened_orders):
+            if i < len(flattened_orders) - 1:
+                right = flattened_orders[i + 1]
+                right_fcn = spline(right.x, right.y)
+                idx = left.x > right.x[0]
+                lnl += 0.5 * np.sum((left.y[idx] - right_fcn(left.x[idx])) ** 2)
+        return lnl
+            
+    
+    def _estimate_logg_teff(self, logg_lims=(3.0, 5.0), teff_range=1000.0, rv=0.0, vsini=100, N=10, refine=False, **kwargs):
+        teff_lims    = (np.max([self._T-teff_range/2,6000.0]), np.min([self._T+teff_range/2,30000.0]))
+        the_ranges   = [teff_lims, logg_lims]
+        finish = fmin if refine else None
+        bruteresults = brute(self._teff_logg_like, the_ranges, (rv,vsini), Ns=N, finish=finish)    
+        return bruteresults[0], bruteresults[1]
 
 
-    def flatten_spectrum(self, plot=False, pars=None, return_lnlike=False, update_logg=False, **kwargs):
+    def flatten_spectrum(self, plot=False, pars=None, return_lnlike=False, update_logg=False, update_teff_logg=False, fitorder=2, **kwargs):
         """
         Returns a flattened spectrum as a list of DataStructures.xypoint instances
         :return:
@@ -1862,12 +1888,24 @@ class RVFitter(Bayesian_LS):
                 pars = self.guess_fit_parameters(**kwargs)
             print(pars)
 
-        if update_logg:
+        if update_logg and not update_teff_logg:
             logging.info('Estimating log(g)...')
             best_logg = self._estimate_logg(rv=pars[0], vsini=pars[1], **kwargs)
             logging.info('Best log(g) = {:.2f}'.format(best_logg))
             self.update_model(Teff=self._T, feh=self._feh, logg=best_logg)
+            logging.info('RE-Guessing inital RV and Vsini for updated logg')
+            pars = self.guess_fit_parameters(**kwargs)
 
+        if update_teff_logg:
+            logging.info('Estimating log(g) and Teff...')
+            best_teff,best_logg = self._estimate_logg_teff(rv=pars[0], vsini=pars[1], **kwargs)
+            logging.info('Best log(g) = {:.2f}'.format(best_logg))
+            logging.info('Best Teff   = {:.2f}'.format(best_teff))
+            self.update_model(Teff=best_teff, feh=self._feh, logg=best_logg)
+            logging.info('RE-Guessing inital RV and Vsini for updated logg and Teff')
+            pars = self.guess_fit_parameters(**kwargs)
+            print(pars)
+            
         # Get the model orders and scale factor
         model_orders = self.model(pars, self.x)
         scale_factor = self._fit_factor(self.x, model_orders, self.y)
@@ -1883,14 +1921,18 @@ class RVFitter(Bayesian_LS):
             prim_bb = blackbody(xi * u.nm.to(u.cm), Tsource)
             ff_bb = blackbody(xi * u.nm.to(u.cm), Tff)
 
-            cont = RobustFit(xi, yi / model, 2)
-
+            cont = RobustFit(xi, yi / model, fitorder)
+            #cont = FittingUtilities.Continuum(xi, yi / model, fitorder, lowreject=2, highreject=5)
+            #tmp = DataStructures.xypoint(x=xi, y=yi/model)
+            #cont = astropy_smooth(tmp, vel=500.0)
+			
             normed = yi * (ff_bb / prim_bb) / cont
             normed_err = yi_err * (ff_bb / prim_bb) / cont
-
             if plot:
                 ax.plot(xi, normed, alpha=0.5)
                 ax.plot(xi, model * ff_bb / prim_bb, 'k-', lw=1)
+                #ax.plot(xi, yi / model, 'k-', alpha=0.4)
+                #ax.plot(xi, cont, 'r-', alpha=0.8, lw=2)
 
             normalized.append(normed)
             normalized_err.append(normed_err)
