@@ -215,7 +215,7 @@ class Full_CCF_Interface(object):
     Interface to all of my cross-correlation functions in one class!
     """
 
-    def __init__(self):
+    def __init__(self, cache=False):
         # Instance variables to hold the ccf interfaces
         self._ccf_files = {'TS23': '{}/School/Research/McDonaldData/Cross_correlations/CCF.hdf5'.format(home),
                            'HET': '{}/School/Research/HET_data/Cross_correlations/CCF.hdf5'.format(home),
@@ -239,6 +239,10 @@ class Full_CCF_Interface(object):
         # Make a couple data caches to speed things up
         self._chainCache = {}
         self._predictionCache = {}
+
+        self._cache = None
+        if cache:
+            self._make_cache()
 
         return
 
@@ -272,6 +276,23 @@ class Full_CCF_Interface(object):
                         print('{}   /   {}'.format(instrument, date))
         return observations
 
+    def _make_cache(self, addmode='simple'):
+        """ Read through all the datasets in each CCF interface, pulling the metadata.
+        """
+        if self._cache is not None:
+            logging.info('Cache already loaded! Not reloading!')
+            return
+
+        logging.info('Reading HDF5 metadata for faster access later')
+        dataframes = []
+        for inst in self._interfaces.keys():
+            interface = self._interfaces[inst]
+            data = interface._compile_data(starname=None, date=None, addmode=addmode, read_ccf=False)
+            data['Instrument'] = inst
+            dataframes.append(data)
+
+        self._cache = pd.concat(dataframes)
+
 
     def get_ccfs(self, instrument, starname, date, addmode='simple'):
         """
@@ -283,20 +304,21 @@ class Full_CCF_Interface(object):
         """
         interface = self._interfaces[instrument]
         data = interface._compile_data(starname, date, addmode=addmode, read_ccf=True)
-        #data['maxidx'] = data.ccf.map(np.argmax)
-        #data['ccf_max'] = data.apply(lambda r: r.ccf[r.maxidx], axis=1)
-        #data['vel_max'] = interface.velocities[data.maxidx]
         data['vel'] = [interface.velocities] * len(data)
         data['Instrument'] = instrument
-        #data.rename(columns={'[Fe/H]': 'feh'}, inplace=True)
 
         return data
 
     def make_summary_df(self, instrument, starname, date, addmode='simple', read_ccf=False):
-        interface = self._interfaces[instrument]
-        data = interface._compile_data(starname, date, addmode=addmode, read_ccf=read_ccf)
-        data['Instrument'] = instrument
-        return data
+        if self._cache is not None:
+            cache = self._cache
+            data = cache.loc[(cache.Instrument == instrument) & (cache.Star == starname) & (cache.Date == date)]
+        else:
+            interface = self._interfaces[instrument]
+            data = interface._compile_data(starname, date, addmode=addmode, read_ccf=read_ccf)
+            data['Instrument'] = instrument
+        return data 
+
 
     def load_ccf(self, instrument, name=None, star=None, date=None, T=None, feh=None, logg=None, vsini=None):
         """ Load the ccf from the appropriate interface. Must give either name or every other parameter
