@@ -25,8 +25,8 @@ logger.setLevel(logging.INFO)
 # Parse command-line arguments 
 ADDMODE = 'simple'
 
-class BokehApp(VBox):
-    extra_generated_classes = [["BokehApp", "BokehApp", "VBox"]]
+class CCF_App(VBox):
+    extra_generated_classes = [["CCF_App", "CCF_App", "VBox"]]
     jsmodel = "VBox"
 
     # data sources
@@ -49,11 +49,12 @@ class BokehApp(VBox):
     inst_date_select = Instance(Select)
     input_box = Instance(VBoxForm)
 
+    _ccf_interface = Full_CCF_Interface(cache=True)
+    _df_cache = {}
+
 
     def __init__(self, *args, **kwargs):
-        super(BokehApp, self).__init__(*args, **kwargs)
-        self._ccf_interface = Full_CCF_Interface()
-        self._df_cache = {}
+        super(CCF_App, self).__init__(*args, **kwargs)
 
 
     @classmethod
@@ -63,6 +64,7 @@ class BokehApp(VBox):
         creating all objects (plots, datasources, etc)
         """
         # create layout widgets
+        logging.info('Creating CCF_App')
         obj = cls()
         obj.upper_row = HBox()
         obj.lower_row = HBox()
@@ -82,19 +84,16 @@ class BokehApp(VBox):
         return obj
 
     def set_defaults(self):
-        starnames = sorted(self._ccf_interface.list_stars())
-        observations = self._ccf_interface.get_observations(starnames[0])
-        observations = ['/'.join(obs) for obs in observations]
-        self.star = starnames[0]
-        self.inst_date = observations[0]
+        self.star = 'HIP 79199'
+        self.inst_date = 'CHIRON/2014-03-18'
 
 
     def make_star_input(self):
         starnames = sorted(self._ccf_interface.list_stars())
         self.star_select = Select(
-            name='Star',
-            value=starnames[0],
-            options=starnames,
+            name='Star identifier',
+            value=self.star,
+            options=starnames
         )
 
     def make_inst_date_input(self):
@@ -115,8 +114,8 @@ class BokehApp(VBox):
 
 
     def plot_ccf(self, name, T, x_range=None):
-
         # Load the ccf from the HDF5 file.
+        logging.debug('Plotting ccf name {}'.format(name))
         observation = self.inst_date
         i = observation.find('/')
         instrument = observation[:i]
@@ -130,8 +129,7 @@ class BokehApp(VBox):
             title_text_font_size="10pt",
             tools="pan,wheel_zoom,box_select,reset,save"
         )
-        p.line(vel, corr, size=2,
-               xlabel='Velocity', ylabel='CCF')
+        p.line(vel, corr, line_width=2)
         p.xaxis[0].axis_label = 'Velocity (km/s)'
         p.yaxis[0].axis_label = 'CCF Power'
 
@@ -149,7 +147,7 @@ class BokehApp(VBox):
 
         p = figure(
             title="{} - {}".format(star, inst_date),
-            plot_width=1000, plot_height=400,
+            plot_width=800, plot_height=400,
             tools="pan,wheel_zoom,tap,hover,reset",
             title_text_font_size="20pt",
         )
@@ -176,7 +174,7 @@ class BokehApp(VBox):
         p = figure(
             title="CCF Parameters",
             plot_width=500, plot_height=400,
-            tools="pan,wheel_zoom,box_select,hover,reset",
+            tools="pan,wheel_zoom,box_select,reset",
             title_text_font_size="20pt",
         )
         p.circle("vsini", "feh",
@@ -226,7 +224,7 @@ class BokehApp(VBox):
         curdoc().add(self)
 
     def setup_events(self):
-        super(BokehApp, self).setup_events()
+        super(CCF_App, self).setup_events()
         if self.current_source:
             self.current_source.on_change('selected', self, 'Trun_change')
         if self.main_source:
@@ -243,10 +241,7 @@ class BokehApp(VBox):
         T = self.current_source.data['T'][idx]
         name = self.current_source.data['name'][idx]
         logging.debug('T = {}\nName = {}\n'.format(T, name))
-        t1 = time.time()
         self.ccf_plot = self.plot_ccf(name, T)
-        t2 = time.time()
-        logging.debug('Time to make ccf plot: {}'.format(t2 - t1))
         self.set_children()
         curdoc().add(self)
 
@@ -276,9 +271,11 @@ class BokehApp(VBox):
         if key in self._df_cache:
             return self._df_cache[key]
 
-        #return self._ccf_interface.get_ccfs(instrument, starname, date, addmode=ADDMODE)
         df = self._ccf_interface.make_summary_df(instrument, starname, date, addmode=ADDMODE)
-        return df.rename(columns={'[Fe/H]': 'feh'})
+        df = df.rename(columns={'[Fe/H]': 'feh'})
+        self._df_cache[key] = df.copy()
+
+        return df
 
     @property 
     def selected_df(self):
@@ -288,12 +285,12 @@ class BokehApp(VBox):
             df = df.iloc[selected, :]
         return df 
 
-# The following code adds a "/bokeh/stocks/" url to the bokeh-server. This URL
-# will render this BokehApp. If you don't want serve this applet from a Bokeh
+# The following code adds a "/bokeh/ccf/" url to the bokeh-server. This URL
+# will render this CCF_App. If you don't want serve this applet from a Bokeh
 # server (for instance if you are embedding in a separate Flask application),
 # then just remove this block of code.
 @bokeh_app.route("/bokeh/ccf/")
 @object_page("ccf")
 def make_ccf_app():
-    app = BokehApp.create()
+    app = CCF_App.create()
     return app
