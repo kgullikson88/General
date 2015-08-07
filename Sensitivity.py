@@ -649,11 +649,41 @@ def check_detection(corr, params, mode='text', tol=5):
 
         # Add a new dataset. The name doesn't matter
         current_datasets = T.keys()
+        #attr_pars = ['vbary'] if 'vbary' in params else []
+        #attr_pars.extend(['vsini', 'T', 'logg', '[Fe/H]', 'addmode', 'fname'])
+        attr_pars = ['vsini', 'logg', '[Fe/H]', 'rv', 'addmode']
+        params['vsini'] = params['secondary_vsini']
+        params['rv'] = params['velocity']
+        for ds_name, ds_test in T.iteritems():
+            if all([HelperFunctions.is_close(ds_test.attrs[a], params[a]) for a in attr_pars]):
+                if update:
+                    ds = ds_test
+                    new_data = np.array((corr.x, corr.y))
+                    try:
+                        ds.resize(new_data.shape)
+                    except TypeError:
+                        # Hope for the best...
+                        pass
+                    ds[:] = np.array((corr.x, corr.y))
+                    idx = np.argmax(corr.y)
+                    #ds.attrs['vel_max'] = corr.x[idx]
+                    #ds.attrs['ccf_max'] = corr.y[idx]
+                    ds.attrs['vsini'] = params['secondary_vsini']
+                    ds.attrs['logg'] = params['logg']
+                    ds.attrs['[Fe/H]'] = params['[Fe/H]']
+                    ds.attrs['rv'] = params['velocity']
+                    ds.attrs['addmode'] = params['addmode']
+                    ds.attrs['detected'] = detected
+                    ds.attrs['significance'] = significance
+                    f.flush()
+                    f.close()
+                return
+
         if len(current_datasets) == 0:
-            ds = T.create_dataset('ds1', data=np.array((corr.x, corr.y)))
+            ds = T.create_dataset('ds1', data=np.array((corr.x, corr.y)), maxshape=(2, None))
         else:
             ds_num = max(int(das[2:]) for das in current_datasets) + 1
-            ds = T.create_dataset('ds{}'.format(ds_num), data=np.array((corr.x, corr.y)))
+            ds = T.create_dataset('ds{}'.format(ds_num), data=np.array((corr.x, corr.y)), maxshape=(2, None))
 
         # Add attributes to the dataset
         print(star, date)
