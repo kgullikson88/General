@@ -219,7 +219,7 @@ class Full_CCF_Interface(object):
         # Instance variables to hold the ccf interfaces
         self._ccf_files = {'TS23': '{}/School/Research/McDonaldData/Cross_correlations/CCF.hdf5'.format(home),
                            'HET': '{}/School/Research/HET_data/Cross_correlations/CCF.hdf5'.format(home),
-                           #'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(home),
+                           'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(home),
                            'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF.hdf5'.format(home)}
         self._interfaces = {inst: Analyze_CCF.CCF_Interface(self._ccf_files[inst]) for inst in self._ccf_files.keys()}
 
@@ -343,7 +343,7 @@ class Full_CCF_Interface(object):
             raise ValueError('Must give either the full HDF5 path to the dataset in the name keyword, or every other parameter')
 
 
-    def get_measured_temperature(self, starname, date, Tmax, instrument=None, N=7, addmode='simple'):
+    def get_measured_temperature(self, starname, date, Tmax, instrument=None, N=7, addmode='simple', feh=None, vsini=None):
         """
         Get the measured temperature by doing a weighted sum over temperatures near the given one (which I find by hand)
         :param starname: The name of the star
@@ -352,6 +352,8 @@ class Full_CCF_Interface(object):
         :param instrument: The instrument used (this function automatically finds it if not given)
         :param N:  The number of temperature points to take
         :param addmode: The way the individual order CCFs were co-added.
+        :param feh: The metallicity to use. If not given, it finds whatever gives the highest ccf peak.
+        :param vsini: The vsini to use. If not given, it finds whatever gives the highest ccf peak.
         :return: A pandas DataFrame with the starname, date, instrument, and model parameters for the
                  temperatures near the requested one
         """
@@ -388,11 +390,15 @@ class Full_CCF_Interface(object):
         # Get CCF information from the requested instrument/star/date combo
         interface = self._interfaces[instrument]
         logging.info(starname, date, instrument, addmode)
-        df = interface._compile_data(starname=starname, date=date, addmode=addmode)
-        df['ccf_max'] = df.ccf.map(np.max)
+        df = interface._compile_data(starname=starname, date=date, addmode=addmode, read_ccf=True)
+        #df['ccf_max'] = df.ccf.map(np.max) Already done now
 
         # Get the parameters and RV of the CCF with the highest peak (which has temperature = Tmax)
         requested = df.loc[df['T'] == Tmax]
+        if feh is not None:
+            requested = requested.loc[requested['[Fe/H]'] == feh]
+        if vsini is not  None:
+            requested = requested.loc[requested['vsini'] == vsini]
         best = requested.loc[requested.ccf_max == requested.ccf_max.max()]
         vsini = best['vsini'].item()
         metal = best['[Fe/H]'].item()
