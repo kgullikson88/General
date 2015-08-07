@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from collections import defaultdict
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-
+import logging
 
 class CCF_Interface(object):
     def __init__(self, filename, vel=np.arange(-900, 900, 1)):
@@ -80,14 +80,17 @@ class CCF_Interface(object):
             for star in star_list:
                 date_list = self.list_dates(star)
                 for date in date_list:
-                    df_list.append(self._compile_data(star, date, addmode=addmode))
+   
+                    logging.debug('Reading in metadata for star {}, date {}'.format(star, date))
+                    df_list.append(self._compile_data(star, date, addmode=addmode, read_ccf=read_ccf))
             return pd.concat(df_list, ignore_index=True)
             
         elif starname is not None and date is None:
             df_list = []
             date_list = self.list_dates(starname)
             for date in date_list:
-                df_list.append(self._compile_data(starname, date, addmode=addmode))
+                logging.debug('Reading in metadata for date {}'.format(date))
+                df_list.append(self._compile_data(starname, date, addmode=addmode, read_ccf=read_ccf))
             return pd.concat(df_list, ignore_index=True)
             
         else:

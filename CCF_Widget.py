@@ -20,7 +20,7 @@ from Analyze_CCF import CCF_Interface
 from HDF5_Helpers import Full_CCF_Interface
 
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 # Parse command-line arguments 
 ADDMODE = 'simple'
@@ -49,7 +49,7 @@ class CCF_App(VBox):
     inst_date_select = Instance(Select)
     input_box = Instance(VBoxForm)
 
-    _ccf_interface = Full_CCF_Interface(cache=True)
+    _ccf_interface = Full_CCF_Interface(cache=False, update_cache=False)
     _df_cache = {}
 
 
@@ -84,8 +84,12 @@ class CCF_App(VBox):
         return obj
 
     def set_defaults(self):
-        self.star = 'HIP 79199'
-        self.inst_date = 'CHIRON/2014-03-18'
+        stars = self._ccf_interface.list_stars()
+        self.star = stars[0]
+        dates = self._ccf_interface.get_observations(self.star)
+        self.inst_date = '/'.join(dates[0])
+        #self.star = 'HIP 79199'
+        #self.inst_date = 'CHIRON/2014-03-18'
 
 
     def make_star_input(self):
@@ -273,7 +277,7 @@ class CCF_App(VBox):
 
         df = self._ccf_interface.make_summary_df(instrument, starname, date, addmode=ADDMODE)
         df = df.rename(columns={'[Fe/H]': 'feh'})
-        self._df_cache[key] = df.copy()
+        #self._df_cache[key] = df.copy()
 
         return df
 

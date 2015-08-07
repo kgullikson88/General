@@ -215,11 +215,11 @@ class Full_CCF_Interface(object):
     Interface to all of my cross-correlation functions in one class!
     """
 
-    def __init__(self, cache=False):
+    def __init__(self, cache=False, update_cache=True):
         # Instance variables to hold the ccf interfaces
         self._ccf_files = {'TS23': '{}/School/Research/McDonaldData/Cross_correlations/CCF.hdf5'.format(home),
                            'HET': '{}/School/Research/HET_data/Cross_correlations/CCF.hdf5'.format(home),
-                           'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(home),
+                           #'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(home),
                            'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF.hdf5'.format(home)}
         self._interfaces = {inst: Analyze_CCF.CCF_Interface(self._ccf_files[inst]) for inst in self._ccf_files.keys()}
 
@@ -242,7 +242,7 @@ class Full_CCF_Interface(object):
 
         self._cache = None
         if cache:
-            self._make_cache()
+            self._make_cache(update_cache=update_cache)
 
         return
 
@@ -276,7 +276,7 @@ class Full_CCF_Interface(object):
                         print('{}   /   {}'.format(instrument, date))
         return observations
 
-    def _make_cache(self, addmode='simple'):
+    def _make_cache(self, addmode='simple', update_cache=True, cache_fname='CCF_metadata.csv'):
         """ Read through all the datasets in each CCF interface, pulling the metadata.
         """
         if self._cache is not None:
@@ -284,14 +284,20 @@ class Full_CCF_Interface(object):
             return
 
         logging.info('Reading HDF5 metadata for faster access later')
+        if not update_cache and os.path.exists(cache_fname):
+            self._cache = pd.read_csv(cache_fname)
+            return
+
         dataframes = []
         for inst in self._interfaces.keys():
+            logging.debug('Generating cache for instrument {}'.format(inst))
             interface = self._interfaces[inst]
             data = interface._compile_data(starname=None, date=None, addmode=addmode, read_ccf=False)
             data['Instrument'] = inst
             dataframes.append(data)
 
         self._cache = pd.concat(dataframes)
+        self._cache.to_csv(cache_fname)
 
 
     def get_ccfs(self, instrument, starname, date, addmode='simple'):
