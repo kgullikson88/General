@@ -298,10 +298,12 @@ def process_model(model, data, vsini_model=None, resolution=None, vsini_primary=
         # model.y = HelperFunctions.HighPassFilter(model, vel=smooth_factor * vsini_primary * u.km.to(u.cm),
         #                                         linearize=True)
         #model.y -= HelperFunctions.astropy_smooth(model, vel=SMOOTH_FACTOR * vsini_primary, linearize=True)
-        model.y -= HelperFunctions.astropy_smooth(model, vel=SMOOTH_FACTOR * vsini_primary, linearize=False)
-        minval = min(model.y)
-        model.y += abs(minval)
-        model.cont = abs(minval) * np.ones(model.size())
+        smoothed = HelperFunctions.astropy_smooth(model, vel=SMOOTH_FACTOR * vsini_primary, linearize=False)
+        #minval = min(model.y)
+        #model.y += abs(minval)
+        #model.cont = abs(minval) * np.ones(model.size())
+        model.y += model.cont.mean() - smoothed
+        model.cont = np.ones(model.size()) * model.cont.mean()
 
 
 
@@ -491,6 +493,7 @@ def slow_companion_search(fileList,
                           extensions=True,
                           resolution=None,
                           trimsize=1,
+                          reject_outliers=True,
                           vsini_values=(10, 20, 30, 40),
                           Tvalues=range(3000, 6900, 100),
                           metal_values=(-0.5, 0.0, +0.5),
@@ -513,6 +516,7 @@ def slow_companion_search(fileList,
     :param interp_regions: A list of wavelength regions to interpolate over in the data. Generally, badregions should be on the edge of the orders or contain the whole order, and interp_regions should contain a small wavelength range.
     :param resolution: The detector resolution in lam/dlam. The default is now to use a pre-broadened grid; do not give a value for resolution unless the grid is un-broadened!
     :param trimsize: The number of pixels to cut from both sides of each order. This is because the  order edges are usually pretty noisy.
+    :param reject_outliers: Whether or not to detect and smooth over outliers in the data.
     :param vsini_values: A list of vsini values (in km/s) to apply to each model spectrum before correlation.
     :param Tvalues: A list of model temperatures (in K) to correlate the data against.
     :param metal_values: A list of [Fe/H] values to correlate the model against
@@ -535,6 +539,11 @@ def slow_companion_search(fileList,
     :param debug: Flag to print a bunch of information to screen, and save some intermediate data files
     :param makeplots: A 'higher level' of debug. Will make a plot of the data and model orders for each model.
     """
+
+    # Make sure the temperature, metal, and logg are all at least 1d arrays.
+    Tvalues = np.atleast_1d(Tvalues)
+    metal_values = np.atleast_1d(metal_values)
+    logg_values = np.atleast_1d(logg_values)    
 
     model_list = StellarModel.GetModelList(type='hdf5',
                                            hdf5_file=hdf5_file,
@@ -589,7 +598,8 @@ def slow_companion_search(fileList,
                         process_data = False if fname in datadict else True
                         if process_data:
                             orders = Process_Data(fname, badregions, interp_regions=interp_regions, logspacing=True,
-                                                  extensions=extensions, trimsize=trimsize, vsini=vsini_prim)
+                                                  extensions=extensions, trimsize=trimsize, vsini=vsini_prim,
+                                                  reject_outliers=reject_outliers)
                             header = fits.getheader(fname)
                             spt = StarData.GetData(header['object']).spectype
                             match = re.search('[0-9]', spt)
