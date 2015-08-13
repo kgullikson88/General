@@ -413,6 +413,7 @@ def Analyze(fileList,
             hdf5_file=StellarModel.HDF5_FILE,
             addmode="ML",
             output_mode='hdf5',
+            output_file='Sensitivity.hdf5',
             vel_list=range(-400, 450, 50),
             tolerance=5.0,
             debug=False,
@@ -550,7 +551,7 @@ def Analyze(fileList,
                                       'primary_vsini': vsini_prim, 'secondary_vsini': vsini_sec,
                                       'primary_masses': primary_mass, 'secondary_mass': secondary_mass,
                                       'logg': gravity, '[Fe/H]': metallicity, 'addmode': addmode}
-                            check_detection(corr, params, mode='hdf5', tol=tolerance)
+                            check_detection(corr, params, mode='hdf5', tol=tolerance, hdf5_file=output_file)
 
 
 
@@ -562,7 +563,7 @@ def Analyze(fileList,
     return
 
 
-def check_detection(corr, params, mode='text', tol=5):
+def check_detection(corr, params, mode='text', tol=5, hdf5_file='Sensitivity.hdf5'):
     """
     Check if we detected the companion, and output to a summary file.
     :param: corr: The DataStructures object holding the cross-correlation function
@@ -611,7 +612,6 @@ def check_detection(corr, params, mode='text', tol=5):
 
     elif mode.lower() == 'hdf5':
         # Get the hdf5 file
-        hdf5_file = 'Sensitivity.hdf5'
         print('Saving CCF to {}'.format(hdf5_file))
         f = h5py.File(hdf5_file, 'a')
 
@@ -859,7 +859,7 @@ def get_contrast(row, band='V'):
     #pri_mags = [MS.GetAbsoluteMagnitude(s, color=band) for s in pri_spts]
     pri_spts = MS.GetSpectralType('temperature', row['primary temps'], prec=1e-3)
     pri_mags = MS.GetAbsoluteMagnitude(pri_spts, color=band)
-    pri_total_mag = HelperFunctions.add_magnitudes(pri_mags)
+    pri_total_mag = HelperFunctions.add_magnitudes(*pri_mags)
 
     Tsec = float(row['temperature'])
     # sec_mag = MS.GetAbsoluteMagnitude(MS.GetSpectralType(MS.Temperature, Tsec, prec=1e-3), color=band)
