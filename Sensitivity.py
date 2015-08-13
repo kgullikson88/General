@@ -564,7 +564,7 @@ def Analyze(fileList,
     return
 
 
-def check_detection(corr, params, mode='text', tol=5, hdf5_file='Sensitivity.hdf5'):
+def check_detection(corr, params, mode='text', tol=5, update=True, hdf5_file='Sensitivity.hdf5'):
     """
     Check if we detected the companion, and output to a summary file.
     :param: corr: The DataStructures object holding the cross-correlation function
@@ -577,7 +577,8 @@ def check_detection(corr, params, mode='text', tol=5, hdf5_file='Sensitivity.hdf
         for am in corr.keys():
             p = params
             p['addmode'] = am
-            check_detection(corr[am], p, mode=mode, tol=tol, hdf5_file=hdf5_file)
+            check_detection(corr[am], p, mode=mode, tol=tol, update=update, hdf5_file=hdf5_file)
+        return
 
     idx = np.argmax(corr.y)
     vmax = corr.x[idx]

@@ -358,7 +358,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         master_corr = total.copy()
         master_corr.y = np.sqrt(1.0 - total.y)
         total_ccfs['ml'] = master_corr.copy()
-    elif addmode.lower() == "simple" or addmode.lower() == 'all':
+    if addmode.lower() == "simple" or addmode.lower() == 'all':
         # do a simple addition
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
@@ -368,7 +368,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         total.y /= float(len(corrlist))
         master_corr = total.copy()
         total_ccfs['simple'] = master_corr.copy()
-    elif addmode.lower() == "dc" or addmode.lower() == 'all':
+    if addmode.lower() == "dc" or addmode.lower() == 'all':
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
             N = data[i].size()
@@ -377,7 +377,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         master_corr = total.copy()
         master_corr.y = np.sqrt(master_corr.y)
         total_ccfs['dc'] = master_corr.copy()
-    elif addmode.lower() == "weighted" or (addmode.lower() == 'all' and orderweights is not None):
+    if addmode.lower() == "weighted" or (addmode.lower() == 'all' and orderweights is not None):
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
             N = data[i].size()
@@ -388,7 +388,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         master_corr = total.copy()
         master_corr.y = np.sqrt(master_corr.y)
         total_ccfs['weighted'] = master_corr.copy()
-    elif addmode.lower() == 'simple-weighted' or (addmode.lower() == 'all' and orderweights is not None):
+    if addmode.lower() == 'simple-weighted' or (addmode.lower() == 'all' and orderweights is not None):
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
             w = orderweights[i] / np.sum(orderweights)
