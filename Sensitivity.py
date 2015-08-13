@@ -436,6 +436,7 @@ def Analyze(fileList,
          1: 'simple': Do a simple average
          2: 'weighted': Do a weighted average: C = \sum_i{w_i C_i^2}
          3: 'ml': The maximum likelihood estimate. See Zucker 2003, MNRAS, 342, 1291
+         4: 'all': Does all of the above.
     :param output_mode: How to output. Valid options are:
          1: text, which is just ascii data with a filename convention.
          2: hdf5, which ouputs a single hdf5 file with all the metadata necessary to classify the output
@@ -571,6 +572,13 @@ def check_detection(corr, params, mode='text', tol=5, hdf5_file='Sensitivity.hdf
     :param mode: See docstring for slow_companion_search, param output_mode
     :keyword tol: Tolerance (in km/s) to count a peak as the 'correct' one.
     """
+    # Loop through the add-modes if addmode=all
+    if params['addmode'].lower() == 'all':
+        for am in corr.keys():
+            p = params
+            p['addmode'] = am
+            check_detection(corr[am], p, mode=mode, tol=tol, hdf5_file=hdf5_file)
+
     idx = np.argmax(corr.y)
     vmax = corr.x[idx]
     detected = True if abs(vmax - params['velocity']) < tol else False
