@@ -346,8 +346,9 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
 
     # Add up the individual CCFs
     total = corrlist[0].copy()
+    total_ccfs = {}
 
-    if addmode.lower() == "ml":
+    if addmode.lower() == "ml" or addmode.lower() == 'all':
         # use the Maximum Likelihood method from Zucker 2003, MNRAS, 342, 1291
         total.y = np.ones(total.size())
         for i, corr in enumerate(corrlist):
@@ -356,7 +357,8 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
             total.y *= np.power(1.0 - correlation(total.x) ** 2, float(N) / normalization)
         master_corr = total.copy()
         master_corr.y = np.sqrt(1.0 - total.y)
-    elif addmode.lower() == "simple":
+        total_ccfs['ml'] = master_corr.copy()
+    elif addmode.lower() == "simple" or addmode.lower() == 'all':
         # do a simple addition
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
@@ -365,7 +367,8 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
             total.y += correlation(total.x)
         total.y /= float(len(corrlist))
         master_corr = total.copy()
-    elif addmode.lower() == "dc":
+        total_ccfs['simple'] = master_corr.copy()
+    elif addmode.lower() == "dc" or addmode.lower() == 'all':
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
             N = data[i].size()
@@ -373,7 +376,8 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
             total.y += float(N) * correlation(total.x) ** 2 / normalization
         master_corr = total.copy()
         master_corr.y = np.sqrt(master_corr.y)
-    elif addmode.lower() == "weighted":
+        total_ccfs['dc'] = master_corr.copy()
+    elif addmode.lower() == "weighted" or (addmode.lower() == 'all' and orderweights is not None):
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
             N = data[i].size()
@@ -383,7 +387,8 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
             total.y += w * correlation(total.x) ** 2  # * float(N) / normalization
         master_corr = total.copy()
         master_corr.y = np.sqrt(master_corr.y)
-    elif addmode.lower() == 'simple-weighted':
+        total_ccfs['weighted'] = master_corr.copy()
+    elif addmode.lower() == 'simple-weighted' or (addmode.lower() == 'all' and orderweights is not None):
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
             w = orderweights[i] / np.sum(orderweights)
@@ -391,8 +396,10 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
             total.y += correlation(total.x) * w
         total.y /= float(len(corrlist))
         master_corr = total.copy()
+        total_ccfs['simple-weighted'] = master_corr.copy()
 
-    # master_corr.y -= np.median(master_corr.y)
+    if addmode.lower() == 'all':
+      master_corr = total_ccfs
     if debug:
         return master_corr, corrlist
     return master_corr
