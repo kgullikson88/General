@@ -6,8 +6,9 @@ import logging
 import os
 import glob
 import json
-
 from george import kernels
+import FittingUtilities
+
 from scipy.optimize import fmin, brute
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.stats import norm
@@ -24,9 +25,9 @@ from astropy import units as u, constants
 from astropy.modeling import fitting
 from astropy.modeling.polynomial import Chebyshev2D
 
-import FittingUtilities
 import DataStructures
 from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline, ensure_dir, fwhm
+
 ##import pdb
 
 
@@ -618,7 +619,7 @@ if emcee_import:
         def make_emcee_samples(self, n_burn):
             ndim = self.sampler.chain.shape[2]
             samples = self.sampler.chain[:, n_burn:, :].reshape((-1, ndim))
-            lnprob = self.sampler.lnprobability[:, nburn:].flatten()
+            lnprob = self.sampler.lnprobability[:, n_burn:].flatten()
             chain_dict = {self.param_names[i]: samples[:, i] for i in range(self.n_params)}
             chain_dict['lnprob'] = lnprob
             self.samples = pd.DataFrame(data=chain_dict)
