@@ -612,12 +612,18 @@ if emcee_import:
             self.sampler = sampler
 
             # Put the chain in a pandas array for easier access/manipulation
-            samples = sampler.chain[:, n_burn:, :].reshape((-1, ndim))
-            lnprob = sampler.lnprobability[:, n_burn:].flatten()
+            self.make_emcee_samples(n_burn)
+            return
+
+        def make_emcee_samples(self, n_burn):
+            ndim = self.sampler.chain.shape[2]
+            samples = self.sampler.chain[:, n_burn:, :].reshape((-1, ndim))
+            lnprob = self.sampler.lnprobability[:, nburn:].flatten()
             chain_dict = {self.param_names[i]: samples[:, i] for i in range(self.n_params)}
             chain_dict['lnprob'] = lnprob
             self.samples = pd.DataFrame(data=chain_dict)
             return
+
 
         def fit_multinest(self, n_live_points=1000, basename='chains/single-',
                           verbose=True, refit=False, overwrite=False,
@@ -1552,33 +1558,6 @@ class RVFitter(Bayesian_LS):
         dataspec = StellarModel.DataSpectrum(wls=ds_x, fls=y, sigmas=yerr)
         self.interpolator = StellarModel.Interpolator(hdf5_int, dataspec)
         self.update_model(Teff=T, logg=logg, feh=feh)
-        """
-        model_flux = interpolator(dict(temp=T, logg=logg, Z=feh))
-        model = DataStructures.xypoint(x=interpolator.wl/10., y=model_flux)
-
-        model_list = StellarModel.GetModelList(type='hdf5',
-                                               hdf5_file=model_library,
-                                               temperature=[T],
-                                               metal=[feh],
-                                               logg=[logg])
-    
-        modeldict, _ = StellarModel.MakeModelDicts(model_list, type='hdf5', 
-                                                   hdf5_file=model_library,
-                                                   vsini_values=[0.0], vac2air=True, 
-                                                   logspace=True)
-        model = modeldict[T][logg][feh][0.0][0.0]
-
-
-        # Only keep the parts of the model we need
-        idx = (model.x > x[0][0]-10) & (model.x < x[-1][-1]+10)
-        self.model_spec = model[idx].copy()
-        self.model_spec.cont = RobustFit(self.model_spec.x, self.model_spec.y, fitorder=3)
-        
-        # Save some variables as class vars
-        self._T = T
-        self._logg = logg
-        self._feh = feh
-        """
 
         return
 
