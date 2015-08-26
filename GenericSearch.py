@@ -769,7 +769,7 @@ def save_synthetic_ccf(corr, params, mode='text', update=True):
         raise ValueError('output mode ({}) not supported!'.format(mode))
 
 
-def save_ccf(corr, params, mode='text', update=True):
+def save_ccf(corr, params, mode='text', update=False):
     """
     Save the cross-correlation function in the given way.
     :param: corr: The DataStructures object holding the cross-correlation function
