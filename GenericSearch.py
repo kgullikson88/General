@@ -854,7 +854,7 @@ def save_ccf(corr, params, mode='text', update=False):
                 return
             else:
                 i = 1
-                while '{}_{}'.format(ds_name, i) in ds.keys():
+                while '{}_{}'.format(ds_name, i) in d.keys():
                     i += 1
                 ds_name = '{}_{}'.format(ds_name, i)
 
