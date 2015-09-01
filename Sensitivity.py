@@ -6,6 +6,7 @@ from re import search
 from collections import defaultdict
 import itertools
 import logging
+import FittingUtilities
 
 from scipy.interpolate import InterpolatedUnivariateSpline as interp
 import numpy as np
@@ -18,7 +19,6 @@ from astropy.analytic_functions import blackbody_lambda
 import h5py
 import seaborn as sns
 
-import FittingUtilities
 import DataStructures
 import GenericSearch
 import StellarModel
@@ -416,6 +416,7 @@ def Analyze(fileList,
             output_file='Sensitivity.hdf5',
             vel_list=range(-400, 450, 50),
             tolerance=5.0,
+            rerun=False,
             debug=False,
             makeplots=False):
     """
@@ -442,6 +443,7 @@ def Analyze(fileList,
          2: hdf5, which ouputs a single hdf5 file with all the metadata necessary to classify the output
     :param vel_list: The list of velocities to add the model to the data with
     :param tolerance: How close the highest CCF peak needs to be to the correct velocity, to count as a detection
+    :param rerun: If output_mode=hdf5, check to see if the current parameters have already been checked before running.
     :param debug: Flag to print a bunch of information to screen, and save some intermediate data files
     :param makeplots: A 'higher level' of debug. Will make a plot of the data and model orders for each model.
     """
@@ -512,6 +514,15 @@ def Analyze(fileList,
                         secondary_mass = MS.Interpolate('mass', secondary_spt)
 
                         for rv in vel_list:
+                            # Check if these parameters already exist
+                            params = {'velocity': rv, 'primary_temps': primary_temp, 'secondary_temp': temp,
+                                      'object': starname, 'date': date,
+                                      'primary_vsini': vsini_prim, 'secondary_vsini': vsini_sec,
+                                      'primary_masses': primary_mass, 'secondary_mass': secondary_mass,
+                                      'logg': gravity, '[Fe/H]': metallicity, 'addmode': addmode}
+                            if output_mode == 'hdf5' and not rerun and check_existence(output_file, params):
+                                continue
+
                             # Make a copy of the data orders
                             orders = [order.copy() for order in orders_original]
 
@@ -547,11 +558,6 @@ def Analyze(fileList,
                                 corr, ccf_orders = corr
 
                             # Determine if we found the companion, and output
-                            params = {'velocity': rv, 'primary_temps': primary_temp, 'secondary_temp': temp,
-                                      'object': starname, 'date': date,
-                                      'primary_vsini': vsini_prim, 'secondary_vsini': vsini_sec,
-                                      'primary_masses': primary_mass, 'secondary_mass': secondary_mass,
-                                      'logg': gravity, '[Fe/H]': metallicity, 'addmode': addmode}
                             check_detection(corr, params, mode='hdf5', tol=tolerance, hdf5_file=output_file)
 
 
@@ -710,6 +716,34 @@ def check_detection(corr, params, mode='text', tol=5, update=True, hdf5_file='Se
 
     else:
         raise ValueError('output mode ({}) not supported!'.format(mode))
+
+
+def check_existence(hdf5_file, params):
+    # Check if an entry already exists for the given parameters in the given hdf5 file.
+    if not os.path.exists(hdf5_file):
+        return False
+
+    starname = params['object']
+    date = params['date']
+    teff = str(int(params['secondary_temp']))
+    with h5py.File(hdf5_file, 'r') as f:
+        if (starname in f.keys() and date in f[starname].keys() and teff in f[starname][date].keys()):
+            retval = False
+            vsini = params['vsini_sec']
+            logg = params['logg']
+            feh = params['[Fe/H]']
+            addmode = params['addmode']
+            rv = params['velocity']
+            for _, ds in f[starname][date][teff].iteritems():
+                attrs = ds.attrs
+                if (np.isclose(vsini, attrs['vsini']) and np.isclose(logg, attrs['logg']) and
+                        np.isclose(feh, attrs['[Fe/H]']) and np.isclose(rv, attrs['rv']) and
+                            addmode == attrs['addmode']):
+                    retval = True
+            return retval
+
+        else:
+            return False
 
 
 class HDF5_Interface(object):
