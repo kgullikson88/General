@@ -29,6 +29,7 @@ import DataStructures
 from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline, ensure_dir, fwhm
 
 
+
 ##import pdb
 
 
@@ -1919,19 +1920,22 @@ class RVFitter(Bayesian_LS):
         if plot:
             fig, ax = plt.subplots()  # figsize=(15, 10))
         for xi, yi, yi_err, model, f in zip(self.x, self.y, self.yerr, model_orders, scale_factor):
-            prim_bb = blackbody(xi * u.nm.to(u.cm), Tsource)
-            ff_bb = blackbody(xi * u.nm.to(u.cm), Tff)
+            # prim_bb = blackbody(xi * u.nm.to(u.cm), Tsource)
+            #ff_bb = blackbody(xi * u.nm.to(u.cm), Tff)
 
             cont = RobustFit(xi, yi / model, fitorder)
             #cont = FittingUtilities.Continuum(xi, yi / model, fitorder, lowreject=2, highreject=5)
             #tmp = DataStructures.xypoint(x=xi, y=yi/model)
             #cont = astropy_smooth(tmp, vel=500.0)
-			
-            normed = yi * (ff_bb / prim_bb) / cont
-            normed_err = yi_err * (ff_bb / prim_bb) / cont
+
+            # normed = yi * (ff_bb / prim_bb) / cont
+            #normed_err = yi_err * (ff_bb / prim_bb) / cont
+            normed = yi / cont
+            normed_err = yi_err / cont
             if plot:
                 ax.plot(xi, normed, alpha=0.5)
-                ax.plot(xi, model * ff_bb / prim_bb, 'k-', lw=1)
+                ax.plot(xi, model, 'k-', lw=1)
+                #ax.plot(xi, model * ff_bb / prim_bb, 'k-', lw=1)
                 #ax.plot(xi, yi / model, 'k-', alpha=0.4)
                 #ax.plot(xi, cont, 'r-', alpha=0.8, lw=2)
 
@@ -1939,7 +1943,7 @@ class RVFitter(Bayesian_LS):
             normalized_err.append(normed_err)
 
             lnlike += -0.5 * np.sum(
-                (normed - model * ff_bb / prim_bb) ** 2 / normed_err ** 2 + np.log(2 * np.pi * normed_err ** 2))
+                (normed - model) ** 2 / normed_err ** 2 + np.log(2 * np.pi * normed_err ** 2))
 
         if plot:
             plt.show()
