@@ -28,6 +28,7 @@ from astropy.modeling.polynomial import Chebyshev2D
 import DataStructures
 from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline, ensure_dir, fwhm
 
+
 ##import pdb
 
 
@@ -1724,13 +1725,19 @@ class RVFitter(Bayesian_LS):
             idx = np.argmax(ccf.y)
             max_ccf[i] = ccf.y[idx]
             max_vel[i] = ccf.x[idx]
-        rv_guess = -max_vel[np.argmax(max_ccf)]
-        vsini_guess = vsini_vals[np.argmax(max_ccf)]
 
-        T_ff_guess, f_pars = self._fit_ff_teff(self.x, self.y, self.model_spec, rv_guess, vsini_guess, self._T)
+        try:
+            coeffs = np.polyfit(vsini_vals, max_ccf, 2)
+            vsini_guess = -coeffs[1] / (2 * coeffs[0])
+            idx = np.argmin(np.abs(vsini_vals - vsini_guess))
+            rv_guess = max_vel[idx]
+        except:
+            rv_guess = -max_vel[np.argmax(max_ccf)]
+            vsini_guess = vsini_vals[np.argmax(max_ccf)]
+
         self.guess_pars = [rv_guess, vsini_guess, 0.5, self._T, self._T]
-
         return self.guess_pars
+
 
     def predict(self, x, N=100, highest=False):
         """
@@ -1776,6 +1783,7 @@ class RVFitter(Bayesian_LS):
                 ax.plot(xi, mi, 'b-', **plot_kws)
 
         return ax
+
 
     def _estimate_logg(self, logg_lims=(3.0, 5.0), rv=0.0, vsini=100, N=10, refine=False, **kwargs):
         """
@@ -1830,10 +1838,12 @@ class RVFitter(Bayesian_LS):
                 lnlike.append(lnl)
 
         return logg_grid[np.argmax(lnlike)]
-    
-    def _teff_logg_like(self, input_pars, rv=0.0, vsini=100, **kwargs):
+
+
+    def _teff_logg_like_old(self, input_pars, rv=0.0, vsini=100, **kwargs):
+        logging.debug('T = {}\nlogg = {}'.format(input_pars[0], input_pars[1]))
         self.update_model(Teff=input_pars[0], logg=input_pars[1], feh=self._feh)
-        flattened_orders = self.flatten_spectrum(plot=False, pars=(rv, vsini, 0.5, 3500, self._T))
+        flattened_orders = self.flatten_spectrum(plot=False, pars=(rv, vsini, 0.5, self._T, self._T))
 
         # Find how well the orders overlap
         lnl = 0.0
@@ -1844,17 +1854,28 @@ class RVFitter(Bayesian_LS):
                 idx = left.x > right.x[0]
                 lnl += 0.5 * np.sum((left.y[idx] - right_fcn(left.x[idx])) ** 2)
         return lnl
-            
-    
-    def _estimate_logg_teff(self, logg_lims=(3.0, 5.0), teff_range=1000.0, rv=0.0, vsini=100, N=10, refine=False, **kwargs):
-        teff_lims    = (np.max([self._T-teff_range/2,6000.0]), np.min([self._T+teff_range/2,30000.0]))
+
+
+    def _teff_logg_like(self, input_pars, rv=0.0, vsini=100, **kwargs):
+        logging.debug('T = {}\nlogg = {}'.format(input_pars[0], input_pars[1]))
+        self.update_model(Teff=input_pars[0], logg=input_pars[1], feh=self._feh)
+        p = (rv, vsini, 0.5, self._T, self._T)
+        flattened_orders, ll = self.flatten_spectrum(plot=False, pars=p, return_lnlike=True)
+
+        return -ll
+
+
+    def _estimate_logg_teff(self, logg_lims=(3.0, 5.0), teff_range=3000.0, rv=0.0, vsini=100, N=10, refine=False,
+                            **kwargs):
+        teff_lims = (np.max([self._T - teff_range / 2, 7000.0]), np.min([self._T + teff_range / 2, 30000.0]))
         the_ranges   = [teff_lims, logg_lims]
         finish = fmin if refine else None
-        bruteresults = brute(self._teff_logg_like, the_ranges, (rv,vsini), Ns=N, finish=finish)    
+        bruteresults = brute(self._teff_logg_like, the_ranges, args=(rv, vsini), Ns=N, finish=finish)
         return bruteresults[0], bruteresults[1]
 
 
-    def flatten_spectrum(self, plot=False, pars=None, return_lnlike=False, update_logg=False, update_teff_logg=False, fitorder=2, **kwargs):
+    def flatten_spectrum(self, plot=False, pars=None, return_lnlike=False, update_logg=False, update_teff_logg=False,
+                         fitorder=2, **kwargs):
         """
         Returns a flattened spectrum as a list of DataStructures.xypoint instances
         :return:
