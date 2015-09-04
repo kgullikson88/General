@@ -635,12 +635,13 @@ def check_detection(corr, params, mode='text', tol=5, update=True, hdf5_file='Se
         date = params['date']
 
         # Get or create star in file
+        print(star, date)
+        print(params)
         if star in f.keys():
             s = f[star]
         else:
             star_data = StarData.GetData(star)
             s = f.create_group(star)
-            print(params)
             s.attrs['vsini'] = params['primary_vsini']
             s.attrs['RA'] = star_data.ra
             s.attrs['DEC'] = star_data.dec
@@ -701,8 +702,6 @@ def check_detection(corr, params, mode='text', tol=5, update=True, hdf5_file='Se
             ds = T.create_dataset('ds{}'.format(ds_num), data=np.array((corr.x, corr.y)), maxshape=(2, None))
 
         # Add attributes to the dataset
-        print(star, date)
-        print(params)
         ds.attrs['vsini'] = params['secondary_vsini']
         ds.attrs['logg'] = params['logg']
         ds.attrs['[Fe/H]'] = params['[Fe/H]']
@@ -728,8 +727,9 @@ def check_existence(hdf5_file, params):
     teff = str(int(params['secondary_temp']))
     with h5py.File(hdf5_file, 'r') as f:
         if (starname in f.keys() and date in f[starname].keys() and teff in f[starname][date].keys()):
+            logging.debug('Checking datasets...')
             retval = False
-            vsini = params['vsini_sec']
+            vsini = params['secondary_vsini']
             logg = params['logg']
             feh = params['[Fe/H]']
             addmode = params['addmode']
@@ -738,7 +738,8 @@ def check_existence(hdf5_file, params):
                 attrs = ds.attrs
                 if (np.isclose(vsini, attrs['vsini']) and np.isclose(logg, attrs['logg']) and
                         np.isclose(feh, attrs['[Fe/H]']) and np.isclose(rv, attrs['rv']) and
-                            addmode == attrs['addmode']):
+                            (addmode == attrs['addmode'] or addmode == 'all')):
+                    logging.debug('Match found!')
                     retval = True
             return retval
 
