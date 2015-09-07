@@ -9,7 +9,7 @@ import json
 from george import kernels
 import FittingUtilities
 
-from scipy.optimize import fmin, brute
+from scipy.optimize import fmin, brute, minimize
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.stats import norm
 import numpy as np
@@ -1702,10 +1702,32 @@ class RVFitter(Bayesian_LS):
         return best_pars[0], f_pars
 
 
-    def guess_fit_parameters(self, vsini_trials=10, *args, **kwargs):
-        """Guess the rv and vsini by cross-correlating on a small grid
+    def _rv_lnlike(self, rv, vsini=100):
+        p = (rv, vsini, 0.5, self._T, self._T)
+        _, ll = self.flatten_spectrum(plot=False, pars=p, return_lnlike=True)
+        return -ll
+
+
+    def _guess_lnlike(self, pars, vsini=100., **kwargs):
+        logging.info('T = {}\nlogg = {}'.format(pars[0], pars[1]))
+        self.update_model(Teff=pars[0], logg=pars[1], feh=self._feh)
+        out = minimize(self._rv_lnlike, self._current_rv_guess, args=(vsini,))
+        self._current_rv_guess = out.x
+        p = (out.x, vsini, 0.5, self._T, self._T)
+        _, ll = self.flatten_spectrum(plot=False, pars=p, return_lnlike=True)
+        return -ll
+
+
+    def guess_fit_parameters(self, vsini_trials=10, refine=False,
+                             teff_range=3000, logg_lims=(3.0, 4.5), N=10,
+                             *args, **kwargs):
+        """  Guess the rv, vsini, teff, and logg with a course grid search
+        :param refine: If true, finish the grid search with fmin
+        :return: The best parameter set
         """
 
+        # First, work out the approximate rv and vsini by cross-correlating.
+        logging.info('Estimating the RV and vsini by cross-correlation')
         vsini_vals = np.linspace(10, 400, vsini_trials)
         max_ccf = np.empty(vsini_vals.size)
         max_vel = np.empty(vsini_vals.size)
@@ -1736,8 +1758,20 @@ class RVFitter(Bayesian_LS):
             rv_guess = -max_vel[np.argmax(max_ccf)]
             vsini_guess = vsini_vals[np.argmax(max_ccf)]
 
-        self.guess_pars = [rv_guess, vsini_guess, 0.5, self._T, self._T]
+        # Now, do a grid search in teff and logg, finding the best rv at each point.
+        logging.info('Estimating logg and Teff by brute force. Get some coffee...')
+        teff_lims = (np.max([self._T - teff_range / 2, 7000.0]), np.min([self._T + teff_range / 2, 30000.0]))
+        the_ranges   = [teff_lims, logg_lims]
+        finish = fmin if refine else None
+        self._current_rv_guess = rv_guess
+        bruteresults = brute(self._guess_lnlike, the_ranges, args=(vsini_guess,), Ns=N, finish=None)
+        out = minimize(self._guess_lnlike, bruteresults, args=(vsini_guess,), bounds=((7000, 30000), (3.0, 4.5)))
+        ll = self._guess_lnlike((out.x[0], out.x[1]), vsini=vsini_guess)
+
+        self.guess_pars = [self._current_rv_guess, vsini_guess, 0.5, self._T, self._T]
         return self.guess_pars
+
+
 
 
     def predict(self, x, N=100, highest=False):
@@ -1923,7 +1957,8 @@ class RVFitter(Bayesian_LS):
             # prim_bb = blackbody(xi * u.nm.to(u.cm), Tsource)
             #ff_bb = blackbody(xi * u.nm.to(u.cm), Tff)
 
-            cont = RobustFit(xi, yi / model, fitorder)
+            #cont = RobustFit(xi, yi / model, fitorder)
+            cont = np.poly1d(np.polyfit(xi, yi/model, fitorder))(xi)
             #cont = FittingUtilities.Continuum(xi, yi / model, fitorder, lowreject=2, highreject=5)
             #tmp = DataStructures.xypoint(x=xi, y=yi/model)
             #cont = astropy_smooth(tmp, vel=500.0)
