@@ -1735,6 +1735,8 @@ class RVFitter(Bayesian_LS):
             logging.debug('Trying vsini = {} km/s'.format(vsini))
             data = []
             for o in self.spec_orders:
+                if o.x[-1] > 480 and o.x[0] < 491:
+                    continue
                 prim_bb = blackbody(o.x * u.nm.to(u.cm), self._T)
                 ff_bb = blackbody(o.x * u.nm.to(u.cm), 3500)
                 o.cont = np.median(o.y) * prim_bb / ff_bb
