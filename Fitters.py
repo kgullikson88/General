@@ -31,6 +31,7 @@ from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline, ensure_di
 
 
 
+
 ##import pdb
 
 
@@ -578,6 +579,10 @@ if emcee_import:
             :param guess:    Flag for whether the data should be fit in a normal way first, to get decent starting parameters.
                              If true, it uses self.guess_fit_parameters and passes guess_kws to the function.
                              If false, it uses initial_pars. You MUST give initial_pars if guess=False!
+            :param initial_pars: Initial parameters to use. Should be either a 1d array with the guess pars
+                                 for each parameter, or a 2d array giving the range each parameter can take.
+                                 If 1d, the sampler will be initialized in a small ball near the guess values.
+                                 If 2d, the sampler will be initialized uniformly filling the volume.
             """
 
             if guess:
@@ -592,8 +597,15 @@ if emcee_import:
 
             # Set up the MCMC sampler
             pars = np.array(initial_pars)
-            ndim = pars.size
-            p0 = emcee.utils.sample_ball(pars, std=[1e-6] * ndim, size=nwalkers)
+            if pars.ndim == 1:
+                ndim = pars.size
+                p0 = emcee.utils.sample_ball(pars, std=[1e-6] * ndim, size=nwalkers)
+            elif pars.ndim == 2:
+                ndim = pars.shape[0]
+                p0 = np.random.uniform(low=pars[:, 0], high=pars[:, 1], size=(nwalkers, ndim))
+            else:
+                raise TypeError('initial_pars should be either 1d or 2d. You gave a {}d array!'.format(pars.ndim))
+
             sampler = emcee.EnsembleSampler(nwalkers, ndim, self._lnprob)
 
             # Burn-in
