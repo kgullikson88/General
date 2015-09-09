@@ -30,6 +30,7 @@ from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline, ensure_di
 
 
 
+
 ##import pdb
 
 
@@ -1767,8 +1768,12 @@ class RVFitter(Bayesian_LS):
         finish = fmin if refine else None
         self._current_rv_guess = rv_guess
         bruteresults = brute(self._guess_lnlike, the_ranges, args=(vsini_guess,), Ns=N, finish=None)
-        out = minimize(self._guess_lnlike, bruteresults, args=(vsini_guess,), bounds=((7000, 30000), (3.0, 4.5)))
-        ll = self._guess_lnlike((out.x[0], out.x[1]), vsini=vsini_guess)
+        if finish:
+            out = minimize(self._guess_lnlike, bruteresults, args=(vsini_guess,), bounds=((7000, 30000), (3.0, 4.5)))
+            best_teff, best_logg = out.x
+        else:
+            best_teff, best_logg = bruteresults
+        ll = self._guess_lnlike((best_teff, best_logg), vsini=vsini_guess)
 
         self.guess_pars = [self._current_rv_guess, vsini_guess, 0.5, self._T, self._T]
         return self.guess_pars
