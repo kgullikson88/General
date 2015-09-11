@@ -736,11 +736,15 @@ def check_existence(hdf5_file, params):
             rv = params['velocity']
             for _, ds in f[starname][date][teff].iteritems():
                 attrs = ds.attrs
-                if (np.isclose(vsini, attrs['vsini']) and np.isclose(logg, attrs['logg']) and
-                        np.isclose(feh, attrs['[Fe/H]']) and np.isclose(rv, attrs['rv']) and
-                            (addmode == attrs['addmode'] or addmode == 'all')):
-                    logging.debug('Match found!')
-                    retval = True
+                if all([key in attrs for key in ['vsini', 'logg', '[Fe/H]', 'rv', 'addmode'] ]):
+                        
+                    if (np.isclose(vsini, attrs['vsini']) and np.isclose(logg, attrs['logg']) and
+                            np.isclose(feh, attrs['[Fe/H]']) and np.isclose(rv, attrs['rv']) and
+                                (addmode == attrs['addmode'] or addmode == 'all')):
+                        logging.debug('Match found!')
+                        retval = True
+                else:
+                    raise KeyError('Keys not all found in ds {}'.format(ds.name))
             return retval
 
         else:
