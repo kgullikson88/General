@@ -32,6 +32,9 @@ def GetData(starname, safe_spt=False):
         return data_cache[starname]
 
     star = Simbad.query_object(starname)
+    if star is None:
+        logging.warn('Simbad query for object "{}" failed! Returning None...'.format(starname))
+        return None
     data = stardata()
     data.main_id = star['MAIN_ID'].item()
     data.spectype = star['SP_TYPE'].item()
