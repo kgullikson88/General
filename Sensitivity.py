@@ -735,6 +735,7 @@ def check_existence(hdf5_file, params):
             addmode = params['addmode']
             rv = params['velocity']
             for _, ds in f[starname][date][teff].iteritems():
+                logging.debug(ds.name)
                 attrs = ds.attrs
                 if all([key in attrs for key in ['vsini', 'logg', '[Fe/H]', 'rv', 'addmode'] ]):
                         
