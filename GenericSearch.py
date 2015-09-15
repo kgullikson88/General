@@ -603,13 +603,17 @@ def slow_companion_search(fileList,
                             header = fits.getheader(fname)
                             try:
                                 spt = StarData.GetData(header['object']).spectype
-                                match = re.search('[0-9]', spt)
-                                if match is None:
-                                    spt = spt[0] + "5"
+                                if spt == 'Unknown':
+                                    temperature_dict[fname] = np.nan  # Unknown
+                                    logging.warning('Spectral type retrieval from simbad failed! Entering NaN for primary temperature!')
                                 else:
-                                    spt = spt[:match.start() + 1]
-                                temperature_dict[fname] = MS.Interpolate(MS.Temperature, spt)
-                            except TypeError:
+                                    match = re.search('[0-9]', spt)
+                                    if match is None:
+                                        spt = spt[0] + "5"
+                                    else:
+                                        spt = spt[:match.start() + 1]
+                                    temperature_dict[fname] = MS.Interpolate(MS.Temperature, spt)
+                            except AttributeError:
                                 temperature_dict[fname] = np.nan  # Unknown
                                 logging.warning('Spectral type retrieval from simbad failed! Entering NaN for primary temperature!')
                             datadict[fname] = orders

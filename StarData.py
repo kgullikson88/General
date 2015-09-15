@@ -5,6 +5,7 @@ import logging
 from astroquery.simbad import Simbad
 import pandas as pd
 from astropy.io import fits
+import numpy as np
 
 Simbad.SIMBAD_URL = 'http://simbak.cfa.harvard.edu/simbad/sim-script'
 Simbad.TIMEOUT = 120
@@ -32,10 +33,18 @@ def GetData(starname, safe_spt=False):
         return data_cache[starname]
 
     star = Simbad.query_object(starname)
-    if star is None:
-        logging.warn('Simbad query for object "{}" failed! Returning None...'.format(starname))
-        return None
     data = stardata()
+    if star is None:
+        logging.warn('Simbad query for object "{}" failed!'.format(starname))
+        data.main_id = starname
+        data.spectype = 'Unknown'
+        data.Vmag = np.nan
+        data.Kmag = np.nan
+        data.ra = 'Unknown'
+        data.dec = 'Unknown'
+        data.par = np.nan
+        return data
+
     data.main_id = star['MAIN_ID'].item()
     data.spectype = star['SP_TYPE'].item()
     if safe_spt:
