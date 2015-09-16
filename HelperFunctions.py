@@ -231,7 +231,7 @@ def Binomialerrors(nobs, Nsamp, alpha=0.05, method='jeffrey'):
     This is basically just statsmodels.stats.proportion.proportion_confint
     with a different default method. It also returns the proportion nobs/Nsamp
     """
-    low, high = proportion_confint(nobs, Nsampe, method=method, alpha=alpha)
+    low, high = proportion_confint(nobs, Nsamp, method=method, alpha=alpha)
     
     if nobs == 0:
         low = 0.0
