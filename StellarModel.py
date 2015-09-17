@@ -507,7 +507,14 @@ class Interpolator:
             median_ind = (np.abs(wave_grid - median_wl)).argmin()
 
             #Take the chunk that straddles either side.
-            ind = (median_ind - chunk // 2, median_ind + chunk // 2)
+            ind = [median_ind - chunk // 2, median_ind + chunk // 2]
+            if ind[0] < 0:
+                ind[1] -= ind[0]
+                ind[0] = 0
+            elif ind[1] >= len_wg:
+                ind[0] -= (ind[1] - len_wg - 1)
+                ind[1] -= (ind[1] - len_wg - 1)
+            ind = tuple(ind)
 
             self.wl = self.wl[ind[0]:ind[1]]
             assert min(self.wl) < wl_min and max(self.wl) > wl_max, "ModelInterpolator chunking ({:.2f}, {:.2f}) " \
