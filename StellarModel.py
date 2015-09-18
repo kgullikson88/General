@@ -18,6 +18,7 @@ import h5py
 import DataStructures
 import HelperFunctions
 import Broaden
+import logging
 
 
 """
@@ -560,7 +561,11 @@ class Interpolator:
         if len(self.cache) > self.cache_max:
             [self.cache.popitem(False) for i in range(self.cache_dump)]
             self.cache_counter = 0
-        return self.interpolate(parameters)
+        try:
+            return self.interpolate(parameters)
+        except InterpolationError:
+            logging.warning('Warning! Interpolation error found! Returning ones array!')
+            return np.ones_like(self.wl)
 
     def setup_index_interpolators(self):
         # create an interpolator between grid points indices. Given a temp, produce fractional index between two points
