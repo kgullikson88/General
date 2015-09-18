@@ -322,15 +322,16 @@ class ModelContinuumFitter(object):
         p_init = [teff, logg, self.rv_guess]
         out = minimize(self._teff_logg_rv_lnlike, p_init, args=(self.vsini_guess),
                        bounds=((7000, 30000), (3.0, 4.5), (-100, 100)),
-                       method='L-BFGS-B', options=dict(ftol=1e-4))
+                       method='L-BFGS-B', options=dict(ftol=1e-3, maxfun=100))
         return out.x
 
 
     def _teff_logg_rv_lnlike(self, pars, vsini=100., **kwargs):
+        logging.info('T = {}\nlogg = {}\nRV = {}'.format(pars[0], pars[1], pars[2]))
         self.update_model(Teff=pars[0], logg=pars[1], feh=self._feh)
         p = (pars[2], vsini)
         _, ll = self.flatten_orders(plot=False, pars=p, return_lnlike=True, norm=norms.TukeyBiweight())
-        logging.info('T = {}\nlogg = {}\nRV = {}\nLogL = {}\n'.format(pars[0], pars[1], pars[2], ll))
+        logging.info('LogL = {}\n'.format(ll))
         return -ll
 
 
