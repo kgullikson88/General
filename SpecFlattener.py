@@ -7,6 +7,8 @@ import statsmodels.api as sm
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
+import HelperFunctions
+from astropy.io import fits
 
 import StellarModel
 import DataStructures
@@ -358,7 +360,7 @@ class ModelContinuumFitter(object):
         return self._fit_logg_teff(**kwargs)
 
 
-def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0, last_order=19, x_degree=4, y_degree=9):
+def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0, last_order=19, x_degree=4, y_degree=9, summary_file='Flatten.log'):
     """
     Flatten a spectrum and save a new file
 
@@ -396,16 +398,26 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
     A list of flattened spectra of size last_order - first_order + 1
     """
 
+    # Read in the file and some header information
     orders = HelperFunctions.ReadExtensionFits(filename)[first_order:last_order+1]
+    header = fits.getheader(filename)
+    starname = header['OBJECT']
+    date = header['DATE-OBS']
 
-    mcf = SpecFlattener.ModelContinuumFitter(orders, hdf5_lib, x_degree=x_degree, y_degree=y_degree,
+    mcf = ModelContinuumFitter(orders, hdf5_lib, x_degree=x_degree, y_degree=y_degree,
                                              T=teff, logg=logg, feh=feh, initialize=True)
     logging.debug('RV guess = {}\n\tvsini guess = {}'.format(mcf.rv_guess, mcf.vsini_guess))
 
     # Fit the model and rv
+    logging.debug('Fitting the teff, logg, and rv. This will take a very long time...')
     teff, logg, rv = mcf.fit(teff=teff, logg=logg)
 
+    # Save the best values to a file
+    outfile = open(summary_file, 'a')
+    outfile.write('{},{},{},{},{},{}\n'.format(filename, starname, date, teff, logg, rv))
+
     # Flatten the spectrum
+    logging.info('Flattening the spectrum using the best-fit values')
     mcf.update_model(Teff=teff, logg=logg, feh=feh)
     p = (rv, mcf.vsini_guess)
     flattened = mcf.flatten_orders(pars=p, plot=False, norm=norms.HuberT())
