@@ -322,7 +322,7 @@ class ModelContinuumFitter(object):
         p_init = [teff, logg, self.rv_guess]
         out = minimize(self._teff_logg_rv_lnlike, p_init, args=(self.vsini_guess),
                        bounds=((7000, 30000), (3.0, 4.5), (-100, 100)),
-                       method='L-BFGS-B', options=dict(ftol=1e-3, maxfun=100))
+                       method='L-BFGS-B', options=dict(ftol=1e-5, maxfun=200, eps=0.1))
         return out.x
 
 
@@ -356,3 +356,106 @@ class ModelContinuumFitter(object):
         if y_degree is not None:
             self.y_degree = y_degree
         return self._fit_logg_teff(**kwargs)
+
+
+def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0, last_order=19, x_degree=4, y_degree=9):
+    """
+    Flatten a spectrum and save a new file
+
+    Parameters:
+    ===========
+    - filename:       string
+                      The path to the file you want to flatten
+
+    - hdf5_lib:       string
+                      The path to an HDF5 file with model spectra
+
+    - teff:           float, default = 9000
+                      The effective temperature of the star (initial guess)
+
+    - logg:           float, default = 4.0
+                      The surface gravity of the star (initial guess)
+
+    - feh:            float, default = 0.0
+                      The metallicity of the star (this will NOT be fit)
+
+    - first_order:    int, default = 0
+                      The first order in the file to include in the flattening. Usually just include the blue orders.
+
+    - last_order:     int, default = 19
+                      The last order in the file to include in the flattening. Usually just include the blue orders.
+
+    - x_degree:       int, default = 4
+                      The polynomial degree to fit in the dispersion direction for the continuum
+
+    - y_degree:       int, default = 9
+                      The polynomial degree to fit in the aperture number direction for the continuum
+
+    Returns:
+    ===========
+    A list of flattened spectra of size last_order - first_order + 1
+    """
+
+    orders = HelperFunctions.ReadExtensionFits(filename)[first_order:last_order+1]
+
+    mcf = SpecFlattener.ModelContinuumFitter(orders, hdf5_lib, x_degree=x_degree, y_degree=y_degree,
+                                             T=teff, logg=logg, feh=feh, initialize=True)
+    logging.debug('RV guess = {}\n\tvsini guess = {}'.format(mcf.rv_guess, mcf.vsini_guess))
+
+    # Fit the model and rv
+    teff, logg, rv = mcf.fit(teff=teff, logg=logg)
+
+    # Flatten the spectrum
+    mcf.update_model(Teff=teff, logg=logg, feh=feh)
+    p = (rv, mcf.vsini_guess)
+    flattened = mcf.flatten_orders(pars=p, plot=False, norm=norms.HuberT())
+    shifted_orders = mcf.shift_orders(flattened)
+
+    # Fit a continuum to the whole thing now that the orders (mostly) overlap
+    x = np.hstack([o.x for o in shifted_orders])
+    y = np.hstack([o.y for o in shifted_orders])
+
+    def continuum(x, y, lowreject=3, highreject=5, fitorder=3):
+        done = False
+        idx = (x < 480) | (x > 490)
+        x2 = np.copy(x[idx])
+        y2 = np.copy(y[idx])
+        while not done:
+            done = True
+            pars = np.polyfit(x2, y2, fitorder)
+            fit = np.poly1d(pars)
+        
+            residuals = y2 - fit(x2)
+            mean = np.mean(residuals)
+            std = np.std(residuals)
+            badpoints = np.where(np.logical_or((residuals - mean) < -lowreject*std, residuals - mean > highreject*std))[0]
+            if badpoints.size > 0 and x2.size - badpoints.size > 5*fitorder:
+                done = False
+                x2 = np.delete(x2, badpoints)
+                y2 = np.delete(y2, badpoints)
+        return np.poly1d(pars)
+        
+    # Re-normalize to remove the large scale stuff
+    contfcn = continuum(x, y, lowreject=1.5, highreject=20, fitorder=6)
+    renormalized = []
+    for order in shifted_orders:
+        cont = contfcn(order.x)
+        o = order.copy()
+        o.y /= cont
+        o.err /= cont 
+        o.cont = np.ones_like(o.x)
+        renormalized.append(o.copy())
+
+    # Output
+    column_dicts = []
+    for order in renormalized:
+        column_dicts.append(dict(wavelength=order.x, error=order.err, continuum=np.ones(order.size()), flux=order.y))
+        
+    outfilename = '{}_flattened.fits'.format(infilename.split('.fits')[0])
+    logging.info('Outputting flattened spectrum to file {}'.format(outfilename))
+    HelperFunctions.OutputFitsFileExtensions(column_dicts, filename, outfilename, mode='new')
+
+    return renormalized
+
+
+
