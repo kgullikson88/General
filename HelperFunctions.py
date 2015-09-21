@@ -226,11 +226,12 @@ def BinomialErrors_old(nobs, Nsamp, alpha=0.16):
     lower_errfcn = lambda c: binom.cdf(nobs, Nsamp, c) - (1.0 - alpha)
     return p0, bisect(lower_errfcn, 0, 1), bisect(upper_errfcn, 0, 1)
 
-def Binomialerrors(nobs, Nsamp, alpha=0.05, method='jeffrey'):
+def BinomialErrors(nobs, Nsamp, alpha=0.05, method='jeffrey'):
     """
     This is basically just statsmodels.stats.proportion.proportion_confint
     with a different default method. It also returns the proportion nobs/Nsamp
     """
+
     low, high = proportion_confint(nobs, Nsamp, method=method, alpha=alpha)
     
     if nobs == 0:
