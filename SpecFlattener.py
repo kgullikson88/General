@@ -9,6 +9,7 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import HelperFunctions
 from astropy.io import fits
+import pandas as pd
 
 import StellarModel
 import DataStructures
@@ -322,15 +323,16 @@ class ModelContinuumFitter(object):
 
     def _fit_logg_teff(self, logg=4.0, teff=10000, **kwargs):
         p_init = [teff, logg, self.rv_guess]
-        out = minimize(self._teff_logg_rv_lnlike, p_init, args=(self.vsini_guess),
+        normalize = kwargs['normalize'] if 'normalize' in kwargs else True
+        out = minimize(self._teff_logg_rv_lnlike, p_init, args=(self.vsini_guess, normalize),
                        bounds=((7000, 30000), (3.0, 4.5), (-100, 100)),
                        method='L-BFGS-B', options=dict(ftol=1e-5, maxfun=200, eps=0.1))
         return out.x
 
 
-    def _teff_logg_rv_lnlike(self, pars, vsini=100., **kwargs):
+    def _teff_logg_rv_lnlike(self, pars, vsini=100., normalize=True, **kwargs):
         logging.info('T = {}\nlogg = {}\nRV = {}'.format(pars[0], pars[1], pars[2]))
-        self.update_model(Teff=pars[0], logg=pars[1], feh=self._feh)
+        self.update_model(Teff=pars[0], logg=pars[1], feh=self._feh, norm=normalize)
         p = (pars[2], vsini)
         _, ll = self.flatten_orders(plot=False, pars=p, return_lnlike=True, norm=norms.TukeyBiweight())
         logging.info('LogL = {}\n'.format(ll))
@@ -360,38 +362,46 @@ class ModelContinuumFitter(object):
         return self._fit_logg_teff(**kwargs)
 
 
-def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0, last_order=19, x_degree=4, y_degree=9, summary_file='Flatten.log'):
+def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0, last_order=19, 
+                 x_degree=4, y_degree=9, normalize_model=True, summary_file='Flatten.log'):
     """
     Flatten a spectrum and save a new file
 
     Parameters:
     ===========
-    - filename:       string
-                      The path to the file you want to flatten
+    - filename:        string
+                       The path to the file you want to flatten
 
-    - hdf5_lib:       string
-                      The path to an HDF5 file with model spectra
+    - hdf5_lib:        string
+                       The path to an HDF5 file with model spectra
 
-    - teff:           float, default = 9000
-                      The effective temperature of the star (initial guess)
+    - teff:            float, default = 9000
+                       The effective temperature of the star (initial guess)
 
-    - logg:           float, default = 4.0
-                      The surface gravity of the star (initial guess)
+    - logg:            float, default = 4.0
+                       The surface gravity of the star (initial guess)
 
-    - feh:            float, default = 0.0
-                      The metallicity of the star (this will NOT be fit)
+    - feh:             float, default = 0.0
+                       The metallicity of the star (this will NOT be fit)
 
-    - first_order:    int, default = 0
-                      The first order in the file to include in the flattening. Usually just include the blue orders.
+    - first_order:     int, default = 0
+                       The first order in the file to include in the flattening. Usually just include the blue orders.
 
-    - last_order:     int, default = 19
-                      The last order in the file to include in the flattening. Usually just include the blue orders.
+    - last_order:      int, default = 19
+                       The last order in the file to include in the flattening. Usually just include the blue orders.
 
-    - x_degree:       int, default = 4
-                      The polynomial degree to fit in the dispersion direction for the continuum
+    - x_degree:        int, default = 4
+                       The polynomial degree to fit in the dispersion direction for the continuum
 
-    - y_degree:       int, default = 9
-                      The polynomial degree to fit in the aperture number direction for the continuum
+    - y_degree:        int, default = 9
+                       The polynomial degree to fit in the aperture number direction for the continuum
+    
+    - normalize_model: boolean
+                       Should the model be normalized or is it already?
+
+    - summary_file:    string:
+                       A file to save the best-fit temperature, logg, and rv
+
 
     Returns:
     ===========
@@ -404,17 +414,35 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
     starname = header['OBJECT']
     date = header['DATE-OBS']
 
+    # Check if this file is already done
+    fit = True
+    df = pd.read_csv(summary_file, header=None, names=['fname', 'star', 'date_obs', 'teff', 'logg', 'rv'])
+    subset = df.loc[(df.fname == filename) & (df.star == starname) & (df.date_obs == date)]
+    if len(subset) == 1:
+        # Found!
+        inp = raw_input('This file has previously been fit. Do you want to re-fit? y/[N]: ')
+        if 'n' in inp.lower() or inp.strip() == '':
+            teff = subset.teff.values[0]
+            logg = subset.logg.values[0]
+            rv = subset.rv.values[0]
+            fit = False
+        else:
+            idx = subset.index
+            good = df.loc[df.index != subset.index]
+            good.to_csv(summary_file, header=None, index=False)
+
     mcf = ModelContinuumFitter(orders, hdf5_lib, x_degree=x_degree, y_degree=y_degree,
                                              T=teff, logg=logg, feh=feh, initialize=True)
     logging.debug('RV guess = {}\n\tvsini guess = {}'.format(mcf.rv_guess, mcf.vsini_guess))
 
     # Fit the model and rv
-    logging.debug('Fitting the teff, logg, and rv. This will take a very long time...')
-    teff, logg, rv = mcf.fit(teff=teff, logg=logg)
+    if fit:
+        logging.debug('Fitting the teff, logg, and rv. This will take a very long time...')
+        teff, logg, rv = mcf.fit(teff=teff, logg=logg, normalize=normalize_model)
 
-    # Save the best values to a file
-    outfile = open(summary_file, 'a')
-    outfile.write('{},{},{},{},{},{}\n'.format(filename, starname, date, teff, logg, rv))
+        # Save the best values to a file
+        with open(summary_file, 'a') as outfile:
+            outfile.write('{},{},{},{},{},{}\n'.format(filename, starname, date, teff, logg, rv))
 
     # Flatten the spectrum
     logging.info('Flattening the spectrum using the best-fit values')
@@ -463,7 +491,7 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
     for order in renormalized:
         column_dicts.append(dict(wavelength=order.x, error=order.err, continuum=np.ones(order.size()), flux=order.y))
         
-    outfilename = '{}_flattened.fits'.format(infilename.split('.fits')[0])
+    outfilename = '{}_flattened.fits'.format(filename.split('.fits')[0])
     logging.info('Outputting flattened spectrum to file {}'.format(outfilename))
     HelperFunctions.OutputFitsFileExtensions(column_dicts, filename, outfilename, mode='new')
 
