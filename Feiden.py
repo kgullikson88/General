@@ -1,10 +1,12 @@
 from __future__ import division, print_function
 import os
 import os.path
+import pickle
 
 import numpy as np
 from pkg_resources import resource_filename
 from scipy.interpolate import LinearNDInterpolator as interpnd
+
 
 try:
     import pandas as pd
@@ -94,6 +96,13 @@ class Feiden_Isochrone(Isochrone):
         minage = log_ages.min()
         maxage = log_ages.max()
 
+        # make copies that claim to have different metallicities. This is a lie, but makes things work.
+        lowmet = df.copy()
+        lowmet['feh'] = -0.1
+        highmet = df.copy()
+        highmet['feh'] = 0.1
+        df = pd.concat((df, lowmet, highmet))
+
         mags = {}
         if bands is not None:
             for band in bands:
@@ -110,18 +119,21 @@ class Feiden_Isochrone(Isochrone):
                     else:
                         raise
 
-        #try:
-        #    f = open(TRI_FILE,'rb')
-        #    tri = pickle.load(f)
-        #except:
-        #    f = open(TRI_FILE,'rb')
-        #    tri = pickle.load(f,encoding='latin-1')
-        #finally:
-        #    f.close()
+        tri = None
+        try:
+            f = open(TRI_FILE, 'rb')
+            tri = pickle.load(f)
+        except:
+            f = open(TRI_FILE, 'rb')
+            tri = pickle.load(f, encoding='latin-1')
+        finally:
+            f.close()
 
-        Isochrone.__init__(self, df['Msun'], np.log10(df['Age']),
-                           df['feh'], df['Msun'], df['logL'],
-                           10 ** df['logT'], df['logg'], mags,
-                           minage=minage, maxage=maxage, **kwargs)
+        Isochrone.__init__(self, m_ini=df['Msun'], age=np.log10(df['Age']),
+                           feh=df['feh'], m_act=df['Msun'], logL=df['logL'],
+                           Teff=10 ** df['logT'], logg=df['logg'], mags=mags,
+                           tri=tri, minage=minage, maxage=maxage, **kwargs)
 
+        # def __init__(self,m_ini,age,feh,m_act,logL,Teff,logg,mags,tri=None,
+        #         minage=None, maxage=None)
 
