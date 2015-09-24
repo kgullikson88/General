@@ -7,6 +7,7 @@ import warnings
 from collections import OrderedDict
 import itertools
 import FittingUtilities
+import logging
 
 from scipy.interpolate import InterpolatedUnivariateSpline as spline, LinearNDInterpolator, NearestNDInterpolator, \
     interp1d
@@ -18,7 +19,6 @@ import h5py
 import DataStructures
 import HelperFunctions
 import Broaden
-import logging
 
 
 """
@@ -563,7 +563,7 @@ class Interpolator:
             self.cache_counter = 0
         try:
             return self.interpolate(parameters)
-        except InterpolationError:
+        except:
             logging.warning('Warning! Interpolation error found! Returning ones array!')
             return np.ones_like(self.wl)
 
