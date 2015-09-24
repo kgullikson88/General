@@ -6,6 +6,7 @@ import os
 import csv
 from collections import defaultdict
 import logging
+from astropy import units, constants
 
 from scipy.optimize import bisect
 from scipy.stats import scoreatpercentile
@@ -13,7 +14,6 @@ from scipy.signal import kaiserord, firwin, lfilter
 from scipy.interpolate import InterpolatedUnivariateSpline as spline, UnivariateSpline
 from astropy.io import fits as pyfits
 import numpy as np
-from astropy import units, constants
 from astropy.time import Time
 from statsmodels.stats.proportion import proportion_confint
 
@@ -1147,19 +1147,21 @@ def CombineXYpoints(xypts, snr=None, xspacing=None, numpoints=None, interp_order
 
 
 def weighted_mean_and_stddev(arr, weights=None, bad_value=np.nan):
+    arr = np.atleast_1d(arr).astype(np.float)
+    weights = np.atleast_1d(weights).astype(np.float)
+
     if len(arr) == 0:
         logging.warn('Zero-length array given! Mean and standard deviation are undefined')
         return bad_value, bad_value
     if weights is None:
         weights = np.ones_like(arr)
 
-    arr = np.atleast_1d(arr).astype(np.float)
-    weights = np.atleast_1d(weights).astype(np.float)
-
     avg = np.average(arr, weights=weights)
-    var = np.average((arr - avg) ** 2, weights=weights)
-    V1 = np.sum(weights)
-    V2 = np.sum(weights ** 2)
+    if len(arr) > 1:
+        var = np.average((arr - avg) ** 2, weights=weights)
+        V1 = np.sum(weights)
+        V2 = np.sum(weights ** 2)
 
-    return avg, np.sqrt(var / (1 - V2 / V1 ** 2))
+        return avg, np.sqrt(var / (1 - V2 / V1 ** 2) + np.nansum(1.0 / weights))
+    return avg, 1.0 / np.sqrt(weights[0])
 
