@@ -8,12 +8,12 @@ from collections import OrderedDict
 import itertools
 import FittingUtilities
 import logging
+from astropy import units
 
 from scipy.interpolate import InterpolatedUnivariateSpline as spline, LinearNDInterpolator, NearestNDInterpolator, \
     interp1d
 import pandas
 import numpy as np
-from astropy import units
 import h5py
 
 import DataStructures
@@ -469,7 +469,7 @@ class Interpolator:
         self.cache_dump = cache_dump  #how many to clear once the maximum cache has been reached
 
 
-    def _determine_chunk_log(self, tol=10):
+    def _determine_chunk_log(self, tol=50):
         '''
         Using the DataSpectrum, determine the minimum chunksize that we can use and then truncate the synthetic
         wavelength grid and the returned spectra.
