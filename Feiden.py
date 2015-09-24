@@ -134,6 +134,4 @@ class Feiden_Isochrone(Isochrone):
                            Teff=10 ** df['logT'], logg=df['logg'], mags=mags,
                            tri=tri, minage=minage, maxage=maxage, **kwargs)
 
-        # def __init__(self,m_ini,age,feh,m_act,logL,Teff,logg,mags,tri=None,
-        #         minage=None, maxage=None)
 
