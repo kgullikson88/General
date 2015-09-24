@@ -5,6 +5,7 @@
 import os
 import csv
 from collections import defaultdict
+import logging
 
 from scipy.optimize import bisect
 from scipy.stats import scoreatpercentile
@@ -1145,9 +1146,15 @@ def CombineXYpoints(xypts, snr=None, xspacing=None, numpoints=None, interp_order
     return full_array
 
 
-def weighted_mean_and_stddev(arr, weights=None):
+def weighted_mean_and_stddev(arr, weights=None, bad_value=np.nan):
+    if len(arr) == 0:
+        logging.warn('Zero-length array given! Mean and standard deviation are undefined')
+        return bad_value, bad_value
     if weights is None:
         weights = np.ones_like(arr)
+
+    arr = np.atleast_1d(arr).astype(np.float)
+    weights = np.atleast_1d(weights).astype(np.float)
 
     avg = np.average(arr, weights=weights)
     var = np.average((arr - avg) ** 2, weights=weights)
