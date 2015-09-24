@@ -14,12 +14,12 @@ from astropy.io import fits as pyfits
 import numpy as np
 from astropy import units, constants
 from astropy.time import Time
+from statsmodels.stats.proportion import proportion_confint
 
 import DataStructures
 import pySIMBAD as sim
 import SpectralTypeRelations
 import readmultispec as multispec
-from statsmodels.stats.proportion import proportion_confint
 
 
 try:
@@ -1145,4 +1145,14 @@ def CombineXYpoints(xypts, snr=None, xspacing=None, numpoints=None, interp_order
     return full_array
 
 
+def weighted_mean_and_stddev(arr, weights=None):
+    if weights is None:
+        weights = np.ones_like(arr)
+
+    avg = np.average(arr, weights=weights)
+    var = np.average((arr - avg) ** 2, weights=weights)
+    V1 = np.sum(weights)
+    V2 = np.sum(weights ** 2)
+
+    return avg, np.sqrt(var / (1 - V2 / V1 ** 2))
 
