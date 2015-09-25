@@ -7,10 +7,10 @@ import statsmodels.api as sm
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
-import HelperFunctions
 from astropy.io import fits
 import pandas as pd
 
+import HelperFunctions
 import StellarModel
 import DataStructures
 from Fitters import RobustFit
@@ -33,7 +33,7 @@ class ModelContinuumFitter(object):
     """
 
     def __init__(self, data_orders, model_library, x_degree=4, y_degree=6, wave_spacing=0.003,
-                 T=9000, logg=4.0, feh=0.0, initialize=True):
+                 T=9000, logg=4.0, feh=0.0, initialize=True, **kwargs):
         """
         Initialize the ModelContinuumFitter class.
 
@@ -125,7 +125,7 @@ class ModelContinuumFitter(object):
         hdf5_int = StellarModel.HDF5Interface(model_library)
         dataspec = StellarModel.DataSpectrum(wls=wl, fls=fl, sigmas=sig)
         self.interpolator = StellarModel.Interpolator(hdf5_int, dataspec)
-        self.update_model(Teff=T, logg=logg, feh=feh)
+        self.update_model(Teff=T, logg=logg, feh=feh, **kwargs)
 
         # Guess the rv and vsini
         if initialize:
@@ -134,7 +134,7 @@ class ModelContinuumFitter(object):
         return
 
 
-    def update_model(self, Teff=9000, logg=4.5, feh=0.0, norm=True):
+    def update_model(self, Teff=9000, logg=4.5, feh=0.0, norm=True, **kwargs):
         """
         Update the current model to have the given parameters.
 
@@ -164,6 +164,7 @@ class ModelContinuumFitter(object):
         # Interpolate the model
         model_flux = self.interpolator(dict(temp=Teff, logg=logg, Z=feh))
         model = DataStructures.xypoint(x=self.interpolator.wl / 10., y=model_flux)
+        print(model.y)
 
         # Only keep the parts of the model we need
         idx = (model.x > self.x['wave'].min() - 10) & (model.x < self.x['wave'].max() + 10)
@@ -427,7 +428,6 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
             rv = subset.rv.values[0]
             fit = False
         else:
-            idx = subset.index
             good = df.loc[df.index != subset.index]
             good.to_csv(summary_file, header=None, index=False)
 
@@ -452,9 +452,6 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
     shifted_orders = mcf.shift_orders(flattened)
 
     # Fit a continuum to the whole thing now that the orders (mostly) overlap
-    x = np.hstack([o.x for o in shifted_orders])
-    y = np.hstack([o.y for o in shifted_orders])
-
     def continuum(x, y, lowreject=3, highreject=5, fitorder=3):
         done = False
         idx = (x < 480) | (x > 490)
@@ -476,6 +473,10 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
         return np.poly1d(pars)
         
     # Re-normalize to remove the large scale stuff
+    x = np.hstack([o.x for o in shifted_orders])
+    y = np.hstack([o.y for o in shifted_orders])
+    x = x[~np.isnan(y)]
+    y = y[~np.isnan(y)]
     contfcn = continuum(x, y, lowreject=1.5, highreject=20, fitorder=6)
     renormalized = []
     for order in shifted_orders:
@@ -495,7 +496,7 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
     logging.info('Outputting flattened spectrum to file {}'.format(outfilename))
     HelperFunctions.OutputFitsFileExtensions(column_dicts, filename, outfilename, mode='new')
 
-    return renormalized
+    return renormalized, flattened, shifted_orders, mcf
 
 
 
