@@ -164,7 +164,6 @@ class ModelContinuumFitter(object):
         # Interpolate the model
         model_flux = self.interpolator(dict(temp=Teff, logg=logg, Z=feh))
         model = DataStructures.xypoint(x=self.interpolator.wl / 10., y=model_flux)
-        print(model.y)
 
         # Only keep the parts of the model we need
         idx = (model.x > self.x['wave'].min() - 10) & (model.x < self.x['wave'].max() + 10)
@@ -363,7 +362,7 @@ class ModelContinuumFitter(object):
         return self._fit_logg_teff(**kwargs)
 
 
-def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0, last_order=19, 
+def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0, last_order=19,
                  x_degree=4, y_degree=9, normalize_model=True, summary_file='Flatten.log'):
     """
     Flatten a spectrum and save a new file
@@ -410,7 +409,7 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
     """
 
     # Read in the file and some header information
-    orders = HelperFunctions.ReadExtensionFits(filename)[first_order:last_order+1]
+    orders = HelperFunctions.ReadExtensionFits(filename)[first_order:last_order + 1]
     header = fits.getheader(filename)
     starname = header['OBJECT']
     date = header['DATE-OBS']
@@ -432,7 +431,7 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
             good.to_csv(summary_file, header=None, index=False)
 
     mcf = ModelContinuumFitter(orders, hdf5_lib, x_degree=x_degree, y_degree=y_degree,
-                                             T=teff, logg=logg, feh=feh, initialize=True)
+                               T=teff, logg=logg, feh=feh, initialize=True)
     logging.debug('RV guess = {}\n\tvsini guess = {}'.format(mcf.rv_guess, mcf.vsini_guess))
 
     # Fit the model and rv
@@ -461,17 +460,18 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
             done = True
             pars = np.polyfit(x2, y2, fitorder)
             fit = np.poly1d(pars)
-        
+
             residuals = y2 - fit(x2)
             mean = np.mean(residuals)
             std = np.std(residuals)
-            badpoints = np.where(np.logical_or((residuals - mean) < -lowreject*std, residuals - mean > highreject*std))[0]
-            if badpoints.size > 0 and x2.size - badpoints.size > 5*fitorder:
+            badpoints = \
+            np.where(np.logical_or((residuals - mean) < -lowreject * std, residuals - mean > highreject * std))[0]
+            if badpoints.size > 0 and x2.size - badpoints.size > 5 * fitorder:
                 done = False
                 x2 = np.delete(x2, badpoints)
                 y2 = np.delete(y2, badpoints)
         return np.poly1d(pars)
-        
+
     # Re-normalize to remove the large scale stuff
     x = np.hstack([o.x for o in shifted_orders])
     y = np.hstack([o.y for o in shifted_orders])
@@ -483,7 +483,7 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
         cont = contfcn(order.x)
         o = order.copy()
         o.y /= cont
-        o.err /= cont 
+        o.err /= cont
         o.cont = np.ones_like(o.x)
         renormalized.append(o.copy())
 
@@ -491,7 +491,7 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
     column_dicts = []
     for order in renormalized:
         column_dicts.append(dict(wavelength=order.x, error=order.err, continuum=np.ones(order.size()), flux=order.y))
-        
+
     outfilename = '{}_flattened.fits'.format(filename.split('.fits')[0])
     logging.info('Outputting flattened spectrum to file {}'.format(outfilename))
     HelperFunctions.OutputFitsFileExtensions(column_dicts, filename, outfilename, mode='new')
