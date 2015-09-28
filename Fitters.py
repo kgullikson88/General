@@ -8,6 +8,7 @@ import glob
 import json
 from george import kernels
 import FittingUtilities
+from astropy import units as u, constants
 
 from scipy.optimize import fmin, brute, minimize
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
@@ -21,12 +22,12 @@ import statsmodels.api as sm
 from statsmodels.robust.norms import TukeyBiweight
 import pandas as pd
 import triangle
-from astropy import units as u, constants
 from astropy.modeling import fitting
 from astropy.modeling.polynomial import Chebyshev2D
 
 import DataStructures
 from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline, ensure_dir, fwhm
+
 
 
 
@@ -1658,7 +1659,7 @@ class RVFitter(Bayesian_LS):
 
         s = 0
         for yi, yi_err, ypred_i, f in zip(self.y, self.yerr, y_pred, scale_factor):
-            s += -0.5*np.sum((yi-ypred_i*f)**2 / yi_err**2 + np.log(2*np.pi*yi_err**2) )
+            s += -0.5 * np.nansum((yi - ypred_i * f) ** 2 / yi_err ** 2 + np.log(2 * np.pi * yi_err ** 2))
         return s
 
 
