@@ -362,7 +362,7 @@ class ModelContinuumFitter(object):
         return self._fit_logg_teff(**kwargs)
 
 
-def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0, last_order=19,
+def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0, last_order=19, ordernums=None,
                  x_degree=4, y_degree=9, normalize_model=True, summary_file='Flatten.log'):
     """
     Flatten a spectrum and save a new file
@@ -390,6 +390,10 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
     - last_order:      int, default = 19
                        The last order in the file to include in the flattening. Usually just include the blue orders.
 
+    - ordernums:       iterable
+                       If given, this over-rides first_order and last_order. It should be a list of order numbers
+                       to use.
+
     - x_degree:        int, default = 4
                        The polynomial degree to fit in the dispersion direction for the continuum
 
@@ -409,10 +413,16 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
     """
 
     # Read in the file and some header information
-    orders = HelperFunctions.ReadExtensionFits(filename)[first_order:last_order + 1]
+    all_orders = HelperFunctions.ReadExtensionFits(filename)
     header = fits.getheader(filename)
     starname = header['OBJECT']
     date = header['DATE-OBS']
+
+    # Figure out which orders to use
+    if ordernums is None:
+        orders = all_orders[first_order:last_order + 1]
+    else:
+        orders = [o.copy() for i, o in enumerate(all_orders) if i in ordernums]
 
     # Check if this file is already done
     fit = True
