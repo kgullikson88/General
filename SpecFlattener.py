@@ -33,7 +33,7 @@ class ModelContinuumFitter(object):
     """
 
     def __init__(self, data_orders, model_library, x_degree=4, y_degree=6, wave_spacing=0.003,
-                 T=9000, logg=4.0, feh=0.0, initialize=True, **kwargs):
+                 T=9000, logg=4.0, feh=0.0, initialize=True, order_numbers=None, **kwargs):
         """
         Initialize the ModelContinuumFitter class.
 
@@ -76,19 +76,25 @@ class ModelContinuumFitter(object):
                                Whether to estimate the radial velocity and vsini of the model through
                                cross-correlation functions. This MUST be run before the 'flatten_orders' method.
 
+         - order_numbers:      iterable
+                               A list of the echelle order numbers. This is only useful if using non-consecutive
+                               orders for flattening (I am for HET data).
+
         Returns:
         ========
         None
         """
 
         wave_arr = np.arange(data_orders[0].x[0], data_orders[-1].x[-1], wave_spacing)
+        if order_numbers is None:
+            order_numbers = range(len(data_orders))
         wave, aperture, flux, flux_err = [], [], [], []
 
         # combine all the orders into a few different arrays
         for i, order in enumerate(data_orders):
             idx = (wave_arr >= order.x[0]) & (wave_arr <= order.x[-1])
             wave.append(wave_arr[idx])
-            aperture.append(np.ones(idx.sum()) * i)
+            aperture.append(np.ones(idx.sum()) * order_numbers[i])
             rebinned = FittingUtilities.RebinData(order, wave_arr[idx])
             flux.append(rebinned.y)
             flux_err.append(rebinned.err)
@@ -111,6 +117,7 @@ class ModelContinuumFitter(object):
         self.echelle_orders = data_orders
         self.x_degree = x_degree
         self.y_degree = y_degree
+        self.order_numbers = order_numbers
 
         # Concatenate the echelle orders
         N = min([o.size() for o in data_orders])
@@ -235,7 +242,7 @@ class ModelContinuumFitter(object):
         orders = [o.copy() for o in self.echelle_orders]
         ll = 0.0
         for i, order in enumerate(orders):
-            cont = self._model(rlm_params, x=dict(wave=order.x, order=np.ones_like(order.x) * i))
+            cont = self._model(rlm_params, x=dict(wave=order.x, order=np.ones_like(order.x) * self.order_numbers[i]))
             if plot:
                 plt.plot(order.x, order.y / cont, 'k-', alpha=0.4)
             orders[i].y /= cont
@@ -252,11 +259,12 @@ class ModelContinuumFitter(object):
         """
         shifted_orders = [orders[0].copy()]
         for left_order, right_order in zip(orders[:-1], orders[1:]):
-            left_idx = left_order.x > right_order.x[0]
-            right_idx = right_order.x < left_order.x[-1]
-            left_med = np.median(left_order.y[left_idx])
-            right_med = np.median(right_order.y[right_idx])
-            right_order.y += left_med - right_med
+            if left_order.x[-1] > right_order.x[0]:
+                left_idx = left_order.x > right_order.x[0]
+                right_idx = right_order.x < left_order.x[-1]
+                left_med = np.median(left_order.y[left_idx])
+                right_med = np.median(right_order.y[right_idx])
+                right_order.y += left_med - right_med
             shifted_orders.append(right_order.copy())
         return shifted_orders
 
@@ -420,9 +428,8 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
 
     # Figure out which orders to use
     if ordernums is None:
-        orders = all_orders[first_order:last_order + 1]
-    else:
-        orders = [o.copy() for i, o in enumerate(all_orders) if i in ordernums]
+        ordernums = range(first_order, last_order + 1)
+    orders = [o.copy() for i, o in enumerate(all_orders) if i in ordernums]
 
     # Check if this file is already done
     fit = True
@@ -441,7 +448,7 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
             good.to_csv(summary_file, header=None, index=False)
 
     mcf = ModelContinuumFitter(orders, hdf5_lib, x_degree=x_degree, y_degree=y_degree,
-                               T=teff, logg=logg, feh=feh, initialize=True)
+                               T=teff, logg=logg, feh=feh, initialize=True, order_numbers=ordernums)
     logging.debug('RV guess = {}\n\tvsini guess = {}'.format(mcf.rv_guess, mcf.vsini_guess))
 
     # Fit the model and rv
@@ -458,7 +465,7 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
     mcf.update_model(Teff=teff, logg=logg, feh=feh)
     p = (rv, mcf.vsini_guess)
     flattened = mcf.flatten_orders(pars=p, plot=False, norm=norms.HuberT())
-    shifted_orders = mcf.shift_orders(flattened)
+    shifted_orders = mcf.shift_orders([o.copy() for o in flattened])
 
     # Fit a continuum to the whole thing now that the orders (mostly) overlap
     def continuum(x, y, lowreject=3, highreject=5, fitorder=3):
@@ -498,15 +505,17 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
         renormalized.append(o.copy())
 
     # Output
-    column_dicts = []
-    for order in renormalized:
-        column_dicts.append(dict(wavelength=order.x, error=order.err, continuum=np.ones(order.size()), flux=order.y))
-
-    outfilename = '{}_flattened.fits'.format(filename.split('.fits')[0])
-    logging.info('Outputting flattened spectrum to file {}'.format(outfilename))
-    HelperFunctions.OutputFitsFileExtensions(column_dicts, filename, outfilename, mode='new')
+    to_fits(renormalized, filename, '{}_renormalized.fits'.format(filename.split('.fits')[0]))
+    to_fits(flattened, filename, '{}_flattened.fits'.format(filename.split('.fits')[0]))
+    to_fits(shifted_orders, filename, '{}_shifted.fits'.format(filename.split('.fits')[0]))
 
     return renormalized, flattened, shifted_orders, mcf
 
 
+def to_fits(orders, template_fname, outfilename):
+    column_dicts = []
+    for order in orders:
+        column_dicts.append(dict(wavelength=order.x, error=order.err, continuum=np.ones(order.size()), flux=order.y))
 
+    logging.info('Outputting spectrum to file {}'.format(outfilename))
+    HelperFunctions.OutputFitsFileExtensions(column_dicts, template_fname, outfilename, mode='new')
