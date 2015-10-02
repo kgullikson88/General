@@ -299,7 +299,8 @@ class ModelContinuumFitter(object):
         # Normalize the orders
         orders = [o.copy() for o in self.echelle_orders]
         for i, order in enumerate(orders):
-            orders[i].cont = self._model(rlm_params, x=dict(wave=order.x, order=np.ones_like(order.x) * i))
+            orders[i].cont = self._model(rlm_params, x=dict(wave=order.x,
+                                                            order=np.ones_like(order.x) * self.order_numbers[i]))
 
         # Now, use cross-correlation to guess the RV and vsini of the star.
         logging.info('Estimating the RV and vsini by cross-correlation')
@@ -449,7 +450,7 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
 
     mcf = ModelContinuumFitter(orders, hdf5_lib, x_degree=x_degree, y_degree=y_degree,
                                T=teff, logg=logg, feh=feh, initialize=True, order_numbers=ordernums)
-    logging.debug('RV guess = {}\n\tvsini guess = {}'.format(mcf.rv_guess, mcf.vsini_guess))
+    logging.info('RV guess = {}\n\tvsini guess = {}'.format(mcf.rv_guess, mcf.vsini_guess))
 
     # Fit the model and rv
     if fit:
