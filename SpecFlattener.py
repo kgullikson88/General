@@ -334,7 +334,7 @@ class ModelContinuumFitter(object):
         p_init = [teff, logg, self.rv_guess]
         normalize = kwargs['normalize'] if 'normalize' in kwargs else True
         out = minimize(self._teff_logg_rv_lnlike, p_init, args=(self.vsini_guess, normalize),
-                       bounds=((7000, 30000), (3.0, 4.5), (-100, 100)),
+                       bounds=((7000, 30000), (3.0, 4.5), (-200, 200)),
                        method='L-BFGS-B', options=dict(ftol=1e-5, maxfun=200, eps=0.1))
         return out.x
 
