@@ -447,6 +447,8 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
         else:
             good = df.loc[df.index != subset.index]
             good.to_csv(summary_file, header=None, index=False)
+    else:
+        logging.info('Did not find file ({}) in log ({})'.format(filename, summary_file))
 
     mcf = ModelContinuumFitter(orders, hdf5_lib, x_degree=x_degree, y_degree=y_degree,
                                T=teff, logg=logg, feh=feh, initialize=True, order_numbers=ordernums)
