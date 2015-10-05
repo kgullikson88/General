@@ -371,7 +371,8 @@ class ModelContinuumFitter(object):
         return self._fit_logg_teff(**kwargs)
 
 
-def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0, last_order=19, ordernums=None,
+def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0,
+                 orders=None, first_order=0, last_order=19, ordernums=None,
                  x_degree=4, y_degree=9, normalize_model=True, summary_file='Flatten.log'):
     """
     Flatten a spectrum and save a new file
@@ -392,6 +393,9 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
 
     - feh:             float, default = 0.0
                        The metallicity of the star (this will NOT be fit)
+
+    - orders:          iterable of DataStructures.xypoint instances
+                       A list of orders to use. If given, the data within filename will be ignored!
 
     - first_order:     int, default = 0
                        The first order in the file to include in the flattening. Usually just include the blue orders.
@@ -430,7 +434,8 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0, first_order=0
     # Figure out which orders to use
     if ordernums is None:
         ordernums = range(first_order, last_order + 1)
-    orders = [o.copy() for i, o in enumerate(all_orders) if i in ordernums]
+    if orders is None:
+        orders = [o.copy() for i, o in enumerate(all_orders) if i in ordernums]
 
     # Check if this file is already done
     fit = True
