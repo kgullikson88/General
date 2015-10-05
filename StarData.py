@@ -7,6 +7,7 @@ import pandas as pd
 from astropy.io import fits
 import numpy as np
 
+
 Simbad.SIMBAD_URL = 'http://simbak.cfa.harvard.edu/simbad/sim-script'
 Simbad.TIMEOUT = 120
 Simbad.add_votable_fields('sp', 'flux(V)', 'flux(K)', 'plx')
@@ -58,14 +59,17 @@ def GetData(starname, safe_spt=False):
     return data
 
 
-def get_vsini(file_list):
+homedir = os.environ['HOME']
+VSINI_FILE = "{}/School/Research/Useful_Datafiles/Vsini.csv".format(homedir)
+
+
+def get_vsini(file_list, vsini_filename=VSINI_FILE):
     """
     Get the vsini for every fits file in file_list. Uses the OBJECT keyword and a pre-tabulated vsini table
     :param file_list:
     :return:
     """
-    homedir = os.environ['HOME']
-    vsini = pd.read_csv("{}/School/Research/Useful_Datafiles/Vsini.csv".format(homedir), sep='|', skiprows=8)[1:]
+    vsini = pd.read_csv(vsini_filename, sep='|', skiprows=8)[1:]
     vsini_dict = {}
     prim_vsini = []
     for fname in file_list:
