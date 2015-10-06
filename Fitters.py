@@ -1603,7 +1603,7 @@ class RVFitter(Bayesian_LS):
 
 
     def mnest_prior(self, cube, ndim, nparams):
-        cube[0] = cube[0]*200. - 100.  # RV - uniform on (-100, 100)
+        cube[0] = cube[0]*400. - 200.  # RV - uniform on (-100, 100)
         cube[1] = cube[1]*400.         # vsini - uniform on (0, 400)
 
         if ndim > 3:
