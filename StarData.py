@@ -30,6 +30,7 @@ def GetData(starname, safe_spt=False):
     :param starname: A simbad-queryable name for the star
     :param safe_spt: If True, convert spectral types with 'm' in them to '5': eg. 'Am' --> 'A5'
     """
+    logging.info('Getting stellar data for {}'.format(starname))
     if starname in data_cache:
         return data_cache[starname]
 
