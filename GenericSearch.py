@@ -5,9 +5,10 @@ This is a general script for doing the cross-correlations in my companion search
 It is called by several smaller scripts in each of the instrument-specific repositories
 """
 
+import FittingUtilities
+
 import numpy as np
 
-import FittingUtilities
 import DataStructures
 import Correlate
 import HelperFunctions
@@ -532,6 +533,7 @@ def slow_companion_search(fileList,
          4: 'T-weighted': Do a weighted average: $C = \sum_i{w_i C_i}$ where $w_i$ is how fast each pixel changes with temperature
          5: 'dc': $C = \sum_i{C_i^2}$  (basically, weighting by the CCF itself)
          6: 'ml': The maximum likelihood estimate. See Zucker 2003, MNRAS, 342, 1291
+         7: 'all': does simple, dc, and ml all at once.
     :param output_mode: How to output. Valid options are:
          1: text, which is just ascii data with a filename convention. This is the default option
          2: hdf5, which ouputs a single hdf5 file with all the metadata necessary to classify the output
@@ -785,6 +787,15 @@ def save_ccf(corr, params, mode='text', update=False):
     :param mode: See docstring for slow_companion_search, param output_mode
     :param update: If mode='hdf5', DO I NEED THIS?
     """
+
+    # Loop through the add-modes if addmode=all
+    if params['addmode'].lower() == 'all':
+        for am in corr.keys():
+            p = dict(**params)
+            p['addmode'] = am
+            save_ccf(corr[am], p, mode=mode, update=update)
+        return
+
     if mode.lower() == 'text':
         params['outbase'] = params['fname'].split('/')[-1].split('.fits')[0]
         save_synthetic_ccf(corr, params, mode=mode, update=update)

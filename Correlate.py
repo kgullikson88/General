@@ -407,6 +407,12 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
 
 
 class CCFContainer(object):
+    """
+    A class to store my CCFS. It acts much like a dictionary,
+    but I can access the 'x' attribute to do barycentric correction.
+    (also probably slightly more memory-efficient, but who cares).
+
+    """
     def __init__(self, x):
         self.x = x
         self.ml = None
@@ -414,10 +420,11 @@ class CCFContainer(object):
         self.simple = None
         self.weighted = None
         self.simple_weighted = None
+        self.valid_keys = ('ml', 'dc', 'simple', 'weighted', 'simple-weighted')
 
 
     def __getitem__(self, item):
-        if item not in ['ml', 'dc', 'simple']:
+        if item not in self.valid_keys:
             raise KeyError('{} not a valid item for CCFContainer!'.format(item))
 
         if item == 'ml' and self.ml is not None:
@@ -434,7 +441,7 @@ class CCFContainer(object):
         return None  # We should never get here...
 
     def __setitem__(self, key, value):
-        if key not in ['ml', 'dc', 'simple']:
+        if key not in self.valid_keys:
             raise KeyError('{} not a valid item for CCFContainer!'.format(key))
 
         assert value.shape == self.x.shape
@@ -451,6 +458,11 @@ class CCFContainer(object):
             self.simple_weighted = value
 
         return None
+
+    def keys(self):
+        """ Get all the non-None keys
+        """
+        return [k for k in self.valid_keys if self[k] is not None]
 
 
 
