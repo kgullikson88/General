@@ -2,13 +2,13 @@ import sys
 import os
 import warnings
 import logging
+from astropy import units, constants
+import FittingUtilities
+import RotBroad_Fast as RotBroad
 
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import numpy as np
-from astropy import units, constants
 
-import FittingUtilities
-import RotBroad_Fast as RotBroad
 import DataStructures
 import HelperFunctions
 from PlotBlackbodies import Planck
@@ -346,7 +346,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
 
     # Add up the individual CCFs
     total = corrlist[0].copy()
-    total_ccfs = {}
+    total_ccfs = CCFContainer(total.x)
 
     if addmode.lower() == "ml" or addmode.lower() == 'all':
         # use the Maximum Likelihood method from Zucker 2003, MNRAS, 342, 1291
@@ -355,9 +355,10 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
             correlation = spline(corr.x, corr.y, k=1)
             N = data[i].size()
             total.y *= np.power(1.0 - correlation(total.x) ** 2, float(N) / normalization)
-        master_corr = total.copy()
-        master_corr.y = np.sqrt(1.0 - total.y)
-        total_ccfs['ml'] = master_corr.copy()
+        # master_corr = total.copy()
+        #master_corr.y = np.sqrt(1.0 - total.y)
+        #total_ccfs['ml'] = master_corr.copy()
+        total_ccfs['ml'] = np.sqrt(1.0 - total.y)
     if addmode.lower() == "simple" or addmode.lower() == 'all':
         # do a simple addition
         total.y = np.zeros(total.size())
@@ -366,28 +367,29 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
             correlation = spline(corr.x, corr.y, k=1)
             total.y += correlation(total.x)
         total.y /= float(len(corrlist))
-        master_corr = total.copy()
-        total_ccfs['simple'] = master_corr.copy()
+        # master_corr = total.copy()
+        #total_ccfs['simple'] = master_corr.copy()
+        total_ccfs['simple'] = total.y
     if addmode.lower() == "dc" or addmode.lower() == 'all':
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
             N = data[i].size()
             correlation = spline(corr.x, corr.y, k=1)
             total.y += float(N) * correlation(total.x) ** 2 / normalization
-        master_corr = total.copy()
-        master_corr.y = np.sqrt(master_corr.y)
-        total_ccfs['dc'] = master_corr.copy()
+        # master_corr = total.copy()
+        #master_corr.y = np.sqrt(master_corr.y)
+        #total_ccfs['dc'] = master_corr.copy()
+        total_ccfs['dc'] = np.sqrt(total.y)
     if addmode.lower() == "weighted" or (addmode.lower() == 'all' and orderweights is not None):
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
-            N = data[i].size()
             w = orderweights[i] / np.sum(orderweights)
             correlation = spline(corr.x, corr.y, k=1)
-            # total.y += w * float(N) * correlation(total.x)**2 / normalization
             total.y += w * correlation(total.x) ** 2  # * float(N) / normalization
-        master_corr = total.copy()
-        master_corr.y = np.sqrt(master_corr.y)
-        total_ccfs['weighted'] = master_corr.copy()
+        # master_corr = total.copy()
+        #master_corr.y = np.sqrt(master_corr.y)
+        #total_ccfs['weighted'] = master_corr.copy()
+        total_ccfs['weighted'] = np.sqrt(total.y)
     if addmode.lower() == 'simple-weighted' or (addmode.lower() == 'all' and orderweights is not None):
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
@@ -395,14 +397,61 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
             correlation = spline(corr.x, corr.y, k=1)
             total.y += correlation(total.x) * w
         total.y /= float(len(corrlist))
-        master_corr = total.copy()
-        total_ccfs['simple-weighted'] = master_corr.copy()
+        # master_corr = total.copy()
+        #total_ccfs['simple-weighted'] = master_corr.copy()
+        total_ccfs['simple-weighted'] = total.y
 
     if addmode.lower() == 'all':
-      master_corr = total_ccfs
-    if debug:
-        return master_corr, corrlist
-    return master_corr
+        return (total_ccfs, corrlist) if debug else total_ccfs
+    return (total_ccfs[addmode], corrlist) if debug else total_ccfs[addmode]
+
+
+class CCFContainer(object):
+    def __init__(self, x):
+        self.x = x
+        self.ml = None
+        self.dc = None
+        self.simple = None
+        self.weighted = None
+        self.simple_weighted = None
+
+
+    def __getitem__(self, item):
+        if item not in ['ml', 'dc', 'simple']:
+            raise KeyError('{} not a valid item for CCFContainer!'.format(item))
+
+        if item == 'ml' and self.ml is not None:
+            return DataStructures.xypoint(x=self.x, y=self.ml)
+        elif item == 'dc' and self.dc is not None:
+            return DataStructures.xypoint(x=self.x, y=self.dc)
+        elif item == 'simple' and self.simple is not None:
+            return DataStructures.xypoint(x=self.x, y=self.simple)
+        elif item == 'weighted' and self.weighted is not None:
+            return DataStructures.xypoint(x=self.x, y=self.weighted)
+        elif item == 'simple-weighted' and self.simple_weighted is not None:
+            return DataStructures.xypoint(x=self.x, y=self.simple_weighted)
+
+        return None  # We should never get here...
+
+    def __setitem__(self, key, value):
+        if key not in ['ml', 'dc', 'simple']:
+            raise KeyError('{} not a valid item for CCFContainer!'.format(key))
+
+        assert value.shape == self.x.shape
+
+        if key == 'ml':
+            self.ml = value
+        elif key == 'dc':
+            self.dc = value
+        elif key == 'simple':
+            self.simple = value
+        elif key == 'weighted':
+            self.weighted = value
+        elif key == 'simple-weighted':
+            self.simple_weighted = value
+
+        return None
+
 
 
 def GetInformationContent(model):
