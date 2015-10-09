@@ -676,6 +676,9 @@ def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500, fitorder=1, fitter_c
     # Don't let the error bars get smaller than 50 K
     final['Tmeas_err'] = np.maximum(final.Tmeas_err, 100.0)
 
+    # Save the measurement data
+    final[['Tactual', 'Tmeas', 'Tact_err', 'Tmeas_err']].to_csv('Systematics_Data.csv')
+
     # Fit to a polynomial with a gaussian process noise model.
     if fitter_class is None:
         #fitter = GPFitter(final.Tactual, final.Tmeas, final.Tmeas_err)
@@ -696,8 +699,8 @@ def fit_act2tmeas(df, nwalkers=500, n_burn=200, n_prod=500, fitorder=1, fitter_c
     for i in range(ypred.shape[0]):
         yplot = ypred[i]
         ax.plot(xplot, yplot, 'b-', alpha=0.03)
-    ax.set_xlabel('Literature Temperature')
-    ax.set_ylabel('Measured Temperature')
+    ax.set_xlabel('Literature Temperature (K)')
+    ax.set_ylabel('Measured Temperature (K)')
     ax.set_xlim(lim)
     ax.set_ylim(lim)
     ax.plot(lim, lim, 'r--')
