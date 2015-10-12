@@ -718,7 +718,7 @@ def check_detection(corr, params, mode='text', tol=5, update=True, hdf5_file='Se
         # Write the second file if backup = True
         if backup:
             check_detection(corr, params, mode=mode, tol=tol, update=update,
-                            hdf5_file='{}_autobackup.hdf5'.format(hdf5_file.split('.h')[0]))
+                            hdf5_file='{}_autobackup.hdf5'.format(hdf5_file.split('.h')[0]), backup=False)
 
     else:
         raise ValueError('output mode ({}) not supported!'.format(mode))
