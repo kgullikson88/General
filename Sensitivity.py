@@ -7,10 +7,10 @@ from collections import defaultdict
 import itertools
 import logging
 import FittingUtilities
+from astropy import units, constants
 
 from scipy.interpolate import InterpolatedUnivariateSpline as interp
 import numpy as np
-from astropy import units, constants
 import matplotlib.pyplot as plt
 import pandas as pd
 from astropy.io import fits
@@ -570,13 +570,15 @@ def Analyze(fileList,
     return
 
 
-def check_detection(corr, params, mode='text', tol=5, update=True, hdf5_file='Sensitivity.hdf5'):
+def check_detection(corr, params, mode='text', tol=5, update=True, hdf5_file='Sensitivity.hdf5', backup=True):
     """
     Check if we detected the companion, and output to a summary file.
     :param: corr: The DataStructures object holding the cross-correlation function
     :param params: A dictionary describing the metadata to include
     :param mode: See docstring for slow_companion_search, param output_mode
-    :keyword tol: Tolerance (in km/s) to count a peak as the 'correct' one.
+    :keyword tol: Tolerance (in km/s) to count a peak as the 'correct' one.\
+    :keyword backup: Should we write to 2 files instead of just one? That way things we are safe from crashes
+                     corrupting the HDF5 file (but it takes twice the disk space...)
     """
     # Loop through the add-modes if addmode=all
     if params['addmode'].lower() == 'all':
@@ -712,6 +714,11 @@ def check_detection(corr, params, mode='text', tol=5, update=True, hdf5_file='Se
 
         f.flush()
         f.close()
+
+        # Write the second file if backup = True
+        if backup:
+            check_detection(corr, params, mode=mode, tol=tol, update=update,
+                            hdf5_file='{}_autobackup.hdf5'.format(hdf5_file.split('.h')[0]))
 
     else:
         raise ValueError('output mode ({}) not supported!'.format(mode))
