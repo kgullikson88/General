@@ -6,7 +6,7 @@ import os
 import csv
 from collections import defaultdict
 import logging
-from astropy import units, constants
+from astropy import units
 
 from scipy.optimize import bisect
 from scipy.stats import scoreatpercentile
@@ -923,6 +923,39 @@ def get_max_velocity(p_spt, s_temp):
     Rsun = constants.R_sun.cgs.value
     v2 = 2.0 * G * Msun * (M1 + M2) / (Rsun * R1 * (T1 / s_temp) ** 2)
     return np.sqrt(v2) * units.cm.to(units.km)
+
+
+from astropy import units as u, constants
+
+
+@u.quantity_input(v=u.km / u.s, d=u.parsec)
+def get_max_separation(p_spt, s_temp, v, d=1.0 * u.parsec):
+    """
+    Get the maximum separation for a binary candidate
+    :param p_spt:   The spectral type of the primary star
+    :param s_temp:  The temperature of the companion
+    :param v:       The velocity, in km/s, of the companion
+    :param d:       The distance, in parsec, to the system
+    :return:        The maximum primary-->secondary separation, in arcseconds
+    """
+    # Convert the companion temperature and primary spectral type to mass
+    import Mamajek_Table
+
+    MS = SpectralTypeRelations.MainSequence()
+    MT = Mamajek_Table.MamajekTable()
+    teff2mass = MT.get_interpolator('Teff', 'Msun')
+    M1 = MS.Interpolate('mass', p_spt)
+    M2 = teff2mass(s_temp)
+    Mt = (M1 + M2) * u.M_sun
+
+    # Compute the maximum separation
+    G = constants.G
+    a_max = (G * Mt / v ** 2)
+    alpha_max = (a_max / d).to(u.arcsecond, equivalencies=u.dimensionless_angles())
+    return alpha_max
+
+
+
 
 
 def FindOrderNums(orders, wavelengths):
