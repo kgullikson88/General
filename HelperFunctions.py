@@ -6,7 +6,7 @@ import os
 import csv
 from collections import defaultdict
 import logging
-from astropy import units
+from astropy import units as u, constants
 
 from scipy.optimize import bisect
 from scipy.stats import scoreatpercentile
@@ -16,6 +16,7 @@ from astropy.io import fits as pyfits
 import numpy as np
 from astropy.time import Time
 from statsmodels.stats.proportion import proportion_confint
+import pandas as pd
 
 import DataStructures
 import pySIMBAD as sim
@@ -352,8 +353,8 @@ def ReadFits(datafile, errors=False, extensions=False, x=None, y=None, cont=None
                 if "label=Wavelength" in header[key] and "units" in header[key]:
                     waveunits = header[key].split("units=")[-1]
                     if waveunits == "angstroms" or waveunits == "Angstroms":
-                        #wave_factor = Units.nm/Units.angstrom
-                        wave_factor = units.angstrom.to(units.nm)
+                        # wave_factor = u.nm/u.angstrom
+                        wave_factor = u.angstrom.to(u.nm)
                         if debug:
                             print "Wavelength units are Angstroms. Scaling wavelength by ", wave_factor
 
@@ -620,8 +621,8 @@ def astropy_smooth(data, vel, linearize=False, kernel=convolution.Gaussian1DKern
         data = linear
 
     # Figure out feature size in pixels
-    if not isinstance(vel, units.quantity.Quantity):
-        vel *= units.km / units.second
+    if not isinstance(vel, u.quantity.Quantity):
+        vel *= u.km / u.second
 
     #featuresize = (np.median(data.x) * vel / constants.c).decompose().value
     #dlam = data.x[1] - data.x[0]
@@ -922,10 +923,8 @@ def get_max_velocity(p_spt, s_temp):
     Msun = constants.M_sun.cgs.value
     Rsun = constants.R_sun.cgs.value
     v2 = 2.0 * G * Msun * (M1 + M2) / (Rsun * R1 * (T1 / s_temp) ** 2)
-    return np.sqrt(v2) * units.cm.to(units.km)
+    return np.sqrt(v2) * u.cm.to(u.km)
 
-
-from astropy import units as u, constants
 
 
 @u.quantity_input(v=u.km / u.s, d=u.parsec)
@@ -954,6 +953,26 @@ def get_max_separation(p_spt, s_temp, v, d=1.0 * u.parsec):
     alpha_max = (a_max / d).to(u.arcsecond, equivalencies=u.dimensionless_angles())
     return alpha_max
 
+
+OBS_TARGET_FNAME = '{}/Dropbox/School/Research/AstarStuff/TargetLists/Observed_Targets3.xls'.format(os.environ['HOME'])
+
+
+def read_observed_targets(target_filename=OBS_TARGET_FNAME):
+    """
+    Reads the observed targets excel file into a pandas dataframe
+    :param target_filename: The filename to read. Has a very specific format!
+    :return:
+    """
+    sample_names = ['identifier', 'RA/DEC (J2000)', 'plx', 'Vmag', 'Kmag', 'vini', 'configuration', 'Instrument',
+                    'Date',
+                    'Temperature', 'Velocity', 'vsini_sec', '[Fe/H]', 'Significance', 'Sens_min', 'Sens_any',
+                    'Comments',
+                    'Rank', 'Keck', 'VLT', 'Gemini', 'Imaging_Detecton']
+    sample = pd.read_excel(target_filename, sheetname=0, na_values=['     ~'], names=sample_names)
+    sample = sample.reset_index(drop=True)[1:]
+    sample.dropna(subset=['RA/DEC (J2000)', 'Instrument'], how='any', inplace=True)
+
+    return sample
 
 
 
