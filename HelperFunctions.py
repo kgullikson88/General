@@ -963,16 +963,23 @@ def read_observed_targets(target_filename=OBS_TARGET_FNAME):
     :param target_filename: The filename to read. Has a very specific format!
     :return:
     """
-    sample_names = ['identifier', 'RA/DEC (J2000)', 'plx', 'Vmag', 'Kmag', 'vini', 'configuration', 'Instrument',
+    sample_names = ['identifier', 'RA/DEC (J2000)', 'plx', 'Vmag', 'Kmag', 'vsini', 'SpT', 'configuration', 'Instrument',
                     'Date',
                     'Temperature', 'Velocity', 'vsini_sec', '[Fe/H]', 'Significance', 'Sens_min', 'Sens_any',
                     'Comments',
                     'Rank', 'Keck', 'VLT', 'Gemini', 'Imaging_Detecton']
-    sample = pd.read_excel(target_filename, sheetname=0, na_values=['     ~'], names=sample_names)
-    sample = sample.reset_index(drop=True)[1:]
-    sample.dropna(subset=['RA/DEC (J2000)', 'Instrument'], how='any', inplace=True)
 
-    return sample
+    def plx_convert(s):
+        try:
+            return float(s)
+        except ValueError:
+            return np.nan
+
+    sample = pd.read_excel(target_filename, sheetname=0, na_values=['     ~'], names=sample_names,
+                           converters=dict(plx=plx_convert))
+    sample = sample.reset_index(drop=True)[1:]
+
+    return sample.convert_objects()
 
 
 
