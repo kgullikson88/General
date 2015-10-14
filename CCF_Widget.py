@@ -23,7 +23,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 # Parse command-line arguments 
-ADDMODE = 'simple'
+ADDMODE = 'ml'
 
 class CCF_App(VBox):
     extra_generated_classes = [["CCF_App", "CCF_App", "VBox"]]
