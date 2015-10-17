@@ -697,11 +697,9 @@ def check_detection(corr, params, mode='text', tol=5, update=True, hdf5_file='Se
                     f.close()
                 return
 
-        if len(current_datasets) == 0:
-            ds = T.create_dataset('ds1', data=np.array((corr.x, corr.y)), maxshape=(2, None))
-        else:
-            ds_num = max(int(das[2:]) for das in current_datasets) + 1
-            ds = T.create_dataset('ds{}'.format(ds_num), data=np.array((corr.x, corr.y)), maxshape=(2, None))
+        # If we get here, the dataset does not yet exist so create it.
+        ds_num = len(current_datasets) + 1
+        ds = T.create_dataset('ds{}'.format(ds_num), data=np.array((corr.x, corr.y)), maxshape=(2, None))
 
         # Add attributes to the dataset
         ds.attrs['vsini'] = params['secondary_vsini']
