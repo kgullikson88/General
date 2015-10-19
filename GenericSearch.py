@@ -828,6 +828,7 @@ def save_ccf(corr, params, mode='text', update=False):
         # Add a new dataset. The name doesn't matter
         attr_pars = ['vbary'] if 'vbary' in params else []
         attr_pars.extend(['vsini', 'T', 'logg', '[Fe/H]', 'addmode', 'fname'])
+        """
         for ds_name in d.keys():
             ds_test = d[ds_name]
             if 'fname' in ds_test.attrs:
@@ -850,6 +851,7 @@ def save_ccf(corr, params, mode='text', update=False):
                     f.flush()
                     f.close()
                 return
+        """
 
 
         # If we get here, no matching dataset was found.
