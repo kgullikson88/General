@@ -1606,7 +1606,7 @@ class RVFitter(Bayesian_LS):
     def mnest_prior(self, cube, ndim, nparams):
         cube[0] = cube[0] * 400. - 200.  # RV - uniform on (-200, 200)
         cube[1] = cube[1]*400.         # vsini - uniform on (0, 400)
-        cube[3] = cube[3] * 10  # veiling: uniform on (0,10)
+        cube[3] = cube[3] * 10.2 - 0.2  # veiling: uniform on (-0.2, 10) (basically 0->10, but leaving room to prevent convergence on the edge of the prior volume)
 
         if ndim > 4:
             cube[4] = cube[4] * 2000 + 2500.  # flat-field temperature - uniform on (2500, 4500)
