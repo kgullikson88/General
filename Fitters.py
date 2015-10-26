@@ -33,6 +33,7 @@ from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline, ensure_di
 
 
 
+
 ##import pdb
 
 
@@ -1565,7 +1566,7 @@ class RVFitter(Bayesian_LS):
         self._feh = None
         self._normalize_model = norm_model
 
-        parnames = ['RV', 'vsini', 'epsilon']
+        parnames = ['RV', 'vsini', 'epsilon', 'veil']
         if fit_bb_fluxes:
             parnames.extend(['T_ff', 'T_source'])
         super(RVFitter, self).__init__(x, y, yerr, param_names=parnames)
@@ -1603,12 +1604,13 @@ class RVFitter(Bayesian_LS):
 
 
     def mnest_prior(self, cube, ndim, nparams):
-        cube[0] = cube[0]*400. - 200.  # RV - uniform on (-100, 100)
+        cube[0] = cube[0] * 400. - 200.  # RV - uniform on (-200, 200)
         cube[1] = cube[1]*400.         # vsini - uniform on (0, 400)
+        cube[3] = cube[3] * 10.2 - 0.2  # veiling: uniform on (-0.2, 10) (basically 0->10, but leaving room to prevent convergence on the edge of the prior volume)
 
-        if ndim > 3:
-            cube[3] = cube[3] * 2000 + 2500.  # flat-field temperature - uniform on (2500, 4500)
-            cube[4] = norm(loc=self._T, scale=1000).ppf(cube[4])  # source temperature - gaussian with large std. dev.
+        if ndim > 4:
+            cube[4] = cube[4] * 2000 + 2500.  # flat-field temperature - uniform on (2500, 4500)
+            cube[5] = norm(loc=self._T, scale=1000).ppf(cube[5])  # source temperature - gaussian with large std. dev.
         return 
 
     
@@ -1618,11 +1620,11 @@ class RVFitter(Bayesian_LS):
         and shifting to the appropriate velocity
         """
 
-        if len(p) > 3:
-            rv, vsini, epsilon, Tff, Tsource = p[:5]
+        if len(p) > 4:
+            rv, vsini, epsilon, veil, Tff, Tsource = p[:5]
             estimate_bb_fluxes = True
         else:
-            rv, vsini, epsilon = p
+            rv, vsini, epsilon, veil = p
             estimate_bb_fluxes = False
 
         model = Broaden.RotBroad(self.model_spec, vsini*u.km.to(u.cm), 
@@ -1633,7 +1635,7 @@ class RVFitter(Bayesian_LS):
 
         model_orders = []
         for xi in x:
-            mi = fcn(xi*(1-rv/self._clight))
+            mi = (fcn(xi * (1 - rv / self._clight)) + veil) / (veil + 1)
             if estimate_bb_fluxes:
                 prim_bb = blackbody(xi * u.nm.to(u.cm), Tsource)
                 ff_bb = blackbody(xi * u.nm.to(u.cm), Tff)
@@ -1667,12 +1669,12 @@ class RVFitter(Bayesian_LS):
         """Prior probability function for emcee: flat in all variables except Tsource
         """
         if len(pars) > 3:
-            rv, vsini, epsilon, Tff, Tsource = pars[:5]
+            rv, vsini, epsilon, veil, Tff, Tsource = pars[:5]
         else:
-            rv, vsini, epsilon = pars
+            rv, vsini, epsilon, veil = pars
             Tff = 3500.
             Tsource = self._T
-        if -100 < rv < 100 and 0 < vsini < 400 and 0 < epsilon < 1 and 1000 < Tff < 10000:
+        if -100 < rv < 100 and 0 < vsini < 400 and 0 < epsilon < 1 and 0 < veil < 10 and 1000 < Tff < 10000:
             return -0.5 * (Tsource - self._T) ** 2 / (300 ** 2)
         return -np.inf
 
