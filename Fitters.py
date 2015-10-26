@@ -1527,7 +1527,7 @@ class RVFitter(Bayesian_LS):
     Fits a model spectrum to the data, finding the RV shift
     """
 
-    def __init__(self, echelle_spec, model_library, T=9000, logg=4.0, feh=0.0, fit_bb_fluxes=False, norm_model=True):
+    def __init__(self, echelle_spec, model_library, T=9000, logg=4.0, feh=0.0, fit_bb_fluxes=False, norm_model=True, fit_veiling=False):
         """
         Initialize the RVFitter class. This class uses a phoenix model
         spectrum to find the best radial velocity shift of the given data.
@@ -1545,6 +1545,8 @@ class RVFitter(Bayesian_LS):
 
         :param norm_model: Whether or not to fit the continuum to the model spectrum. If False, the model
                            spectra in model_library are assumed to be pre-normalized.
+
+        :param fit_veiling: Should we fit a veiling parameter to account for lines that are way too small?
         """
 
         # Find the smallest order
@@ -1566,7 +1568,9 @@ class RVFitter(Bayesian_LS):
         self._feh = None
         self._normalize_model = norm_model
 
-        parnames = ['RV', 'vsini', 'epsilon', 'veil']
+        parnames = ['RV', 'vsini', 'epsilon']
+        if fit_veiling:
+            parnames.append('veil')
         if fit_bb_fluxes:
             parnames.extend(['T_ff', 'T_source'])
         super(RVFitter, self).__init__(x, y, yerr, param_names=parnames)
@@ -1606,7 +1610,9 @@ class RVFitter(Bayesian_LS):
     def mnest_prior(self, cube, ndim, nparams):
         cube[0] = cube[0] * 400. - 200.  # RV - uniform on (-200, 200)
         cube[1] = cube[1]*400.         # vsini - uniform on (0, 400)
-        cube[3] = cube[3] * 10.2 - 0.2  # veiling: uniform on (-0.2, 10) (basically 0->10, but leaving room to prevent convergence on the edge of the prior volume)
+
+        if ndim > 3:
+            cube[3] = cube[3] * 10.2 - 0.2  # veiling: uniform on (-0.2, 10) 
 
         if ndim > 4:
             cube[4] = cube[4] * 2000 + 2500.  # flat-field temperature - uniform on (2500, 4500)
@@ -1619,13 +1625,13 @@ class RVFitter(Bayesian_LS):
         Generate a model spectrum by convolving with a rotational profile,
         and shifting to the appropriate velocity
         """
-
+        rv, vsini, epsilon = p[:3]
+        veil = 0.0
+        if len(p) > 3:
+            veil = p[3]
         if len(p) > 4:
-            rv, vsini, epsilon, veil, Tff, Tsource = p[:5]
+            Tff, Tsource = p[4:6]
             estimate_bb_fluxes = True
-        else:
-            rv, vsini, epsilon, veil = p
-            estimate_bb_fluxes = False
 
         model = Broaden.RotBroad(self.model_spec, vsini*u.km.to(u.cm), 
                                  epsilon=epsilon, 
@@ -1668,12 +1674,15 @@ class RVFitter(Bayesian_LS):
     def lnprior(self, pars):
         """Prior probability function for emcee: flat in all variables except Tsource
         """
-        if len(pars) > 3:
-            rv, vsini, epsilon, veil, Tff, Tsource = pars[:5]
-        else:
-            rv, vsini, epsilon, veil = pars
-            Tff = 3500.
-            Tsource = self._T
+        rv, vsini, epsilon = p[:3]
+        veil = 0.0
+        Tff = 3500
+        Tsource = self._T
+        if len(p) > 3:
+            veil = p[3]
+        if len(p) > 4:
+            Tff, Tsource = p[4:6]
+
         if -100 < rv < 100 and 0 < vsini < 400 and 0 < epsilon < 1 and 0 < veil < 10 and 1000 < Tff < 10000:
             return -0.5 * (Tsource - self._T) ** 2 / (300 ** 2)
         return -np.inf
@@ -1969,32 +1978,19 @@ class RVFitter(Bayesian_LS):
         scale_factor = self._fit_factor(self.x, model_orders, self.y)
 
         # Normalize and (optionally) plot
-        Tff, Tsource = pars[3:]
         normalized = []
         normalized_err = []
         lnlike = 0.0
         if plot:
             fig, ax = plt.subplots()  # figsize=(15, 10))
         for xi, yi, yi_err, model, f in zip(self.x, self.y, self.yerr, model_orders, scale_factor):
-            # prim_bb = blackbody(xi * u.nm.to(u.cm), Tsource)
-            #ff_bb = blackbody(xi * u.nm.to(u.cm), Tff)
-
-            #cont = RobustFit(xi, yi / model, fitorder)
             cont = np.poly1d(np.polyfit(xi, yi/model, fitorder))(xi)
-            #cont = FittingUtilities.Continuum(xi, yi / model, fitorder, lowreject=2, highreject=5)
-            #tmp = DataStructures.xypoint(x=xi, y=yi/model)
-            #cont = astropy_smooth(tmp, vel=500.0)
-
-            # normed = yi * (ff_bb / prim_bb) / cont
-            #normed_err = yi_err * (ff_bb / prim_bb) / cont
+            
             normed = yi / cont
             normed_err = yi_err / cont
             if plot:
                 ax.plot(xi, normed, alpha=0.5)
                 ax.plot(xi, model, 'k-', lw=1)
-                #ax.plot(xi, model * ff_bb / prim_bb, 'k-', lw=1)
-                #ax.plot(xi, yi / model, 'k-', alpha=0.4)
-                #ax.plot(xi, cont, 'r-', alpha=0.8, lw=2)
 
             normalized.append(normed)
             normalized_err.append(normed_err)
