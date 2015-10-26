@@ -742,6 +742,8 @@ def check_existence(hdf5_file, params):
             for _, ds in f[starname][date][teff].iteritems():
                 logging.debug(ds.name)
                 attrs = ds.attrs
+                for a in attrs:
+                    logging.debug('{}: {}'.format(a, attrs[a]))
                 if all([key in attrs for key in ['vsini', 'logg', '[Fe/H]', 'rv', 'addmode'] ]):
                         
                     if (np.isclose(vsini, attrs['vsini']) and np.isclose(logg, attrs['logg']) and
@@ -750,6 +752,8 @@ def check_existence(hdf5_file, params):
                         logging.debug('Match found!')
                         retval = True
                 else:
+                    for a in attrs:
+                        logging.info('{}: {}'.format(a, attrs[a]))
                     raise KeyError('Keys not all found in ds {}'.format(ds.name))
             return retval
 

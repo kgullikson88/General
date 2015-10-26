@@ -1174,7 +1174,6 @@ def CombineXYpoints(xypts, snr=None, xspacing=None, numpoints=None, interp_order
             xspacing = avg_spacing
         numpoints = (last - first) / xspacing
     x = np.linspace(first, last, numpoints)
-    # print(x)
 
     full_array = DataStructures.xypoint(x=x, y=np.zeros(x.size), err=np.zeros(x.size))
     numvals = np.zeros(x.size, dtype=np.float)  # The number of arrays each x point is in
@@ -1188,19 +1187,11 @@ def CombineXYpoints(xypts, snr=None, xspacing=None, numpoints=None, interp_order
         if right < xypt.size():
             right += 1
         numvals[left:right] += 1.0
-        #val, err = interpolator(full_array.x[left:right])
         val, err = interpolator(full_array.x[left:right]), err_interpolator(full_array.x[left:right])
         full_array.y[left:right] += val
         full_array.err[left:right] += err ** 2
-        # print(interpolator(full_array.x[left:right]))
-        # print(full_array.x[left:right])
-        #print(xypt.x)
-        #print '\n'
 
-    # import pylab
-    # pylab.plot(full_array.x, numvals)
     full_array.err = np.sqrt(full_array.err)
-    print np.unique(numvals)
     full_array.y[numvals > 0] /= numvals[numvals > 0]
     return full_array
 
