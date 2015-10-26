@@ -1627,6 +1627,7 @@ class RVFitter(Bayesian_LS):
         """
         rv, vsini, epsilon = p[:3]
         veil = 0.0
+        estimate_bb_fluxes = False
         if len(p) > 3:
             veil = p[3]
         if len(p) > 4:
