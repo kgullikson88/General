@@ -31,6 +31,7 @@ from astropy import units as u
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import re
 import sys
+import os
 import logging
 import matplotlib.pyplot as plt
 import h5py
@@ -505,7 +506,7 @@ def slow_companion_search(fileList,
                           observatory="CTIO",
                           addmode="ML",
                           output_mode='text',
-                          output_file='CCF.hdf5'
+                          output_file='CCF.hdf5',
                           obstype='real',
                           debug=False,
                           makeplots=False):
