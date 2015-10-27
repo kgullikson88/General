@@ -505,6 +505,7 @@ def slow_companion_search(fileList,
                           observatory="CTIO",
                           addmode="ML",
                           output_mode='text',
+                          output_file='CCF.hdf5'
                           obstype='real',
                           debug=False,
                           makeplots=False):
@@ -537,6 +538,7 @@ def slow_companion_search(fileList,
     :param output_mode: How to output. Valid options are:
          1: text, which is just ascii data with a filename convention. This is the default option
          2: hdf5, which ouputs a single hdf5 file with all the metadata necessary to classify the output
+    :param output_file: An HDF5 file to output to. Only used if output_mode = 'hdf5'
     :param obstype: Is this a synthetic binary star or real observation? (default is real)
     :param debug: Flag to print a bunch of information to screen, and save some intermediate data files
     :param makeplots: A 'higher level' of debug. Will make a plot of the data and model orders for each model.
@@ -696,7 +698,7 @@ def slow_companion_search(fileList,
                                     'vsini_prim': vsini_prim, 'vsini': vsini_sec,
                                     'T': temp, 'logg': gravity, '[Fe/H]': metallicity}
                             pars['vbary'] = vbary if vbary_correct else np.nan
-                            save_ccf(corr, params=pars, mode=output_mode)
+                            save_ccf(corr, params=pars, mode=output_mode, hdf_outfilename=output_file)
 
                         # Save the individual orders, if debug=True
                         if debug:
@@ -717,7 +719,7 @@ def slow_companion_search(fileList,
     return
 
 
-def save_synthetic_ccf(corr, params, mode='text', update=True):
+def save_synthetic_ccf(corr, params, mode='text', update=True, hdf_outfilename='CCF.hdf5'):
     """
     Save the cross-correlation function in the given way.
     :param: corr: The DataStructures object holding the cross-correlation function
@@ -738,7 +740,7 @@ def save_synthetic_ccf(corr, params, mode='text', update=True):
 
     elif mode.lower() == 'hdf5':
         # Get the hdf5 file
-        hdf5_file = '{0:s}CCF.hdf5'.format(params['outdir'])
+        hdf5_file = os.path.join(params['outdir'], hdf_outfilename)
         print('Saving CCF to {}'.format(hdf5_file))
         f = h5py.File(hdf5_file, 'a')
 
@@ -779,7 +781,7 @@ def save_synthetic_ccf(corr, params, mode='text', update=True):
         raise ValueError('output mode ({}) not supported!'.format(mode))
 
 
-def save_ccf(corr, params, mode='text', update=False):
+def save_ccf(corr, params, mode='text', update=False, hdf_outfilename='CCF.hdf5'):
     """
     Save the cross-correlation function in the given way.
     :param: corr: The DataStructures object holding the cross-correlation function
@@ -793,7 +795,7 @@ def save_ccf(corr, params, mode='text', update=False):
         for am in corr.keys():
             p = dict(**params)
             p['addmode'] = am
-            save_ccf(corr[am], p, mode=mode, update=update)
+            save_ccf(corr[am], p, mode=mode, update=update, hdf_outfilename=hdf_outfilename)
         return
 
     if mode.lower() == 'text':
@@ -802,7 +804,7 @@ def save_ccf(corr, params, mode='text', update=False):
 
     elif mode.lower() == 'hdf5':
         # Get the hdf5 file
-        hdf5_file = '{0:s}CCF.hdf5'.format(params['outdir'])
+        hdf5_file = os.path.join(params['outdir'], hdf_outfilename)
         print('Saving CCF to {}'.format(hdf5_file))
         f = h5py.File(hdf5_file, 'a')
 
