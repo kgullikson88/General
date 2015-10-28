@@ -62,7 +62,8 @@ def combine_hdf5_synthetic(file_list, output_file, overwrite=True):
                       The last hdf5 file in the file_list will not be overwritten.
     :return: None
     """
-    assert output_file not in file_list ,'Output file cannot be one of the input files!'
+    if output_file in file_list:
+        raise ValueError('Output file cannot be one of the input files!')
     with h5py.File(output_file, 'w') as output:
         # Loop over the files in file_list
         for fname in file_list:
@@ -117,7 +118,8 @@ def combine_hdf5_real(file_list, output_file, overwrite=True):
                       The last hdf5 file in the file_list will not be overwritten.
     :return: None
     """
-    assert output_file not in file_list ,'Output file cannot be one of the input files!'
+    if output_file in file_list:
+        raise ValueError('Output file cannot be one of the input files!')
     with h5py.File(output_file, 'w') as output:
         # Loop over the files in file_list
         for fname in file_list:
@@ -166,7 +168,8 @@ def combine_hdf5_sensitivity(file_list, output_file='tmp.fits', overwrite=True):
                       The last hdf5 file in the file_list will not be overwritten.
     :return: None
     """
-    assert output_file not in file_list ,'Output file cannot be one of the input files!'
+    if output_file in file_list:
+        raise ValueError('Output file cannot be one of the input files!')
     with h5py.File(output_file, 'w') as output:
         # Loop over the files in file_list
         for fname in file_list:
