@@ -101,7 +101,7 @@ def combine_hdf5_synthetic(file_list, output_file, overwrite=True):
                                     data = ds.value
 
                                 # Make attributes dictionary
-                                attrs = {k: ds.attrs[k] for k in ['T', 'logg', '[Fe/H]', 'vsini']}
+                                attrs = {k: ds.attrs[k] for k in ds.attrs}
 
                                 new_ds = create_dataset(m, ds_name, attrs, data, overwrite,
                                                         chunks=True, maxshape=(2, None))
@@ -151,7 +151,7 @@ def combine_hdf5_real(file_list, output_file, overwrite=True):
                                 data = ds.value
 
                             # Make attributes dictionary
-                            attrs = {k: ds.attrs[k] for k in ['T', 'logg', '[Fe/H]', 'vsini', 'addmode']}
+                            attrs = {k: ds.attrs[k] for k in ds.attrs}
 
                             new_ds = create_dataset(d, ds_name, attrs, data, overwrite,
                                                         chunks=True, maxshape=(2, None))
@@ -206,8 +206,7 @@ def combine_hdf5_sensitivity(file_list, output_file='tmp.fits', overwrite=True):
                                     data = ds.value
 
                                 # Make attributes dictionary
-                                attrs = {k: ds.attrs[k] for k in ['logg', '[Fe/H]', 'vsini', 'rv', 'addmode',
-                                                                  'detected', 'significance']}
+                                attrs = {k: ds.attrs[k] for k in ds.attrs}
 
                                 new_ds = create_dataset(T, ds_name, attrs, data, overwrite,
                                                         chunks=True, maxshape=(2, None))
