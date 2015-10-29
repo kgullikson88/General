@@ -7,6 +7,7 @@ import FittingUtilities
 import RotBroad_Fast as RotBroad
 
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
+from scipy.optimize import minimize
 import numpy as np
 
 import DataStructures
@@ -457,3 +458,28 @@ def GetInformationContent(model):
     return info ** 2
 
 
+def get_rv(vel, corr, Npix):
+    """
+    Get the best radial velocity, with errors.
+    This will only work if the ccf was made with the maximum likelihood method!
+    Uses the formula given in Zucker (2003) MNRAS, 342, 4  for the rv error.
+
+    :param vel:   The velocities
+    :param corr:  The ccf values. Should be the same size as vel
+    :param Npix:  The number of pixels used in the CCF.
+    :return: rv, rv_err
+    """
+    sorter = np.argsort(vel)
+    fcn = spline(vel[sorter], corr[sorter])
+    fcn_prime = fcn.derivative(1)
+    fcn_2prime = fcn.derivative(2)
+
+    guess = vel[np.argmax(corr)]
+
+    def errfcn(v):
+        return (1e6 * fcn_prime(v)) ** 2
+
+    out = minimize(errfcn, guess)
+    rv = out.x[0]
+    rv_var = -(Npix * fcn_2prime(rv) * (fcn(rv) / (1 - fcn(rv) ** 2))) ** (-1)
+    return rv, np.sqrt(rv_var)
