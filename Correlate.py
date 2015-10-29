@@ -467,7 +467,7 @@ def get_rv(vel, corr, Npix, **fit_kws):
     :param vel:   The velocities
     :param corr:  The ccf values. Should be the same size as vel
     :param Npix:  The number of pixels used in the CCF.
-    :return: rv, rv_err
+    :return: rv, rv_err, ccf(rv)
     """
     sorter = np.argsort(vel)
     fcn = spline(vel[sorter], corr[sorter])
@@ -482,4 +482,4 @@ def get_rv(vel, corr, Npix, **fit_kws):
     out = minimize(errfcn, guess, **fit_kws)
     rv = out.x[0]
     rv_var = -(Npix * fcn_2prime(rv) * (fcn(rv) / (1 - fcn(rv) ** 2))) ** (-1)
-    return rv, np.sqrt(rv_var)
+    return rv, np.sqrt(rv_var), fcn(rv)
