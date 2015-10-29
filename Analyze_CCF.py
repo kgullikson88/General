@@ -2,12 +2,14 @@
 This is a module to read in an HDF5 file with CCFs.
 Use this to determine the best parameters, and plot the best CCF for each star/date
 """
+from collections import defaultdict
+import logging
+
 import h5py
 import numpy as np
 import pandas as pd
-from collections import defaultdict
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-import logging
+
 
 class CCF_Interface(object):
     def __init__(self, filename, vel=np.arange(-900, 900, 1)):
@@ -101,28 +103,31 @@ class CCF_Interface(object):
             data = defaultdict(list)
             for ds_name, ds in self.hdf5[starname][date].iteritems():  # in datasets:
                 #ds = self.hdf5[starname][date][ds_name]
-                am = ds.attrs['addmode']
-                if addmode == 'all' or addmode == am:
-                    data['T'].append(ds.attrs['T'])
-                    data['logg'].append(ds.attrs['logg'])
-                    data['[Fe/H]'].append(ds.attrs['[Fe/H]'])
-                    data['vsini'].append(ds.attrs['vsini'])
-                    data['addmode'].append(am)
-                    data['name'].append(ds.name)
-                    try:
-                        data['ccf_max'].append(ds.attrs['ccf_max'])
-                        data['vel_max'].append(ds.attrs['vel_max'])
-                    except KeyError:
-                        vel, corr = ds.value
-                        idx = np.argmax(corr)
-                        data['ccf_max'].append(corr[idx])
-                        data['vel_max'].append(vel[idx])
-                        
-                    if read_ccf:
-                        v = ds.value
-                        vel, corr = v[0], v[1]
-                        fcn = spline(vel, corr)
-                        data['ccf'].append(fcn(self.velocities))
+                try:
+                    am = ds.attrs['addmode']
+                    if addmode == 'all' or addmode == am:
+                        data['T'].append(ds.attrs['T'])
+                        data['logg'].append(ds.attrs['logg'])
+                        data['[Fe/H]'].append(ds.attrs['[Fe/H]'])
+                        data['vsini'].append(ds.attrs['vsini'])
+                        data['addmode'].append(am)
+                        data['name'].append(ds.name)
+                        try:
+                            data['ccf_max'].append(ds.attrs['ccf_max'])
+                            data['vel_max'].append(ds.attrs['vel_max'])
+                        except KeyError:
+                            vel, corr = ds.value
+                            idx = np.argmax(corr)
+                            data['ccf_max'].append(corr[idx])
+                            data['vel_max'].append(vel[idx])
+
+                        if read_ccf:
+                            v = ds.value
+                            vel, corr = v[0], v[1]
+                            fcn = spline(vel, corr)
+                            data['ccf'].append(fcn(self.velocities))
+                except:
+                    raise IOError('Something weird happened with dataset {}!'.format(ds.name))
 
             data['Star'] = [starname] * len(data['T'])
             data['Date'] = [date] * len(data['T'])
