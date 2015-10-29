@@ -1,9 +1,10 @@
-
-import numpy as np
-import pandas as pd
 import os
+
+import pandas as pd
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
+
 import SpectralTypeRelations
+
 
 home = os.environ['HOME']
 TABLE_FILENAME = '{}/Dropbox/School/Research/Databases/SpT_Relations/Mamajek_Table.txt'.format(home)
@@ -27,7 +28,8 @@ class MamajekTable(object):
         mam_df['logAge'] = mam_df['logAge'].map(lambda s: s.strip('*') if isinstance(s, basestring) else s)
 
         # Convert everything to floats
-        self.mam_df = mam_df.convert_objects(convert_numeric=True)
+        # self.mam_df = mam_df.convert_objects(convert_numeric=True)
+        self.mam_df = pd.to_numeric(mam_df, errors='ignore')
 
         # Add the spectral type number for interpolation
         self.mam_df['SpTNum'] = mam_df['SpT'].map(MS.SpT_To_Number)
