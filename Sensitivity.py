@@ -535,7 +535,7 @@ def Analyze(fileList,
                                 scale = sec_flux / prim_flux
 
                                 # Add the model to the data
-                                model_segment = (modelfcn(order.x * (1.0 + rv / lightspeed)) - 1.0) * scale
+                                model_segment = (modelfcn(order.x * (1.0 - rv / lightspeed)) - 1.0) * scale
                                 order.y += model_segment * order.cont
 
                                 orders[ordernum] = order
