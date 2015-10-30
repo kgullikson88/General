@@ -44,6 +44,7 @@ def GetData(starname, safe_spt=False):
     # Try the pre-downloaded database first
     dr = stellar_data.DatabaseReader(DB_NAME)
     star = dr.query_object(starname)
+    dr.db_con.close()
     if len(star) > 0:
         star = star.ix[0]
         data.main_id = star.main_id
