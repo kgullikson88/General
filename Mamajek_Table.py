@@ -24,16 +24,17 @@ class MamajekTable(object):
                   [151,158]]
         mam_df = pd.read_fwf(filename, header=20, colspecs=colspecs, na_values=['...'])[:92]
 
-        # Strip the * from the logAge column. Probably should but...
+        # Strip the * from the logAge column. Probably shouldn't but...
         mam_df['logAge'] = mam_df['logAge'].map(lambda s: s.strip('*') if isinstance(s, basestring) else s)
 
         # Convert everything to floats
-        # self.mam_df = mam_df.convert_objects(convert_numeric=True)
-        self.mam_df = pd.to_numeric(mam_df, errors='ignore')
+        for col in mam_df.columns:
+            mam_df[col] = pd.to_numeric(mam_df[col], errors='ignore')
 
         # Add the spectral type number for interpolation
-        self.mam_df['SpTNum'] = mam_df['SpT'].map(MS.SpT_To_Number)
-
+        mam_df['SpTNum'] = mam_df['SpT'].map(MS.SpT_To_Number)
+        
+        self.mam_df = mam_df
 
     def get_columns(self, print_keys=True):
         """
@@ -60,10 +61,10 @@ class MamajekTable(object):
         assert xcolumn in self.mam_df.keys() and ycolumn in self.mam_df.keys()
 
         # Sort the dataframe by the x column, and drop any duplicates or nans it might have
-        sorted = self.mam_df.sort(xcolumn).dropna(subset=[xcolumn, ycolumn], how='any').drop_duplicates(xcolumn)
+        sorted_df = self.mam_df.sort_values(by=xcolumn).dropna(subset=[xcolumn, ycolumn], how='any').drop_duplicates(xcolumn)
 
         # Make an interpolator
         ext_value = {'nearest': 3, 'extrapolate': 0}
-        fcn = spline(sorted[xcolumn].values, sorted[ycolumn].values, ext=ext_value[extrap])
+        fcn = spline(sorted_df[xcolumn].values, sorted_df[ycolumn].values, ext=ext_value[extrap])
         return fcn
 

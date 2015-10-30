@@ -450,7 +450,8 @@ def flatten_spec(filename, hdf5_lib, teff=9000, logg=4.0, feh=0.0,
             rv = subset.rv.values[0]
             fit = False
         else:
-            good = df.loc[df.index != subset.index]
+            good = df.loc[(df.fname != filename) & (df.star != starname) & (df.date_obs != date)]
+            #good = df.loc[df.index != subset.index]
             good.to_csv(summary_file, header=None, index=False)
     else:
         logging.info('Did not find file ({}) in log ({})'.format(filename, summary_file))
