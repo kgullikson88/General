@@ -761,9 +761,9 @@ def mad(arr):
     if not IsListlike(arr):
         raise ValueError("The input to mad must be a list-like object!")
 
-    median = np.median(arr)
+    median = np.nanmedian(arr)
     arr = np.array(arr)
-    return np.median(np.abs(arr - median))
+    return np.nanmedian(np.abs(arr - median))
 
 
 def split_radec(radec, to_float=False):
