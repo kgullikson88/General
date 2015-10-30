@@ -594,6 +594,7 @@ def check_detection(corr, params, mode='text', tol=5, update=True, hdf5_file='Se
 
     # Find the significance
     if detected:
+        logging.info('Companion detected!')
         fit = FittingUtilities.Continuum(corr.x, corr.y, fitorder=2, lowreject=3, highreject=2.5)
         corr.y -= fit
         goodindices = np.where(np.abs(corr.x - params['velocity']) > 100)[0]
@@ -601,6 +602,7 @@ def check_detection(corr, params, mode='text', tol=5, update=True, hdf5_file='Se
         std = corr.y[goodindices].std()
         significance = (corr.y[idx] - mean) / std
     else:
+        logging.info('Companion not detected...')
         significance = np.nan
 
     # Output
