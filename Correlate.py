@@ -290,8 +290,8 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
         offsets = np.linspace(v1, vf, N)
         velocity = -offsets * constants.c.cgs.value * units.cm.to(units.km)
         corr = DataStructures.xypoint(velocity.size)
-        corr.x = velocity
-        corr.y = ycorr
+        corr.x = velocity[::-1]
+        corr.y = ycorr[::-1]
 
         # Only save part of the correlation
         left = np.searchsorted(corr.x, minvel)
@@ -335,40 +335,27 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
             correlation = spline(corr.x, corr.y, k=1)
             N = data[i].size()
             total.y *= np.power(1.0 - correlation(total.x) ** 2, float(N) / normalization)
-        # master_corr = total.copy()
-        #master_corr.y = np.sqrt(1.0 - total.y)
-        #total_ccfs['ml'] = master_corr.copy()
         total_ccfs['ml'] = np.sqrt(1.0 - total.y)
     if addmode.lower() == "simple" or addmode.lower() == 'all':
         # do a simple addition
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
-            # corr.cont = FittingUtilities.Continuum(corr.x, corr.y, fitorder=2, lowreject=5, highreject=2)
             correlation = spline(corr.x, corr.y, k=1)
             total.y += correlation(total.x)
-        total.y /= float(len(corrlist))
-        # master_corr = total.copy()
-        #total_ccfs['simple'] = master_corr.copy()
-        total_ccfs['simple'] = total.y
+        total_ccfs['simple'] = total.y / float(len(corrlist))
     if addmode.lower() == "dc" or addmode.lower() == 'all':
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
             N = data[i].size()
             correlation = spline(corr.x, corr.y, k=1)
             total.y += float(N) * correlation(total.x) ** 2 / normalization
-        # master_corr = total.copy()
-        #master_corr.y = np.sqrt(master_corr.y)
-        #total_ccfs['dc'] = master_corr.copy()
         total_ccfs['dc'] = np.sqrt(total.y)
     if addmode.lower() == "weighted" or (addmode.lower() == 'all' and orderweights is not None):
         total.y = np.zeros(total.size())
         for i, corr in enumerate(corrlist):
             w = orderweights[i] / np.sum(orderweights)
             correlation = spline(corr.x, corr.y, k=1)
-            total.y += w * correlation(total.x) ** 2  # * float(N) / normalization
-        # master_corr = total.copy()
-        #master_corr.y = np.sqrt(master_corr.y)
-        #total_ccfs['weighted'] = master_corr.copy()
+            total.y += w * correlation(total.x) ** 2 
         total_ccfs['weighted'] = np.sqrt(total.y)
     if addmode.lower() == 'simple-weighted' or (addmode.lower() == 'all' and orderweights is not None):
         total.y = np.zeros(total.size())
@@ -376,10 +363,7 @@ def Correlate(data, model_orders, debug=False, outputdir="./", addmode="ML",
             w = orderweights[i] / np.sum(orderweights)
             correlation = spline(corr.x, corr.y, k=1)
             total.y += correlation(total.x) * w
-        total.y /= float(len(corrlist))
-        # master_corr = total.copy()
-        #total_ccfs['simple-weighted'] = master_corr.copy()
-        total_ccfs['simple-weighted'] = total.y
+        total_ccfs['simple-weighted'] = total.y / float(len(corrlist))
 
     if addmode.lower() == 'all':
         return (total_ccfs, corrlist) if debug else total_ccfs
