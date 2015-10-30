@@ -6,11 +6,17 @@ from astroquery.simbad import Simbad
 import pandas as pd
 from astropy.io import fits
 import numpy as np
+import stellar_data
+from HelperFunctions import convert_to_hex
 
 
 Simbad.SIMBAD_URL = 'http://simbak.cfa.harvard.edu/simbad/sim-script'
 Simbad.TIMEOUT = 120
 Simbad.add_votable_fields('sp', 'flux(V)', 'flux(K)', 'plx')
+
+home = os.environ['HOME']
+DB_NAME = os.path.join(home, 'MyGitRepos', 'Stellar_database', 'Stars.sqlite')
+DB_NAME = os.path.join(home, '.PythonModules', 'Stellar_database', 'Stars.sqlite')
 
 data_cache = {}
 
@@ -34,8 +40,28 @@ def GetData(starname, safe_spt=False):
     if starname in data_cache:
         return data_cache[starname]
 
-    star = Simbad.query_object(starname)
     data = stardata()
+    # Try the pre-downloaded database first
+    dr = stellar_data.DatabaseReader(DB_NAME)
+    star = dr.query_object(starname)
+    if len(star) > 0:
+        star = star.ix[0]
+        data.main_id = star.main_id
+        data.spectype = star.spectral_type
+        if safe_spt:
+            data.spectype = data.spectype.replace('m', '5')
+        data.Vmag = star.Vmag
+        data.Kmag = star.Kmag
+        data.ra = convert_to_hex(star.RA, delimiter=':')
+        data.dec = convert_to_hex(star.DEC, delimiter=':', force_sign=True)
+        data.par = star.parallax
+        data_cache[starname] = data 
+
+        return data
+
+    # If we get here, the star was not found in the stellar_data database
+    # Fall back on astroquery.
+    star = Simbad.query_object(starname)
     if star is None:
         logging.warn('Simbad query for object "{}" failed!'.format(starname))
         data.main_id = starname
