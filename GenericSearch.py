@@ -508,6 +508,8 @@ def slow_companion_search(fileList,
                           output_mode='text',
                           output_file='CCF.hdf5',
                           obstype='real',
+                          min_x=None,
+                          max_x=None,
                           debug=False,
                           makeplots=False):
     """
@@ -541,6 +543,8 @@ def slow_companion_search(fileList,
          2: hdf5, which ouputs a single hdf5 file with all the metadata necessary to classify the output
     :param output_file: An HDF5 file to output to. Only used if output_mode = 'hdf5'
     :param obstype: Is this a synthetic binary star or real observation? (default is real)
+    :param min_x:   The minimum wavelength to use in the model. If not given, the whole model will be used
+    :param max_x:   The maximum wavelength to use in the model. If not given, the whole model will be used
     :param debug: Flag to print a bunch of information to screen, and save some intermediate data files
     :param makeplots: A 'higher level' of debug. Will make a plot of the data and model orders for each model.
     """
@@ -583,7 +587,9 @@ def slow_companion_search(fileList,
                                                                                      metallicity, vsini_sec))
                     # broaden the model
                     model = modeldict[temp][gravity][metallicity][alpha][vsini_sec].copy()
-                    model = Broaden.RotBroad(model, vsini_sec * u.km.to(u.cm), linear=True)
+                    l_idx = 0 if min_x is None else np.searchsorted(model.x, min_x)
+                    r_idx = model.size() if max_x is None else np.searchsorted(model.x, max_x)
+                    model = Broaden.RotBroad(model[l_idx:r_idx], vsini_sec * u.km.to(u.cm), linear=True)
                     if resolution is not None:
                         model = FittingUtilities.ReduceResolutionFFT(model, resolution)
 
