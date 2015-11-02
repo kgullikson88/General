@@ -1212,6 +1212,6 @@ def weighted_mean_and_stddev(arr, weights=None, bad_value=np.nan):
         V1 = np.sum(weights)
         V2 = np.sum(weights ** 2)
 
-        return avg, np.sqrt(var / (1 - V2 / V1 ** 2) + np.nansum(1.0 / weights))
+        return avg, np.sqrt(var / (1 - V2 / V1 ** 2)) + np.nansum(1.0 / np.sqrt(weights))
     return avg, 1.0 / np.sqrt(weights[0])
 
