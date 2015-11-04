@@ -27,6 +27,7 @@ from astropy.modeling.polynomial import Chebyshev2D
 
 import DataStructures
 from HelperFunctions import IsListlike, ExtrapolatingUnivariateSpline, ensure_dir, fwhm
+import fitters as fitting_utilities
 
 
 
@@ -2011,3 +2012,256 @@ class RVFitter(Bayesian_LS):
             return flattened, lnlike
 
         return flattened
+
+
+
+
+
+class SpecFitter(fitting_utilities.Bayesian_LS):
+    """
+    Fits a model spectrum to the data, finding the RV shift, vsini, Teff, log(g), and [Fe/H]
+    """
+
+    def __init__(self, echelle_spec, model_library, T=9000, logg=4.0, feh=0.0, norm_model=True):
+        """
+        Initialize the RVFitter class. This class uses a phoenix model
+        spectrum to find the best radial velocity shift of the given data.
+
+        :param echelle_spec: A list of DataStructures.xypoint instances containing 
+                             each order of the echelle spectrum to fit
+
+        :param model_library: The path to an HDF5 file containing a phoenix model grid.
+
+        :param T: The model temperature (in Kelvin) to use
+        
+        :param logg: The surface gravity (in cgs units) to use
+        
+        :param feh: The metallicity ([Fe/H]) in use
+
+        :param norm_model: Whether or not to fit the continuum to the model spectrum. If False, the model
+                           spectra in model_library are assumed to be pre-normalized.
+
+        """
+
+        # Find the smallest order
+        N = min([o.size() for o in echelle_spec])
+        
+        # Concatenate the echelle orders
+        x = np.array([o.x[:N] for o in echelle_spec])
+        y = np.array([o.y[:N] for o in echelle_spec])
+        yerr = np.array([o.err[:N] for o in echelle_spec])
+        self.spec_orders = echelle_spec
+        ds_x = [xi*10 for xi in x]
+
+        # Save some variables as class vars
+        self._clight = constants.c.cgs.to(u.km / u.s).value
+        a, b = min(x[0]), max(x[-1])
+        self._xScaler = lambda xi: (2 * xi - b - a) / (b - a)
+        self._T = None
+        self._logg = None
+        self._feh = None
+        self._normalize_model = norm_model
+
+        parnames = ['RV', 'vsini', 'epsilon', 'teff', 'logg', 'feh']
+        super(SpecFitter, self).__init__(x, y, yerr, param_names=parnames)
+
+        # Make an interpolator instance using Starfish machinery.
+        hdf5_int = StellarModel.HDF5Interface(model_library)
+        dataspec = StellarModel.DataSpectrum(wls=ds_x, fls=y, sigmas=yerr)
+        self.interpolator = StellarModel.Interpolator(hdf5_int, dataspec)
+        self.update_model(Teff=T, logg=logg, feh=feh)
+
+        return
+
+    def update_model(self, Teff=9000, logg=4.5, feh=0.0):
+        # make sure this is not the model we already have
+        if Teff == self._T and logg == self._logg and feh == self._feh:
+            return
+
+        # Interpolate the model
+        model_flux = self.interpolator(dict(temp=Teff, logg=logg, Z=feh))
+        model = DataStructures.xypoint(x=self.interpolator.wl / 10., y=model_flux)
+
+        # Only keep the parts of the model we need
+        idx = (model.x > self.x[0][0] - 10) & (model.x < self.x[-1][-1] + 10)
+        self.model_spec = model[idx].copy()
+        if self._normalize_model:
+            #self.model_spec.cont = RobustFit(self.model_spec.x, self.model_spec.y, fitorder=3)
+            self.model_spec.cont = FittingUtilities.Continuum(self.model_spec.x, self.model_spec.y, fitorder=3, lowreject=2)
+        else:
+            self.model_spec.cont = np.ones(self.model_spec.size())
+
+        # Update instance variables
+        self._T = Teff
+        self._logg = logg
+        self._feh = feh
+        return
+
+
+    def mnest_prior(self, cube, ndim, nparams):
+        cube[0] = cube[0] * 400. - 200.  # RV - uniform on (-200, 200)
+        cube[1] = cube[1]*400.           # vsini - uniform on (0, 400)
+        cube[3] = cube[3]*23000 + 7000   # Teff - uniform on (7000, 30000)
+        cube[4] = cube[4]*2.0 + 3.0      # log(g) - uniform on (3, 5)
+        cube[5] = cube[5] - 0.5          # [Fe/H] - uniform on (-0.5, 0.5)
+        return 
+
+    
+    def model(self, p, x):
+        """
+        Generate a model spectrum by convolving with a rotational profile,
+        and shifting to the appropriate velocity
+        """
+        rv, vsini, epsilon, logT, logg, feh = p
+        teff = 10**logT 
+        self.update_model(Teff=teff, logg=logg, feh=feh)
+
+        model = Broaden.RotBroad(self.model_spec, vsini*u.km.to(u.cm), 
+                                 epsilon=epsilon, 
+                                 linear=True, findcont=False)
+
+        fcn = spline(model.x, model.y/model.cont)
+
+        model_orders = np.zeros(x.shape)
+        for i, xi in enumerate(x):
+            model_orders[i] = fcn(xi * (1 - rv / self._clight))
+
+        return model_orders
+
+
+    def _lnlike(self, pars):
+        y_pred = self.model(pars, self.x)
+        
+        s = 0
+        for yi, yi_err, ypred_i in zip(self.y, self.yerr, y_pred):
+            s += -0.5 * np.nansum((yi - ypred_i) ** 2 / yi_err ** 2 + np.log(2 * np.pi * yi_err ** 2))
+        return s
+
+
+    def lnprior(self, pars):
+        """Prior probability function for emcee: flat in all variables except Tsource
+        """
+        rv, vsini, epsilon, logT, logg, feh = pars
+        teff = 10**logT
+        
+
+        if -100 < rv < 100 and 0 < vsini < 500 and 0 < epsilon < 1 and 7000 < teff < 30000 and 3.0 < logg < 5.0 and -0.5 < feh < 0.5:
+            return 0.0
+        return -np.inf
+
+
+
+    def guess_fit_parameters(self, *args, **fit_kws):
+        """  Guess the rv, vsini, teff, and logg with a course grid search
+        :param refine: If true, finish the grid search with fmin
+        :return: The best parameter set
+        """
+        import lmfit
+
+        # First, work out the approximate rv and vsini by cross-correlating.
+        logging.info('Estimating the RV and vsini by cross-correlation')
+        vsini_vals = np.linspace(10, 400, 10)
+        max_ccf = np.empty(vsini_vals.size)
+        max_vel = np.empty(vsini_vals.size)
+        for i, vsini in enumerate(vsini_vals):
+            logging.debug('Trying vsini = {} km/s'.format(vsini))
+            data = []
+            for o in self.spec_orders:
+                o.cont = np.median(o.y)*np.ones_like(o.x)
+                data.append(o)
+
+            retdict = Correlate.GetCCF(data, self.model_spec.copy(), resolution=None,
+                                       process_model=True, rebin_data=True,
+                                       vsini=vsini, addmode='ml')
+            ccf = retdict['CCF']
+            idx = np.argmax(ccf.y)
+            max_ccf[i] = ccf.y[idx]
+            max_vel[i] = ccf.x[idx]
+
+        try:
+            coeffs = np.polyfit(vsini_vals, max_ccf, 2)
+            vsini_guess = min(400, -coeffs[1] / (2 * coeffs[0]))
+            idx = np.argmin(np.abs(vsini_vals - vsini_guess))
+            rv_guess = max_vel[idx]
+        except:
+            rv_guess = -max_vel[np.argmax(max_ccf)]
+            vsini_guess = vsini_vals[np.argmax(max_ccf)]
+
+        # Now, fit everything else
+        def errfcn(pars):
+            parvals = pars.valuesdict()
+            p = (parvals['rv'], parvals['vsini'], parvals['epsilon'], parvals['logT'], parvals['logg'], parvals['feh'])
+            #print(p)
+
+            y_pred = self.model(p, self.x)
+            resid = np.zeros(self.x.shape)
+            for i, (yi, yi_err, ypred_i) in enumerate(zip(self.y, self.yerr, y_pred)):
+                resid[i] = 0.5*((yi - ypred_i) ** 2 / yi_err ** 2 + np.log(2 * np.pi * yi_err ** 2)) + self.lnprior(p)
+            retval = resid.flatten()
+            print(p, retval.sum())
+            return retval.sum()
+
+        params = lmfit.Parameters()
+        params.add('rv', value=rv_guess, min=-100, max=100)
+        params.add('vsini', value=vsini_guess, min=10, max=500)
+        params.add('epsilon', value=0.5, min=0.01, max=0.99)
+        params.add('logT', value=3.95, min=3.85, max=4.47)
+        params.add('logg', value=4.0, min=3.0, max=5.0)
+        params.add('feh', value=0.0, min=-0.5, max=0.5)
+
+        result = lmfit.minimize(errfcn, params, **fit_kws)
+
+        return result
+
+
+        
+
+
+
+    def predict(self, x, N=100, highest=False):
+        """
+        predict the y value for the given x values. Use the N most probable MCMC chains if highest=False,
+        otherwise use the first N chains.
+        """
+        if self.samples is None:
+            logging.warn('Need to run the fit method before predict!')
+            return
+
+        # Find the N best walkers
+        if N == 'all':
+            N = self.samples.shape[0]
+        else:
+            N = min(N, self.samples.shape[0])
+
+        if highest:
+            samples = self.samples.sort('lnprob', ascending=False)[:N]
+        else:
+            indices = np.random.randint(0, self.samples.shape[0], N)
+            samples = self.samples.ix[indices]
+
+        pars = samples[self.param_names].as_matrix()
+        y = []
+        for p in pars:
+            ypred = self.model(p, x)
+            scale_factor = self._fit_factor(self.x, ypred, self.y) if len(pars) > 3 else np.ones(len(ypred))
+            y.append([yi*f for yi, f in zip(ypred, scale_factor)])
+        return y
+
+
+        
+    def plot(self, N=100, ax=None, **plot_kws):
+        ypred = self.predict(self.x, N=N)
+
+        if ax is None:
+            ax = plt.gca()
+
+        for i, (xi, yi) in enumerate(zip(self.x, self.y)):
+            ax.plot(xi, yi, 'k-', **plot_kws)
+            for j in range(len(ypred)):
+                mi = ypred[j][i]
+                ax.plot(xi, mi, 'b-', **plot_kws)
+
+        return ax
+
+
+    
