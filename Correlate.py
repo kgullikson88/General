@@ -442,7 +442,7 @@ def GetInformationContent(model):
     return info ** 2
 
 
-def get_rv(vel, corr, Npix, **fit_kws):
+def get_rv(vel, corr, Npix=None, **fit_kws):
     """
     Get the best radial velocity, with errors.
     This will only work if the ccf was made with the maximum likelihood method!
@@ -453,6 +453,8 @@ def get_rv(vel, corr, Npix, **fit_kws):
     :param Npix:  The number of pixels used in the CCF.
     :return: rv, rv_err, ccf(rv)
     """
+    vel = np.atleast_1d(vel)
+    corr = np.atleast_1d(corr)
     sorter = np.argsort(vel)
     fcn = spline(vel[sorter], corr[sorter])
     fcn_prime = fcn.derivative(1)
@@ -465,5 +467,8 @@ def get_rv(vel, corr, Npix, **fit_kws):
 
     out = minimize(errfcn, guess, **fit_kws)
     rv = out.x[0]
+    if Npix is None:
+        Npix = vel.size
     rv_var = -(Npix * fcn_2prime(rv) * (fcn(rv) / (1 - fcn(rv) ** 2))) ** (-1)
     return rv, np.sqrt(rv_var), fcn(rv)
+
