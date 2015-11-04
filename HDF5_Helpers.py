@@ -226,6 +226,11 @@ class Full_CCF_Interface(object):
                            'HET': '{}/School/Research/HET_data/Cross_correlations/CCF.hdf5'.format(home),
                            'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(home),
                            'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF.hdf5'.format(home)}
+        self._ccf_files = {'TS23': '{}/School/Research/McDonaldData/Cross_correlations/CCF_primary_nobalmer.hdf5'.format(home),
+                           'HET': '{}/School/Research/HET_data/Cross_correlations/CCF_primary_nobalmer.hdf5'.format(home),
+                           'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF_primary_nobalmer.hdf5'.format(home),
+                           'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF_primary.hdf5'.format(home)}
+        self._ccf_files = {'CHIRON': '{}/School/Research/CHIRON_data/Adam_Data/Cross_correlations/CCF.hdf5'.format(home)}
         self._interfaces = {inst: Analyze_CCF.CCF_Interface(self._ccf_files[inst]) for inst in self._ccf_files.keys()}
 
         # Variables for correcting measured --> actual temperatures
