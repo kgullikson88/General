@@ -2,6 +2,7 @@ import seaborn as sns
 
 sns.set_style('white')
 sns.set_style('ticks')
+sns.set_context('notebook', font_scale=1.5)
 
 def add_spt_axis(axis, spt_values=('M5', 'M0', 'K5', 'K0', 'G5', 'G0')):
     import SpectralTypeRelations
