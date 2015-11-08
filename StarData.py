@@ -10,7 +10,8 @@ import stellar_data
 from HelperFunctions import convert_to_hex
 
 
-Simbad.SIMBAD_URL = 'http://simbak.cfa.harvard.edu/simbad/sim-script'
+#Simbad.SIMBAD_URL = 'http://simbak.cfa.harvard.edu/simbad/sim-script'
+#Simbad.SIMBAD_URL = 'http://simbad.u-strasbg.f/simbad/sim-script'
 Simbad.TIMEOUT = 120
 Simbad.add_votable_fields('sp', 'flux(V)', 'flux(K)', 'plx')
 
@@ -62,7 +63,12 @@ def GetData(starname, safe_spt=False):
 
     # If we get here, the star was not found in the stellar_data database
     # Fall back on astroquery.
-    star = Simbad.query_object(starname)
+    try:
+        Simbad.SIMBAD_URL = 'http://simbak.cfa.harvard.edu/simbad/sim-script'
+        star = Simbad.query_object(starname)
+    except astroquery.exceptions.TimeoutError:
+        Simbad.SIMBAD_URL = 'http://simbad.u-strasbg.f/simbad/sim-script'
+        star = Simbad.query_object(starname)
     if star is None:
         logging.warn('Simbad query for object "{}" failed!'.format(starname))
         data.main_id = starname
