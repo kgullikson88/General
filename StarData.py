@@ -16,7 +16,8 @@ Simbad.add_votable_fields('sp', 'flux(V)', 'flux(K)', 'plx')
 
 home = os.environ['HOME']
 DB_NAME = os.path.join(home, 'MyGitRepos', 'Stellar_database', 'Stars.sqlite')
-DB_NAME = os.path.join(home, '.PythonModules', 'Stellar_database', 'Stars.sqlite')
+if not os.path.exists(DB_NAME):
+    DB_NAME = os.path.join(home, '.PythonModules', 'Stellar_database', 'Stars.sqlite')
 
 data_cache = {}
 
