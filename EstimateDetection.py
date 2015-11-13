@@ -287,7 +287,7 @@ def get_ages(starname, N_age=100):
     """
     post_dir = '{}/Dropbox/School/Research/AstarStuff/TargetLists/David_and_Hillenbrand2015/'.format(home)
     file_dict = {s.split('-')[0]: '{}{}'.format(post_dir, s) for s in os.listdir(post_dir) if s.endswith('age.txt')}
-    if starname in file_dict:
+    if starname in file_dict and not np.any(np.isnan(np.loadtxt(file_dict[starname]))):
         logging.info('Found posterior age distribution: {}'.format(file_dict[starname]))
         # Read in the PDF, cut out the very small values, and interpolate
         t, P = np.loadtxt(file_dict[starname], unpack=True)
