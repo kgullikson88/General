@@ -879,7 +879,7 @@ class HDF5_Interface(object):
                                         'temperature': [], 'logg': [], '[Fe/H]': [],
                                         'vsini': [], 'significance': [], 'rv': []})
                 df_list = [df]
-        return pd.concat(df_list, ignore_index=True)
+        return pd.concat(df_list, ignore_index=True).convert_objects()
         
         
 
@@ -1032,7 +1032,9 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
     for i, key in enumerate(keys):
         star = key[0]
         date = key[1]
+        addmode = key[4]
         spt = key[5]
+        logging.info('Making figures for {} observed on {} with addmode {}'.format(star, date, addmode))
         plt.figure(i * 3 + 1)
         if len(dataframes['detrate'][key]) == 0:
             dataframes['detrate'].pop(key)
@@ -1043,14 +1045,14 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
         heatmap(dataframes['detrate'][key][['vsini', 'temperature', 'detection rate']], **heatmap_kws)
     
         plt.title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
-        plt.savefig('Figures/T_vsini_Detrate_{}.{}.pdf'.format(star.replace(' ', '_'), date))
+        plt.savefig('Figures/T_vsini_Detrate_{}.{}.addmode-{}.pdf'.format(star.replace(' ', '_'), date, addmode))
 
         plt.figure(i * 3 + 2)
         #sns.heatmap(dataframes['significance'][key].pivot('temperature', 'vsini', 'significance'),
         #            robust=True)
         heatmap(dataframes['significance'][key][['vsini', 'temperature', 'significance']], **heatmap_kws)
         plt.title('Detection Significance for {} ({}) on {}'.format(star, spt, date))
-        plt.savefig('Figures/T_vsini_Significance_{}.{}.pdf'.format(star.replace(' ', '_'), date))
+        plt.savefig('Figures/T_vsini_Significance_{}.{}.addmode-{}.pdf'.format(star.replace(' ', '_'), date, addmode))
 
         plt.figure(i * 3 + 3)
         #p = dataframes['detrate'][key].pivot('vsini', 'contrast', 'detection rate')
@@ -1058,7 +1060,10 @@ def analyze_sensitivity(hdf5_file='Sensitivity.hdf5', interactive=True, update=T
         #sns.heatmap(p, yticklabels=ylabels)
         heatmap(dataframes['detrate'][key][['vsini', 'contrast', 'detection rate']], **heatmap_kws)
         plt.title('Detection Rate for {} ({}) on {}'.format(star, spt, date))
-        plt.savefig('Figures/contrast_vsini_Detrate_{}.{}.pdf'.format(star.replace(' ', '_'), date))
+        plt.savefig('Figures/contrast_vsini_Detrate_{}.{}.addmode-{}.pdf'.format(star.replace(' ', '_'), date, addmode))
+
+        if not interactive:
+            plt.close('all')
 
     if interactive:
         plt.show()
@@ -1080,6 +1085,7 @@ def marginalize_sensitivity(infilename='Sensitivity_Dataframe.csv'):
     ps_cycler = itertools.cycle(plot_styles)
 
     # marginalize over vsini to get 1d temperature vs. detection rate plots
+    HelperFunctions.ensure_dir('Marginalized_Sensitivity')
     df = EstimateDetection.read_detection_rate('Sensitivity_Dataframe.csv')
     detrate = df['detrate']
     fig, ax = plt.subplots()
@@ -1099,7 +1105,7 @@ def marginalize_sensitivity(infilename='Sensitivity_Dataframe.csv'):
         ax.plot(marg_df.temperature, marg_df['detection rate'], ls, label='{} ({})'.format(key[0], key[-1]))
 
         # Save the marginalized dataframe
-        df_outname = '{}_{}_{}.csv'.format(starname, key[1], key[2])
+        df_outname = 'Marginalized_Sensitivity/{}_{}_{}.csv'.format(starname, key[1], key[2])
         logging.info('Saving marginalized dataframe to {}'.format(df_outname))
         marg_df.to_csv(df_outname, index=False)
 
