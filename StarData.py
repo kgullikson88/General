@@ -3,6 +3,7 @@ import os
 import logging
 
 from astroquery.simbad import Simbad
+import astroquery
 import pandas as pd
 from astropy.io import fits
 import numpy as np
@@ -12,9 +13,12 @@ from HelperFunctions import convert_to_hex
 
 #Simbad.SIMBAD_URL = 'http://simbak.cfa.harvard.edu/simbad/sim-script'
 #Simbad.SIMBAD_URL = 'http://simbad.u-strasbg.f/simbad/sim-script'
-Simbad.TIMEOUT = 120
-Simbad.add_votable_fields('sp', 'flux(V)', 'flux(K)', 'plx')
-
+Simbad.TIMEOUT = 60
+try:
+    Simbad.add_votable_fields('sp', 'flux(V)', 'flux(K)', 'plx')
+except KeyError:
+    pass
+    
 home = os.environ['HOME']
 DB_NAME = os.path.join(home, 'MyGitRepos', 'Stellar_database', 'Stars.sqlite')
 DB_NAME = os.path.join(home, '.PythonModules', 'Stellar_database', 'Stars.sqlite')
@@ -67,7 +71,7 @@ def GetData(starname, safe_spt=False):
         Simbad.SIMBAD_URL = 'http://simbak.cfa.harvard.edu/simbad/sim-script'
         star = Simbad.query_object(starname)
     except astroquery.exceptions.TimeoutError:
-        Simbad.SIMBAD_URL = 'http://simbad.u-strasbg.f/simbad/sim-script'
+        Simbad.SIMBAD_URL = 'http://simbad.u-strasbg.fr/simbad/sim-script'
         star = Simbad.query_object(starname)
     if star is None:
         logging.warn('Simbad query for object "{}" failed!'.format(starname))
