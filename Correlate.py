@@ -463,7 +463,9 @@ def get_rv(vel, corr, Npix=None, **fit_kws):
     guess = vel[np.argmax(corr)]
 
     def errfcn(v):
-        return (1e6 * fcn_prime(v)) ** 2
+        ll = 1e6*fcn_prime(v)**2
+        #print(v, ll)
+        return ll
 
     out = minimize(errfcn, guess, **fit_kws)
     rv = out.x[0]
