@@ -23,7 +23,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 # Parse command-line arguments 
-ADDMODE = 'ml'
+ADDMODE = 'simple'
 
 class CCF_App(VBox):
     extra_generated_classes = [["CCF_App", "CCF_App", "VBox"]]
@@ -49,7 +49,7 @@ class CCF_App(VBox):
     inst_date_select = Instance(Select)
     input_box = Instance(VBoxForm)
 
-    _ccf_interface = Full_CCF_Interface(cache=False, update_cache=False)
+    _ccf_interface = Full_CCF_Interface(cache=True, update_cache=False)
     _df_cache = {}
 
 
@@ -157,7 +157,7 @@ class CCF_App(VBox):
         )
         p.circle("T", "ccf_max",
                  size=10,
-                 nonselection_alpha=0.9,
+                 nonselection_alpha=0.6,
                  source=source
         )
         p.xaxis[0].axis_label = 'Temperature (K)'
@@ -174,6 +174,7 @@ class CCF_App(VBox):
         ])
         return p, highest
 
+
     def make_parplot(self):
         p = figure(
             title="CCF Parameters",
@@ -183,7 +184,7 @@ class CCF_App(VBox):
         )
         p.circle("vsini", "feh",
                  size=12,
-                 nonselection_alpha=0.01,
+                 nonselection_alpha=0.003,
                  source=self.main_source
         )
         p.xaxis[0].axis_label = 'vsini (km/s)'
