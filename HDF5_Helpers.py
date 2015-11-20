@@ -220,17 +220,17 @@ class Full_CCF_Interface(object):
     Interface to all of my cross-correlation functions in one class!
     """
 
-    def __init__(self, cache=False, update_cache=True):
+    def __init__(self, cache=False, update_cache=True, **cache_kwargs):
         # Instance variables to hold the ccf interfaces
         self._ccf_files = {'TS23': '{}/School/Research/McDonaldData/Cross_correlations/CCF.hdf5'.format(home),
                            'HET': '{}/School/Research/HET_data/Cross_correlations/CCF.hdf5'.format(home),
                            'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(home),
                            'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF.hdf5'.format(home)}
-        self._ccf_files = {'TS23': '{}/School/Research/McDonaldData/Cross_correlations/CCF_primary_nobalmer.hdf5'.format(home),
-                           'HET': '{}/School/Research/HET_data/Cross_correlations/CCF_primary_nobalmer.hdf5'.format(home),
-                           'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF_primary_nobalmer.hdf5'.format(home),
-                           'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF_primary.hdf5'.format(home)}
-        self._ccf_files = {'CHIRON': '{}/School/Research/CHIRON_data/Adam_Data/Cross_correlations/CCF.hdf5'.format(home)}
+        #self._ccf_files = {'TS23': '{}/School/Research/McDonaldData/Cross_correlations/CCF_primary_nobalmer.hdf5'.format(home),
+        #                   'HET': '{}/School/Research/HET_data/Cross_correlations/CCF_primary_nobalmer.hdf5'.format(home),
+        #                   'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF_primary_nobalmer.hdf5'.format(home),
+        #                   'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF_primary.hdf5'.format(home)}
+        #self._ccf_files = {'CHIRON': '{}/School/Research/CHIRON_data/Adam_Data/Cross_correlations/CCF.hdf5'.format(home)}
         self._interfaces = {inst: Analyze_CCF.CCF_Interface(self._ccf_files[inst]) for inst in self._ccf_files.keys()}
 
         # Variables for correcting measured --> actual temperatures
@@ -252,7 +252,7 @@ class Full_CCF_Interface(object):
 
         self._cache = None
         if cache:
-            self._make_cache(update_cache=update_cache)
+            self._make_cache(update_cache=update_cache, **cache_kwargs)
 
         return
 
@@ -286,18 +286,19 @@ class Full_CCF_Interface(object):
                         print('{}   /   {}'.format(instrument, date))
         return observations
 
-    def _make_cache(self, addmode='simple', update_cache=True, cache_fname='CCF_metadata.csv'):
+    def _make_cache(self, addmode='all', update_cache=True, cache_fname='CCF_metadata.csv'):
         """ Read through all the datasets in each CCF interface, pulling the metadata.
         """
         if self._cache is not None:
             logging.info('Cache already loaded! Not reloading!')
             return
 
-        logging.info('Reading HDF5 metadata for faster access later')
         if not update_cache and os.path.exists(cache_fname):
+            logging.info('Reading pre-made cache from {}'.format(cache_fname))
             self._cache = pd.read_csv(cache_fname)
             return
 
+        logging.info('Reading HDF5 metadata for faster access later')
         dataframes = []
         for inst in self._interfaces.keys():
             logging.debug('Generating cache for instrument {}'.format(inst))
@@ -328,7 +329,7 @@ class Full_CCF_Interface(object):
     def make_summary_df(self, instrument, starname, date, addmode='simple', read_ccf=False):
         if self._cache is not None:
             cache = self._cache
-            data = cache.loc[(cache.Instrument == instrument) & (cache.Star == starname) & (cache.Date == date)]
+            data = cache.loc[(cache.Instrument == instrument) & (cache.Star == starname) & (cache.Date == date) & (cache.addmode == addmode)]
         else:
             interface = self._interfaces[instrument]
             data = interface._compile_data(starname, date, addmode=addmode, read_ccf=read_ccf)
@@ -387,10 +388,11 @@ class Full_CCF_Interface(object):
             raise KeyError('Star ({}) not in instrument ({})'.format(starname, instrument))
         if date not in self._interfaces[instrument].list_dates(starname):
             # Try date +/- 1 before failing (in case of civil/UT date mismatch or something)
-            year, month, day = date.split('-')
-            day = int(day)
+            from datetime import datetime, timedelta
+            year, month, day = [int(s) for s in date.split('-')]
             for inc in [-1, 1]:
-                test_date = '{}-{}-{:02d}'.format(year, month, day + inc)
+                t = datetime(year, month, day) + timedelta(inc)
+                test_date = '{}-{:02d}-{:02d}'.format(t.year, t.month, t.day)
                 if test_date in self._interfaces[instrument].list_dates(starname):
                     return self.get_measured_temperature(starname, test_date, Tmax,
                                                          instrument=instrument, N=N, addmode=addmode)
@@ -399,7 +401,7 @@ class Full_CCF_Interface(object):
 
         # Get CCF information from the requested instrument/star/date combo
         interface = self._interfaces[instrument]
-        logging.info(starname, date, instrument, addmode)
+        logging.info('{}, {}, {}, {}'.format(starname, date, instrument, addmode))
         df = interface._compile_data(starname=starname, date=date, addmode=addmode, read_ccf=True)
         #df['ccf_max'] = df.ccf.map(np.max) Already done now
 
@@ -409,11 +411,11 @@ class Full_CCF_Interface(object):
             requested = requested.loc[requested['[Fe/H]'] == feh]
         if vsini is not  None:
             requested = requested.loc[requested['vsini'] == vsini]
-        best = requested.loc[requested.ccf_max == requested.ccf_max.max()]
-        vsini = best['vsini'].item()
-        metal = best['[Fe/H]'].item()
-        logg = best['logg'].item()
-        idx = np.argmax(best['ccf'].item())
+        i = np.argmax(requested.ccf_max)
+        vsini = requested.loc[i, 'vsini'].item()
+        metal = requested.loc[i, '[Fe/H]'].item()
+        logg = requested.loc[i, 'logg'].item()
+        idx = requested.loc[i, 'ccf'].argmax()
         rv = interface.velocities[idx]
 
         # Now, get the CCF height for the N/2 temperatures on either side of Tmax
@@ -435,7 +437,9 @@ class Full_CCF_Interface(object):
                 d['CCF'].append(np.nan)
                 d['significance'].append(np.nan)
                 continue
-
+           
+            if len(requested) > 1:
+                requested = requested.sort_values(by='ccf_max').tail(1)
             # Save the best parameters for this temperature
             d['Star'].append(starname)
             d['Date'].append(date)
@@ -446,11 +450,12 @@ class Full_CCF_Interface(object):
             d['[Fe/H]'].append(requested['[Fe/H]'].item())
             idx = np.argmin(np.abs(interface.velocities - rv))
             d['rv'].append(rv)
-            d['CCF'].append(requested['ccf'].item()[idx])
+            ccf = requested['ccf'].item()
+            d['CCF'].append(ccf[idx])
 
             # Measure the detection significance
-            std = mad(requested.ccf.item())
-            mean = np.median(requested.ccf.item())
+            std = mad(ccf)
+            mean = np.median(ccf)
             d['significance'].append((d['CCF'][-1] - mean) / std)
 
         # Do the weighted sum.
