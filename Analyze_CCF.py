@@ -124,7 +124,8 @@ class CCF_Interface(object):
                         if read_ccf:
                             v = ds.value
                             vel, corr = v[0], v[1]
-                            fcn = spline(vel, corr)
+                            sorter = np.argsort(vel)
+                            fcn = spline(vel[sorter], corr[sorter])
                             data['ccf'].append(fcn(self.velocities))
                 except:
                     raise IOError('Something weird happened with dataset {}!'.format(ds.name))
