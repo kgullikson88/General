@@ -979,7 +979,11 @@ def read_observed_targets(target_filename=OBS_TARGET_FNAME):
                            converters=dict(plx=plx_convert))
     sample = sample.reset_index(drop=True)[1:]
 
-    return sample.convert_objects()
+    # Convert everything to floats
+    for col in sample.columns:
+        sample[col] = pd.to_numeric(sample[col], errors='ignore')
+
+    return sample
 
 
 
