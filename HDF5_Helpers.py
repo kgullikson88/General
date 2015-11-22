@@ -192,6 +192,7 @@ def combine_hdf5_sensitivity(file_list, output_file='tmp.fits', overwrite=True):
 
                             # Loop over datasets
                             for ds_name, ds in Teff.iteritems():
+                                logging.debug('\t\t\t{}'.format(ds.name))
                                 # Make a more informative dataset name
                                 ds_name = 'logg{}_metal{:+.1f}_vsini{}_rv{:+.0f}_mode-{}'.format(ds.attrs['logg'],
                                                                                                  ds.attrs['[Fe/H]'],
