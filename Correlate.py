@@ -7,7 +7,7 @@ import FittingUtilities
 import RotBroad_Fast as RotBroad
 
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-from scipy.optimize import minimize
+from scipy.optimize import minimize, minimize_scalar
 import numpy as np
 
 import DataStructures
@@ -464,13 +464,13 @@ def get_rv(vel, corr, Npix=None, **fit_kws):
 
     def errfcn(v):
         ll = 1e6*fcn_prime(v)**2
-        #print(v, ll)
         return ll
 
-    out = minimize(errfcn, guess, **fit_kws)
-    rv = out.x[0]
+    out = minimize_scalar(errfcn, bounds=(guess-2, guess+2), method='bounded')
+    rv = out.x
     if Npix is None:
         Npix = vel.size
+    
     rv_var = -(Npix * fcn_2prime(rv) * (fcn(rv) / (1 - fcn(rv) ** 2))) ** (-1)
     return rv, np.sqrt(rv_var), fcn(rv)
 
