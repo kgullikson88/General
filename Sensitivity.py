@@ -409,6 +409,7 @@ def Analyze(fileList,
             Tvalues=range(3000, 6100, 100),
             metal_values=(0.0,),
             logg_values=(4.5,),
+            max_vsini=None,
             modeldir=StellarModel.modeldir,
             hdf5_file=StellarModel.HDF5_FILE,
             addmode="ML",
@@ -431,6 +432,10 @@ def Analyze(fileList,
     :param Tvalues: A list of model temperatures (in K) to correlate the data against.
     :param metal_values: A list of [Fe/H] values to correlate the model against
     :param logg_values: A list of log(g) values (in cgs units) to correlate the model against
+    :param max_vsini: What is the maximum vsini (in km/s) that we search? If it is given and less than 
+                      any of the vsini_values, then the model we correlate against has this vsini. For example,
+                      if one of the vsini_values is 150 km/s and the max_vsini is 40 km/s, then a 150 km/s model
+                      will be added to the data, but we use a 40 km/s model to correlate against the result.
     :param modeldir: The model directory. This is no longer used by default!
     :param hdf5_file: The path to the hdf5 file containing the pre-broadened model grid.
     :param addmode: The way to add the CCFs for each order. Options are:
@@ -475,16 +480,22 @@ def Analyze(fileList,
                                                                                      metallicity, vsini_sec))
                     # broaden the model
                     model = modeldict[temp][gravity][metallicity][alpha][vsini_sec].copy()
-                    model = Broaden.RotBroad(model, vsini_sec * units.km.to(units.cm), linear=True)
+                    broadened = Broaden.RotBroad(model, vsini_sec * units.km.to(units.cm), linear=True)
                     if resolution is not None:
-                        model = FittingUtilities.ReduceResolutionFFT(model, resolution)
+                        broadened = FittingUtilities.ReduceResolutionFFT(broadened, resolution)
+                    if max_vsini is not None and max_vsini < vsini_sec:
+                        search_model = Broaden.RotBroad(model, vsini_sec * units.km.to(units.cm), linear=True)
+                        if resolution is not None:
+                            search_model = FittingUtilities.ReduceResolutionFFT(search_model, resolution)
+                    else:
+                        search_model = broadened.copy()
 
                     # Make an interpolator function
-                    bb_flux = blackbody_lambda(model.x * units.nm, temp)
-                    idx = np.where(model.x > 700)[0]
-                    s = np.median(model.y[idx] / bb_flux[idx])
-                    model.cont = bb_flux * s
-                    modelfcn = interp(model.x, model.y / model.cont)
+                    bb_flux = blackbody_lambda(broadened.x * units.nm, temp)
+                    idx = np.where(broadened.x > 700)[0]
+                    s = np.median(broadened.y[idx] / bb_flux[idx])
+                    broadened.cont = bb_flux * s
+                    modelfcn = interp(broadened.x, broadened.y / broadened.cont)
 
                     for i, (fname, vsini_prim) in enumerate(zip(fileList, primary_vsini)):
                         # Read in data
@@ -546,7 +557,7 @@ def Analyze(fileList,
                                                                 extensions=extensions, trimsize=0,
                                                                 vsini=vsini_prim, logspacing=True,
                                                                 reject_outliers=True)
-                            model_orders = GenericSearch.process_model(model.copy(), orders,
+                            model_orders = GenericSearch.process_model(search_model.copy(), orders,
                                                                        vsini_model=vsini_sec, vsini_primary=vsini_prim,
                                                                        debug=debug, logspace=False)
 
