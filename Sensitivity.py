@@ -890,7 +890,12 @@ class HDF5_Interface(object):
                                         'temperature': [], 'logg': [], '[Fe/H]': [],
                                         'vsini': [], 'significance': [], 'rv': []})
                 df_list = [df]
-        return pd.concat(df_list, ignore_index=True).convert_objects()
+
+        # Convert things to float, when possible
+        df = pd.concat(df_list, ignore_index=True)
+        for col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='ignore')
+        return df
         
         
 
