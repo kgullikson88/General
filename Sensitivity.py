@@ -958,6 +958,7 @@ def read_hdf5(hdf5_file):
     logging.info('Estimating the V-band contrast ratio for each trial')
     keys = [u'primary temps', u'temperature']
     temp = df.groupby(('star')).apply(lambda df: df.loc[(df.rv == 0) & (df.vsini == 0)][keys]).reset_index()
+    logging.debug(temp[['star', 'primary_temps', 'temperature']])
     temp['contrast'] = temp.apply(lambda r: get_contrast(r, band='V'), axis=1)
     df = pd.merge(df, temp[['star', 'temperature', 'contrast']], on=['star', 'temperature'], how='left')
 
