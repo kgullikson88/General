@@ -446,6 +446,7 @@ def Analyze(fileList,
     :param output_mode: How to output. Valid options are:
          1: text, which is just ascii data with a filename convention.
          2: hdf5, which ouputs a single hdf5 file with all the metadata necessary to classify the output
+    :param output_file: The name of the HDF5 file to to save the results to. Only used if output_mode='hdf5'.
     :param vel_list: The list of velocities to add the model to the data with
     :param tolerance: How close the highest CCF peak needs to be to the correct velocity, to count as a detection
     :param rerun: If output_mode=hdf5, check to see if the current parameters have already been checked before running.
@@ -982,7 +983,7 @@ def heatmap(df, ax=None, make_cbar=True, make_labels=True, **plot_kws):
     im = ax.matshow(df.pivot(ycol, xcol, color_col), aspect=aspect_ratio, extent=plot_extents, **plot_kws)
     ax.xaxis.set_ticks_position('bottom')
     if make_cbar:
-        cbar = plt.colorbar(im)
+        cbar = plt.colorbar(im, ax=ax)
         cbar.set_label(color_col)
 
     if make_labels:
