@@ -891,7 +891,12 @@ class HDF5_Interface(object):
                                         'temperature': [], 'logg': [], '[Fe/H]': [],
                                         'vsini': [], 'significance': [], 'rv': []})
                 df_list = [df]
-        return pd.concat(df_list, ignore_index=True).convert_objects()
+
+        # Convert things to float, when possible
+        df = pd.concat(df_list, ignore_index=True)
+        for col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='ignore')
+        return df
         
         
 
@@ -958,7 +963,10 @@ def read_hdf5(hdf5_file):
     # Get the contrast. Split by group and then merge to limit the amount of calculation needed
     logging.info('Estimating the V-band contrast ratio for each trial')
     keys = [u'primary temps', u'temperature']
-    temp = df.groupby(('star')).apply(lambda df: df.loc[(df.rv == 0) & (df.vsini == 0)][keys]).reset_index()
+    test_vsini = df.vsini.unique()[0]
+    temp = df.loc[(df.rv == 0) & (df.vsini == test_vsini)].drop_duplicates(subset=['star', 'temperature'])
+    # temp = df.groupby(('star')).apply(lambda df: df.loc[(df.rv == 0) & (df.vsini == test_vsini)][keys]).reset_index()
+    # logging.debug(temp[['star', 'primary_temps', 'temperature']])
     temp['contrast'] = temp.apply(lambda r: get_contrast(r, band='V'), axis=1)
     df = pd.merge(df, temp[['star', 'temperature', 'contrast']], on=['star', 'temperature'], how='left')
 
