@@ -206,9 +206,8 @@ def GetCCF(data, model, vsini=10.0, resolution=60000, process_model=True, rebin_
         for i, order in enumerate(data):
             start = np.log(order.x[0])
             end = np.log(order.x[-1])
-            neworder = order.copy()
-            neworder.x = np.logspace(start, end, order.size() * oversample, base=np.e)
-            neworder = FittingUtilities.RebinData(order, neworder.x)
+            xgrid = np.logspace(start, end, order.size() * oversample, base=np.e)
+            neworder = FittingUtilities.RebinData(order, xgrid)
             data[i] = neworder
 
     # Process the model if necessary
