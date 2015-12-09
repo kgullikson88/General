@@ -7,17 +7,18 @@ import os
 import logging
 from collections import defaultdict
 import multiprocessing
+from astropy import units as u, constants
 
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize_scalar
 from scipy.interpolate import InterpolatedUnivariateSpline as spline, griddata
-from astropy import units as u, constants
 
 import StarData
 import SpectralTypeRelations
 import Sensitivity
 import Mamajek_Table
+
 
 
 
@@ -273,11 +274,17 @@ def marginalize_vsini(df, age, age_err=None, P0_min=0.1, P0_max=5, N_age=100, N_
     return marginalized.rename(columns={'vsini': 'mean vsini'})[['detection rate', 'mean vsini']].reset_index()
 
 
+def get_cdf(x, P):
+    cdf = np.zeros_like(x)
+    dx = np.diff(x)
+    cdf[1:] = np.cumsum(dx * 0.5 * (P[1:] + P[:-1]))
+    return cdf / cdf[-1]
+
 
 def get_ages(starname, N_age=100):
     """
     Get age samples for the given star. This function will first try to sample from
-    the posterior PDFs that Trevor David gave me (from the paper Trevor & Hillenbrand (2015)).
+    the posterior PDFs that Trevor David gave me (from the paper David & Hillenbrand (2015)).
 
     If my star is not in there, it will try to uniformly sample from the main sequence lifetime of the star.
     :param starname: The name of the star. To find in the posteriod data, it must be of the form HIPNNNNN
@@ -289,20 +296,22 @@ def get_ages(starname, N_age=100):
     file_dict = {s.split('-')[0]: '{}{}'.format(post_dir, s) for s in os.listdir(post_dir) if s.endswith('age.txt')}
     if starname in file_dict and not np.any(np.isnan(np.loadtxt(file_dict[starname]))):
         logging.info('Found posterior age distribution: {}'.format(file_dict[starname]))
-        # Read in the PDF, cut out the very small values, and interpolate
+
+        # Read in the PDF, and convert to a CDF
         t, P = np.loadtxt(file_dict[starname], unpack=True)
-        t = t[P>P.max()/1e3]
-        P = P[P>P.max()/1e3]
-        pdf = spline(t, P)
+        cdf = get_cdf(t, P)
 
-        # Make an array to sample from. It should be about 100x more points than N_age
-        # to ensure the discretization doesn't do bad things.
-        t_arr = np.linspace(t.min(), t.max(), N_age*100)
-        dens = pdf(t_arr)
-        dens[dens<0] = 0.0
+        # Cut out duplicate CDF values
+        df = pd.DataFrame(data=dict(cdf=cdf, time=t))
+        df.drop_duplicates(subset=['cdf'], inplace=True)
 
-        # Sample N_age samples from the posterior distribution
-        samples = 10**np.random.choice(t_arr, size=N_age, p=dens/dens.sum()) / 1e6
+        # Calculate the inverse cdf
+        inv_cdf = spline(df.cdf.values, df.time.values, k=1)
+
+        # Sample
+        samples = inv_cdf(np.random.uniform(size=N_age))
+        samples = 10 ** (samples - 6)
+
 
     else:
         logging.info('Using main sequence age')
