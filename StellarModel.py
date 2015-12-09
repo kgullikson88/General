@@ -58,10 +58,10 @@ def GetModelList(type='phoenix',
     """
 
     # Error checking
-    if ( not ( HelperFunctions.IsListlike(metal) and
-                   HelperFunctions.IsListlike(logg) and
-                   HelperFunctions.IsListlike(temperature))):
-        raise ValueError("The metal, log, and temperature arguments must ALL be list-like!")
+    metal = np.atleast_1d(metal)
+    logg = np.atleast_1d(logg)
+    temperature = np.atleast_1d(temperature)
+    alpha = np.atleast_1d(alpha)
 
     if type.lower() == 'phoenix':
         all_models = sorted([f for f in os.listdir(model_directory) if 'phoenix' in f.lower()])
@@ -147,7 +147,7 @@ def MakeModelDicts(model_list, vsini_values=[10, 20, 30, 40], type='phoenix',
     :return: A dictionary containing the model with keys of temperature, gravity, metallicity, and vsini,
              and another one with a processed flag with the same keys
     """
-
+    vsini_values = np.atleast_1d(vsini_values)
     if type.lower() == 'phoenix':
         modeldict = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(DataStructures.xypoint))))
         processed = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(bool))))
