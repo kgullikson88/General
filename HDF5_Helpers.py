@@ -227,10 +227,10 @@ class Full_CCF_Interface(object):
                            'HET': '{}/School/Research/HET_data/Cross_correlations/CCF.hdf5'.format(home),
                            'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF.hdf5'.format(home),
                            'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF.hdf5'.format(home)}
-        #self._ccf_files = {'TS23': '{}/School/Research/McDonaldData/Cross_correlations/CCF_primary_nobalmer.hdf5'.format(home),
-        #                   'HET': '{}/School/Research/HET_data/Cross_correlations/CCF_primary_nobalmer.hdf5'.format(home),
-        #                   'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF_primary_nobalmer.hdf5'.format(home),
-        #                   'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF_primary.hdf5'.format(home)}
+        #self._ccf_files = {'TS23': '{}/School/Research/McDonaldData/Cross_correlations/CCF_primary_20151129.hdf5'.format(home),
+        #                   'HET': '{}/School/Research/HET_data/Cross_correlations/CCF_primary_20151129.hdf5'.format(home),
+        #                   'CHIRON': '{}/School/Research/CHIRON_data/Cross_correlations/CCF_primary_20151129.hdf5'.format(home),
+        #                   'IGRINS': '{}/School/Research/IGRINS_data/Cross_correlations/CCF_primary_20151129.hdf5'.format(home)}
         #self._ccf_files = {'CHIRON': '{}/School/Research/CHIRON_data/Adam_Data/Cross_correlations/CCF.hdf5'.format(home)}
         self._interfaces = {inst: Analyze_CCF.CCF_Interface(self._ccf_files[inst]) for inst in self._ccf_files.keys()}
 
@@ -407,6 +407,7 @@ class Full_CCF_Interface(object):
         #df['ccf_max'] = df.ccf.map(np.max) Already done now
 
         # Get the parameters and RV of the CCF with the highest peak (which has temperature = Tmax)
+        #print(df)
         requested = df.loc[df['T'] == Tmax]
         if feh is not None:
             requested = requested.loc[requested['[Fe/H]'] == feh]
@@ -478,6 +479,13 @@ class Full_CCF_Interface(object):
         """
 
         # Group by instrument and addmode, and get the PDF for the actual temperature for each
+        df = df.dropna(subset=['Tmeas'])
+        if len(df) == 0:
+            df['Corrected_Temperature'] = np.nan
+            df['T_uperr'] = np.nan
+            df['T_lowerr'] = np.nan
+            return df[['Star', 'Corrected_Temperature', 'T_uperr', 'T_lowerr']].copy()
+            
         groups = df.groupby(('Instrument', 'addmode'))
         Probabilities = []
         for (inst, addmode), group in groups:
@@ -499,7 +507,7 @@ class Full_CCF_Interface(object):
                 probs = np.loadtxt(self._flatlnprob_format.format(**d))
                 fitter.spoof_sampler(chain, probs)
 
-                Ta_arr = np.arange(2000, 10000, 1.0)
+                Ta_arr = np.arange(2000, 12000, 2.0)
                 Tmeas_pred = fitter.predict(Ta_arr, N=10000)
                 Tpredictions = pd.DataFrame(Tmeas_pred, columns=Ta_arr)
 
